@@ -36,6 +36,7 @@ import {
   type BatchProductRow,
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
+import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -454,7 +455,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} />}
 
-      {stepId === 9 && <Step9 products={products} importSummary={importSummary} />}
+      {stepId === 9 && batchId && (
+        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} />
+      )}
 
       {stepId === 10 && (
         <Step10
@@ -1235,10 +1238,38 @@ function Step8({
 function Step9({
   products,
   importSummary,
+  batchId,
+  hasImages,
 }: {
   products: BatchProductRow[] | null;
   importSummary: { imported: number; valid: number; invalid: number; imageOnly: number } | null;
+  batchId: string;
+  hasImages: boolean;
 }) {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [visualMsg, setVisualMsg] = useState<string | null>(null);
+  const [visualErr, setVisualErr] = useState<string | null>(null);
+
+  async function analyzeImages() {
+    setAnalyzing(true);
+    setVisualErr(null);
+    setVisualMsg(null);
+    try {
+      const res = await runVisualExtractionForBatch({ batchId });
+      if (!res.ok) {
+        setVisualErr(res.error);
+        return;
+      }
+      setVisualMsg(
+        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti nella revisione dei dati.`,
+      );
+    } catch {
+      setVisualErr('Analisi immagini non riuscita. Riprova.');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   if (products === null) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1248,6 +1279,31 @@ function Step9({
   }
   return (
     <div className="space-y-4">
+      {hasImages && (
+        <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+              Suggerimenti visivi: verranno usati come fatti solo se li confermi. Materiali,
+              composizione e dati tecnici non sono deducibili dalle immagini.
+            </p>
+            <Button onClick={analyzeImages} disabled={analyzing} className="shrink-0">
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Analizza immagini
+            </Button>
+          </div>
+          {visualMsg && (
+            <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              {visualMsg}{' '}
+              <Link href={`/app/batches/${batchId}/input`} className="font-medium underline">
+                Vai alla revisione
+              </Link>
+            </p>
+          )}
+          {visualErr && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{visualErr}</p>
+          )}
+        </div>
+      )}
       {importSummary && (
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge tone="blue">{importSummary.imported} importati</Badge>

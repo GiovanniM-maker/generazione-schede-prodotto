@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { InputTable, type InputProduct } from '@/components/input-table';
 import { ImportIssuesBanner } from '@/components/import-issues-banner';
 import { computeImportIssues } from '@/lib/import-issues';
+import { InferredAttributesSection } from '@/components/batch/inferred-attributes';
+import { listInferredAttributes } from '@/lib/actions/visual';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +66,33 @@ export default async function InputPage({
 
   const importIssues = await computeImportIssues(supabase, batchId);
 
+  // Attributi suggeriti dalle immagini (inferred_visual, da confermare).
+  const inferred = await listInferredAttributes({ batchId });
+  const inferredProducts = inferred.ok ? inferred.data.products : [];
+
+  // Il batch ha immagini collegate ai prodotti?
+  const productIds = (data ?? []).map((p) => p.id);
+  let hasImages = false;
+  if (productIds.length > 0) {
+    const { data: links } = await supabase
+      .from('product_source_links')
+      .select('source_item_id')
+      .in('product_id', productIds)
+      .limit(500);
+    const sourceItemIds = [...new Set((links ?? []).map((l) => l.source_item_id))];
+    if (sourceItemIds.length > 0) {
+      const { data: items } = await supabase
+        .from('source_items')
+        .select('mime_type, filename')
+        .in('id', sourceItemIds);
+      hasImages = (items ?? []).some(
+        (item) =>
+          (item.mime_type?.toLowerCase().startsWith('image/') ?? false) ||
+          /\.(jpe?g|png|webp)$/i.test(item.filename),
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -84,6 +113,12 @@ export default async function InputPage({
       </div>
 
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
+
+      <InferredAttributesSection
+        batchId={batchId}
+        hasImages={hasImages}
+        initialProducts={inferredProducts}
+      />
 
       <InputTable products={rows} />
     </div>

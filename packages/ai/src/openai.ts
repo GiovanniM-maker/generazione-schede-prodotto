@@ -5,6 +5,7 @@ import {
   buildCopySystemPrompt,
   buildCopyUserPrompt,
   buildAuditUserPrompt,
+  buildVisualUserPrompt,
   buildCopilotSystemPrompt,
   buildCopilotUserPrompt,
   brandProfileSchema,
@@ -87,13 +88,29 @@ export class OpenAiProviders
     jsonSchema: unknown,
     zodSchema: z.ZodType<T>,
   ): Promise<AiResult<T>> {
+    return this.structuredInput(
+      model,
+      [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ] as unknown as OpenAI.Responses.ResponseInput,
+      schemaName,
+      jsonSchema,
+      zodSchema,
+    );
+  }
+
+  private async structuredInput<T>(
+    model: string,
+    input: OpenAI.Responses.ResponseInput,
+    schemaName: string,
+    jsonSchema: unknown,
+    zodSchema: z.ZodType<T>,
+  ): Promise<AiResult<T>> {
     const response = await this.client.responses.create({
       model,
       store: false,
-      input: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
+      input,
       text: {
         format: {
           type: 'json_schema',
@@ -155,11 +172,31 @@ export class OpenAiProviders
   async extractVisualAttributes(
     input: VisualExtractionInput,
   ): Promise<AiResult<VisualExtraction>> {
-    const user = `Attributi consentiti: ${input.allowedFields.join(', ')}. Immagini: ${input.imageRefs.join(', ')}. Suggerisci SOLO attributi visuali evidenti, ognuno con confidence 0-1. Nessuna deduzione di materiale, composizione, misure, origine, sostenibilità.`;
-    return this.structured(
+    // Nessuna immagine: nessuna chiamata di rete.
+    if (input.images.length === 0) {
+      return {
+        data: { attributes: [] },
+        usage: makeUsage(this.config.models.visual, undefined),
+      };
+    }
+    // Responses API: content con input_text + input_image (image_url stringa,
+    // data URL o https). Cast documentato al tipo di input della Responses API.
+    const userContent = [
+      { type: 'input_text', text: buildVisualUserPrompt(input.allowedFields, input.sectorName) },
+      ...input.images.map((img) => ({ type: 'input_image', image_url: img.dataUrl, detail: 'auto' })),
+    ];
+    const requestInput = [
+      {
+        role: 'system',
+        content:
+          'Analizzi immagini di prodotto e suggerisci SOLO attributi visuali evidenti (da confermare). Rispondi in italiano.',
+      },
+      { role: 'user', content: userContent },
+    ] as unknown as OpenAI.Responses.ResponseInput;
+
+    return this.structuredInput(
       this.config.models.visual,
-      'Analizzi immagini di capi moda e suggerisci attributi visuali evidenti (da confermare). Rispondi in italiano.',
-      user,
+      requestInput,
       'visual_extraction',
       VISUAL_EXTRACTION_JSON_SCHEMA,
       visualExtractionSchema,

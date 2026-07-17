@@ -82,6 +82,50 @@ describe('MockTranscriptionProvider', () => {
   });
 });
 
+describe('MockVisualExtractionProvider', () => {
+  const image = {
+    dataUrl: 'data:image/jpeg;base64,AAAA',
+    mimeType: 'image/jpeg',
+  };
+
+  it('suggerisce apparent_color e product_type quando consentiti e con immagini', async () => {
+    const { visual } = createMockProviders();
+    const a = await visual.extractVisualAttributes({
+      images: [image],
+      allowedFields: ['apparent_color', 'product_type'],
+      sectorName: 'Moda',
+    });
+    const b = await visual.extractVisualAttributes({
+      images: [image],
+      allowedFields: ['apparent_color', 'product_type'],
+      sectorName: 'Moda',
+    });
+    expect(a.data).toEqual(b.data); // deterministico
+    expect(a.data.attributes).toEqual([
+      { fieldKey: 'apparent_color', value: 'colore da confermare', confidence: 0.4 },
+      { fieldKey: 'product_type', value: 'capo', confidence: 0.4 },
+    ]);
+  });
+
+  it('non suggerisce nulla senza immagini', async () => {
+    const { visual } = createMockProviders();
+    const res = await visual.extractVisualAttributes({
+      images: [],
+      allowedFields: ['apparent_color', 'product_type'],
+    });
+    expect(res.data.attributes).toEqual([]);
+  });
+
+  it('non suggerisce nulla se apparent_color non è consentito', async () => {
+    const { visual } = createMockProviders();
+    const res = await visual.extractVisualAttributes({
+      images: [image],
+      allowedFields: ['pattern'],
+    });
+    expect(res.data.attributes).toEqual([]);
+  });
+});
+
 describe('MockFactAuditProvider', () => {
   it('blocca claim non supportati', async () => {
     const { factAudit } = createMockProviders();

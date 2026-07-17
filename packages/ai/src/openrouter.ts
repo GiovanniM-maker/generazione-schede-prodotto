@@ -5,6 +5,7 @@ import {
   buildCopySystemPrompt,
   buildCopyUserPrompt,
   buildAuditUserPrompt,
+  buildVisualUserPrompt,
   buildCopilotSystemPrompt,
   buildCopilotUserPrompt,
   brandProfileSchema,
@@ -94,12 +95,26 @@ export class OpenRouterProviders
     jsonSchema: unknown,
     zodSchema: z.ZodType<T>,
   ): Promise<AiResult<T>> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [
+    return this.structuredMessages(
+      [
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
+      schemaName,
+      jsonSchema,
+      zodSchema,
+    );
+  }
+
+  private async structuredMessages<T>(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    schemaName: string,
+    jsonSchema: unknown,
+    zodSchema: z.ZodType<T>,
+  ): Promise<AiResult<T>> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages,
       response_format: {
         type: 'json_schema',
         json_schema: {
@@ -158,10 +173,27 @@ export class OpenRouterProviders
   async extractVisualAttributes(
     input: VisualExtractionInput,
   ): Promise<AiResult<VisualExtraction>> {
-    const user = `Attributi consentiti: ${input.allowedFields.join(', ')}. Immagini: ${input.imageRefs.join(', ')}. Suggerisci SOLO attributi visuali evidenti, ognuno con confidence 0-1. Nessuna deduzione di materiale, composizione, misure, origine, sostenibilità.`;
-    return this.structured(
-      'Analizzi immagini di capi moda e suggerisci attributi visuali evidenti (da confermare). Rispondi in italiano.',
-      user,
+    // Nessuna immagine: nessuna chiamata di rete.
+    if (input.images.length === 0) {
+      return { data: { attributes: [] }, usage: this.usage(undefined) };
+    }
+    // Content multimodale: testo + una image_url per immagine. Il tipo InputContent
+    // dell'SDK OpenAI accetta image_url per i modelli vision (OpenRouter lo supporta):
+    // cast esplicito e documentato al tipo dei content part.
+    const content = [
+      { type: 'text', text: buildVisualUserPrompt(input.allowedFields, input.sectorName) },
+      ...input.images.map((img) => ({ type: 'image_url', image_url: { url: img.dataUrl } })),
+    ] as unknown as OpenAI.Chat.Completions.ChatCompletionContentPart[];
+
+    return this.structuredMessages(
+      [
+        {
+          role: 'system',
+          content:
+            'Analizzi immagini di prodotto e suggerisci SOLO attributi visuali evidenti (da confermare). Rispondi in italiano.',
+        },
+        { role: 'user', content },
+      ],
       'visual_extraction',
       VISUAL_EXTRACTION_JSON_SCHEMA,
       visualExtractionSchema,

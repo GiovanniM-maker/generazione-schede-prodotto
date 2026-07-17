@@ -139,3 +139,42 @@ export function buildAuditUserPrompt(facts: FactAttribute[], content: ProductCop
 }
 
 export const FACT_AUDIT_PROMPT_VERSION_EXPORT = FACT_AUDIT_PROMPT_VERSION;
+
+// ---------------------------------------------------------------------------
+// Prompt per l'estrazione visuale. Le immagini possono SOLO SUGGERIRE un
+// piccolo insieme di attributi VISIBILI, sempre da confermare. Nessuna
+// deduzione di materiale, composizione, misure, cura, origine, ecc.
+// ---------------------------------------------------------------------------
+
+/** Elenco esplicito di ciò che NON è mai deducibile da un'immagine. */
+const VISUAL_FORBIDDEN = [
+  'materiale',
+  'composizione',
+  'misure o taglie',
+  'istruzioni di lavaggio o cura',
+  'paese di origine / Made in Italy',
+  'sostenibilità o riciclato',
+  'impermeabilità o resistenza all\'acqua',
+  'qualità o certificazioni',
+];
+
+export function buildVisualUserPrompt(allowedFields: string[], sectorName?: string): string {
+  const sector = sectorName ? `Settore: ${sectorName}.` : '';
+  const allowed = allowedFields.length
+    ? allowedFields.map((f) => `- ${f}`).join('\n')
+    : '(nessun campo consentito: non suggerire nulla)';
+  return [
+    'Osserva le immagini del prodotto allegate.',
+    sector,
+    'Puoi SUGGERIRE esclusivamente gli attributi elencati qui sotto, e SOLO se chiaramente visibili nelle immagini:',
+    allowed,
+    'Per ogni attributo suggerito indica un valore conciso in italiano e una confidence tra 0 e 1.',
+    'Se un attributo non è chiaramente visibile, NON produrlo (ometti la voce). Non indovinare.',
+    `Non dedurre MAI: ${VISUAL_FORBIDDEN.join(', ')}.`,
+    'Questi suggerimenti NON sono fatti: verranno usati solo se l\'utente li conferma.',
+    'Restituisci un JSON: { "attributes": [{ "fieldKey", "value", "confidence" }] }.',
+    'Usa come fieldKey esattamente una delle chiavi consentite elencate sopra. Nessun\'altra chiave.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}

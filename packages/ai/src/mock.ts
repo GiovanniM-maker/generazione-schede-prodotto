@@ -148,12 +148,22 @@ export class MockFactAuditProvider implements FactAuditProvider {
 export class MockVisualExtractionProvider implements VisualExtractionProvider {
   constructor(private opts: MockOptions = {}) {}
   async extractVisualAttributes(
-    _input: VisualExtractionInput,
+    input: VisualExtractionInput,
   ): Promise<AiResult<VisualExtraction>> {
     await delay(this.opts.latencyMs ?? 0);
-    // Mock: nessun attributo inferito (sicuro per default).
+    // DETERMINISTICO e offline: rende testabile il flusso di conferma senza rete.
+    // Suggerisce solo se ci sono immagini e 'apparent_color' è consentito.
+    const attributes: VisualExtraction['attributes'] = [];
+    const hasImages = input.images.length > 0;
+    const allows = (f: string) => input.allowedFields.includes(f);
+    if (hasImages && allows('apparent_color')) {
+      attributes.push({ fieldKey: 'apparent_color', value: 'colore da confermare', confidence: 0.4 });
+      if (allows('product_type')) {
+        attributes.push({ fieldKey: 'product_type', value: 'capo', confidence: 0.4 });
+      }
+    }
     return {
-      data: { attributes: [] },
+      data: { attributes },
       usage: usage('mock-visual', 50, 10),
     };
   }

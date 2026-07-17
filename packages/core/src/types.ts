@@ -98,9 +98,18 @@ export interface VisualExtraction {
   }>;
 }
 
+/** Una singola immagine da analizzare: data URL (base64) oppure URL https firmato. */
+export interface VisualExtractionImage {
+  /** `data:<mime>;base64,<...>` OPPURE un URL https (es. signed URL storage). */
+  dataUrl: string;
+  mimeType: string;
+  label?: string;
+}
+
 export interface VisualExtractionInput {
-  imageRefs: string[];
+  images: VisualExtractionImage[];
   allowedFields: string[];
+  sectorName?: string;
 }
 
 /** Descrittore di un campo del preset. */
