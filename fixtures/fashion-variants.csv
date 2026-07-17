@@ -1,0 +1,10 @@
+codice,codice_padre,sku,nome,tipologia,colore,taglia,composizione
+1,TSHIRT-BASE,TSHIRT-BASE-RED-M,T-shirt girocollo basic,T-shirt,Rosso,M,100% cotone
+2,TSHIRT-BASE,TSHIRT-BASE-RED-L,T-shirt girocollo basic,T-shirt,Rosso,L,100% cotone
+3,TSHIRT-BASE,TSHIRT-BASE-BLU-M,T-shirt girocollo basic,T-shirt,Blu,M,100% cotone
+4,POLO-PIQUET,POLO-PIQUET-BIA-S,Polo in piquet di cotone,Polo,Bianco,S,100% cotone
+5,POLO-PIQUET,POLO-PIQUET-BIA-M,Polo in piquet di cotone,Polo,Bianco,M,100% cotone
+6,POLO-PIQUET,POLO-PIQUET-NER-L,Polo in piquet di cotone,Polo,Nero,L,100% cotone
+7,JEANS-SLIM,JEANS-SLIM-IND-46,Jeans slim cinque tasche,Jeans,Indaco,46,"98% cotone, 2% elastan"
+8,JEANS-SLIM,JEANS-SLIM-IND-48,Jeans slim cinque tasche,Jeans,Indaco,48,"98% cotone, 2% elastan"
+9,JEANS-SLIM,JEANS-SLIM-NER-48,Jeans slim cinque tasche,Jeans,Nero,48,"98% cotone, 2% elastan"

@@ -1,0 +1,7 @@
+sku,nome,colore_gestionale,colore_foto,composizione_dichiarata,composizione_etichetta,vestibilita,note
+CNF-01,Camicia in cotone,Blu,Nero,100% cotone,100% cotone,Slim fit,Colore gestionale e foto discordanti: vince il gestionale (Blu)
+CNF-02,Maglione girocollo,Grigio,Grigio,100% lana merino,70% lana 30% acrilico,Regular fit,Composizione dichiarata e composizione etichetta discordanti
+CNF-03,Pantalone chino,Beige,Beige,97% cotone 3% elastan,,Slim fit,Etichetta mancante: usare solo la composizione dichiarata
+CNF-04,Giacca in lino,Sabbia,Avorio,100% lino,55% lino 45% viscosa,Regular fit,Doppio conflitto colore e composizione sulla stessa riga
+CNF-05,Abito in seta,Rosso,Bordeaux,100% seta,100% seta,Vestibilita morbida,Colore foto piu scuro del gestionale: vince il gestionale
+CNF-06,Felpa con cappuccio,Verde,Verde,80% cotone 20% poliestere,80% cotone 20% poliestere,Oversize,Nessun conflitto: riga di controllo coerente

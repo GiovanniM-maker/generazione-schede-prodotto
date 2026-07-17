@@ -1,0 +1,31 @@
+{
+  "name": "generazione-schede-prodotto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generatore AI di schede prodotto moda — MVP SaaS self-serve italiano",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter=./packages/* build && pnpm --filter web build && pnpm --filter worker build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:web": "pnpm --filter web dev",
+    "dev:worker": "pnpm --filter worker dev",
+    "db:reset": "supabase db reset",
+    "db:seed": "supabase db reset",
+    "clean": "pnpm -r exec rm -rf dist .next node_modules/.cache"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.0.0"
+  }
+}

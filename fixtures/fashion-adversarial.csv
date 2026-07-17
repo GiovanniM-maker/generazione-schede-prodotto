@@ -1,0 +1,11 @@
+sku,nome,tipologia,colore,composizione,materiale,vestibilita,note
+ADV-01,Giacca destrutturata,Giacca,Grigio,,,Regular fit,Nessun dato sul materiale disponibile nel gestionale
+ADV-02,Blusa effetto seta,Blusa,Avorio,100% poliestere,Poliestere,Vestibilita morbida,Il nome commerciale richiama un effetto seta ma il tessuto e sintetico
+ADV-03,Giubbotto tecnico,Giubbotto,Nero,100% poliammide,Poliammide,Regular fit,Trattamento resistente all'acqua non certificato come impermeabile
+ADV-04,Bomber foderato,Bomber,Verde,"Corpo: 80% cotone 20% elastan; Fodera: 100% poliestere",Cotone e poliestere,Regular fit,Composizione differente tra corpo e fodera
+ADV-05,Camicia oxford,Camicia,Blu,100% cotone,Cotone,Slim fit,Nella foto il colore puo apparire piu scuro ma a gestionale e Blu
+ADV-06,Pantalone in flanella,Pantalone,Antracite,100% lana,Lana,,Vestibilita non specificata dal fornitore
+ADV-07,Maglione girocollo,Maglione,Beige,100% cotone,Cotone,Regular fit,Nessuna certificazione o claim di sostenibilita presente
+007123,Cintura in pelle,Cintura,Cuoio,100% pelle bovina,Pelle,Taglia unica,SKU con zero iniziale da preservare come stringa e non convertire in 7123
+ADV-09,T-shirt stampa logo,T-shirt,Bianco,100% cotone,Cotone,Regular fit,Variante colore dello stesso modello ADV-10
+ADV-10,T-shirt stampa logo,T-shirt,Nero,100% cotone,Cotone,Regular fit,Variante colore dello stesso modello ADV-09
