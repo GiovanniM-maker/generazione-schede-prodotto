@@ -16,7 +16,13 @@ export interface Database {
   public: {
     Tables: {
       organizations: T<
-        { id: string; name: string; slug: string; stripe_customer_id: string | null } & Timestamps
+        {
+          id: string;
+          name: string;
+          slug: string;
+          stripe_customer_id: string | null;
+          onboarding_completed_at: string | null;
+        } & Timestamps
       >;
       organization_members: T<{
         id: string;
@@ -25,27 +31,7 @@ export interface Database {
         role: 'owner' | 'member';
         created_at: string;
       }>;
-      presets: T<{
-        id: string;
-        owner_organization_id: string | null;
-        key: string;
-        name: string;
-        category: string;
-        is_system: boolean;
-        created_at: string;
-      }>;
-      preset_versions: T<{
-        id: string;
-        preset_id: string;
-        version: number;
-        fact_schema_json: Json;
-        content_schema_json: Json;
-        validation_rules_json: Json;
-        inference_policy_json: Json;
-        header_synonyms_json: Json;
-        created_at: string;
-        published_at: string | null;
-      }>;
+      // presets / preset_versions ridefiniti nel modello v2 più in basso.
       brand_profiles: T<
         {
           id: string;
@@ -74,7 +60,7 @@ export interface Database {
         {
           id: string;
           organization_id: string;
-          preset_version_id: string;
+          preset_version_id: string | null;
           brand_profile_version_id: string | null;
           name: string;
           status: string;
@@ -106,7 +92,7 @@ export interface Database {
         {
           id: string;
           organization_id: string;
-          preset_version_id: string;
+          preset_version_id: string | null;
           name: string;
           mapping_json: Json;
         } & Timestamps
@@ -271,6 +257,159 @@ export interface Database {
         metadata_json: Json;
         created_at: string;
       }>;
+      // --- Modello configurazione v2 ---
+      sectors: T<
+        { id: string; key: string; name: string; description: string | null; icon: string | null; is_system: boolean; status: string } & Timestamps
+      >;
+      organization_sectors: T<{
+        id: string;
+        organization_id: string;
+        sector_id: string;
+        is_primary: boolean;
+        created_at: string;
+      }>;
+      categories: T<
+        {
+          id: string;
+          sector_id: string;
+          owner_organization_id: string | null;
+          parent_category_id: string | null;
+          source_category_id: string | null;
+          key: string | null;
+          name: string;
+          description: string | null;
+          is_system: boolean;
+          status: string;
+          archived_at: string | null;
+        } & Timestamps
+      >;
+      organization_categories: T<
+        { id: string; organization_id: string; category_id: string; enabled: boolean } & Timestamps
+      >;
+      attributes: T<
+        {
+          id: string;
+          sector_id: string;
+          owner_organization_id: string | null;
+          source_attribute_id: string | null;
+          key: string | null;
+          name: string;
+          description: string | null;
+          attribute_kind: string;
+          data_type: string;
+          unit: string | null;
+          enum_values_json: Json | null;
+          default_extraction_instruction: string | null;
+          default_generation_instruction: string | null;
+          validation_rules_json: Json;
+          normalization_rules_json: Json;
+          allowed_sources_json: Json;
+          is_system: boolean;
+          status: string;
+          version: number;
+          archived_at: string | null;
+        } & Timestamps
+      >;
+      organization_attributes: T<
+        { id: string; organization_id: string; attribute_id: string; enabled: boolean } & Timestamps
+      >;
+      category_attributes: T<
+        {
+          id: string;
+          category_id: string;
+          attribute_id: string;
+          is_required: boolean;
+          display_order: number;
+          extraction_instruction_override: string | null;
+          generation_instruction_override: string | null;
+          validation_rules_override_json: Json | null;
+        } & Timestamps
+      >;
+      presets: T<
+        {
+          id: string;
+          organization_id: string;
+          sector_id: string;
+          name: string;
+          description: string | null;
+          status: string;
+          active_version_id: string | null;
+          archived_at: string | null;
+        } & Timestamps
+      >;
+      preset_versions: T<{
+        id: string;
+        preset_id: string;
+        version: number;
+        name: string | null;
+        description: string | null;
+        created_by: string | null;
+        created_at: string;
+        published_at: string | null;
+      }>;
+      preset_categories: T<{
+        id: string;
+        preset_version_id: string;
+        category_id: string;
+        display_order: number;
+        enabled: boolean;
+        created_at: string;
+      }>;
+      preset_attributes: T<{
+        id: string;
+        preset_version_id: string;
+        attribute_id: string;
+        category_id: string | null;
+        is_required: boolean;
+        display_order: number;
+        extraction_instruction_override: string | null;
+        generation_instruction_override: string | null;
+        validation_rules_override_json: Json | null;
+        enabled: boolean;
+        created_at: string;
+      }>;
+      preset_generated_fields: T<{
+        id: string;
+        preset_version_id: string;
+        field_key: string;
+        label: string | null;
+        display_order: number;
+        enabled: boolean;
+        config_json: Json;
+        created_at: string;
+      }>;
+      configuration_conversations: T<
+        {
+          id: string;
+          organization_id: string;
+          entity_type: string;
+          entity_draft_id: string | null;
+          status: string;
+          completed_at: string | null;
+        } & Timestamps
+      >;
+      configuration_messages: T<{
+        id: string;
+        conversation_id: string;
+        role: string;
+        content: string;
+        transcript_source_file_id: string | null;
+        tool_calls_json: Json | null;
+        created_at: string;
+      }>;
+      configuration_drafts: T<
+        {
+          id: string;
+          organization_id: string;
+          entity_type: string;
+          entity_id: string | null;
+          draft_data_json: Json;
+          status: string;
+          created_by: string | null;
+          confirmed_at: string | null;
+          published_at: string | null;
+        } & Timestamps
+      >;
     };
     Views: Record<string, never>;
     Functions: {

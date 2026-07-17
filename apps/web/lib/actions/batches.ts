@@ -9,7 +9,6 @@ import {
   buildProducts,
   groupVariants,
   computeQuality,
-  MODA_PRESET_KEY,
   type ColumnMapping,
 } from '@app/core';
 import { STORAGE_BUCKETS } from '@app/config';
@@ -26,22 +25,10 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
 }
 
-async function getPresetVersionId(): Promise<string> {
-  const service = getServiceClient();
-  const { data } = await service
-    .from('preset_versions')
-    .select('id, preset_id, presets!inner(key, is_system)')
-    .eq('presets.key', MODA_PRESET_KEY)
-    .order('version', { ascending: false })
-    .limit(1)
-    .single();
-  if (!data) throw new Error('Preset Moda non trovato: eseguire il seed');
-  return data.id;
-}
-
 export async function createBatchAction(input: {
   organizationId: string;
   name: string;
+  presetVersionId?: string | null;
 }): Promise<{ batchId: string }> {
   const user = await getSessionUser();
   if (!user) throw new Error('Non autenticato');
@@ -56,12 +43,13 @@ export async function createBatchAction(input: {
     .maybeSingle();
   if (!member) throw new Error('Organizzazione non accessibile');
 
-  const presetVersionId = await getPresetVersionId();
+  // Nel modello v2 il batch referenzia una versione pubblicata del preset,
+  // passata esplicitamente (rework del flusso batch nella fase dedicata).
   const { data, error } = await service
     .from('batches')
     .insert({
       organization_id: input.organizationId,
-      preset_version_id: presetVersionId,
+      preset_version_id: input.presetVersionId ?? null,
       name: input.name || 'Nuovo batch',
       status: 'draft',
     })
