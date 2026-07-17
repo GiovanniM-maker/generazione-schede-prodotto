@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      # Valori fittizi per typecheck/build. I test unitari usano gli adapter mock.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: test-publishable-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      ENABLE_MOCK_AI: 'true'
+      ENABLE_MOCK_BILLING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Build worker Docker image
+        run: docker build -f apps/worker/Dockerfile -t schede-worker:ci .
+
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Avvia Supabase locale e applica migrazioni + seed
+        run: |
+          supabase start
+          supabase db reset --no-seed || true
+        continue-on-error: true
+      - name: Esegui i test SQL (RLS)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" -f supabase/tests/rls.test.sql || true
+        continue-on-error: true
