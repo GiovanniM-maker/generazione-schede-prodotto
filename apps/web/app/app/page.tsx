@@ -1,12 +1,20 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, PackageOpen, ArrowRight, Download } from 'lucide-react';
+import {
+  Plus,
+  PackageOpen,
+  ArrowRight,
+  Download,
+  Check,
+  Settings2,
+} from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
 import { getCreditBalance } from '@/lib/credits';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { formatDate } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/status-badge';
 
 export const dynamic = 'force-dynamic';
@@ -43,114 +51,296 @@ function batchHref(id: string, status: string): string {
   }
 }
 
+interface ChecklistItem {
+  label: string;
+  done: boolean;
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
   const org = await getUserOrg(user.id);
   if (!org) redirect('/app/onboarding');
 
-  const credits = await getCreditBalance(org.organizationId);
+  const orgId = org.organizationId;
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from('batches')
-    .select('id, name, status, total_products, processed_products, created_at')
-    .eq('organization_id', org.organizationId)
-    .order('created_at', { ascending: false })
-    .limit(10);
 
-  const batches = (data ?? []) as BatchRow[];
+  // Gate onboarding.
+  const { data: orgRow } = await supabase
+    .from('organizations')
+    .select('name, onboarding_completed_at')
+    .eq('id', orgId)
+    .maybeSingle();
+  if (!orgRow || !orgRow.onboarding_completed_at) {
+    redirect('/app/onboarding');
+  }
+
+  // --- Dati di completezza configurazione ---
+  const [
+    sectorRow,
+    categoryCountRes,
+    presetsRes,
+    brandProfilesRes,
+    credits,
+    batchesRes,
+  ] = await Promise.all([
+    supabase
+      .from('organization_sectors')
+      .select('sector_id')
+      .eq('organization_id', orgId)
+      .eq('is_primary', true)
+      .maybeSingle(),
+    supabase
+      .from('organization_categories')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+      .eq('enabled', true),
+    supabase.from('presets').select('id, active_version_id').eq('organization_id', orgId),
+    supabase.from('brand_profiles').select('active_version_id').eq('organization_id', orgId),
+    getCreditBalance(orgId),
+    supabase
+      .from('batches')
+      .select('id, name, status, total_products, processed_products, created_at')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ]);
+
+  let sectorName: string | null = null;
+  if (sectorRow.data) {
+    const { data: s } = await supabase
+      .from('sectors')
+      .select('name')
+      .eq('id', sectorRow.data.sector_id)
+      .maybeSingle();
+    sectorName = s?.name ?? null;
+  }
+
+  const categoryCount = categoryCountRes.count ?? 0;
+  const presets = presetsRes.data ?? [];
+  const presetCount = presets.length;
+
+  const activeVersionIds = presets
+    .map((p) => p.active_version_id)
+    .filter((v): v is string => Boolean(v));
+
+  let presetPublished = false;
+  let presetHasAttributes = false;
+  if (activeVersionIds.length) {
+    const [versionsRes, attrCountRes] = await Promise.all([
+      supabase
+        .from('preset_versions')
+        .select('id, published_at')
+        .in('id', activeVersionIds),
+      supabase
+        .from('preset_attributes')
+        .select('id', { count: 'exact', head: true })
+        .in('preset_version_id', activeVersionIds)
+        .eq('enabled', true),
+    ]);
+    presetPublished = (versionsRes.data ?? []).some((v) => v.published_at);
+    presetHasAttributes = (attrCountRes.count ?? 0) > 0;
+  }
+
+  const brandVersionIds = (brandProfilesRes.data ?? [])
+    .map((b) => b.active_version_id)
+    .filter((v): v is string => Boolean(v));
+  let brandApproved = false;
+  if (brandVersionIds.length) {
+    const { data: bvs } = await supabase
+      .from('brand_profile_versions')
+      .select('id, approved_at')
+      .in('id', brandVersionIds);
+    brandApproved = (bvs ?? []).some((v) => v.approved_at);
+  }
+
+  const checklist: ChecklistItem[] = [
+    { label: 'Settore selezionato', done: !!sectorRow.data },
+    { label: 'Almeno una categoria', done: categoryCount > 0 },
+    { label: 'Preset pubblicato', done: presetPublished },
+    { label: 'Preset con attributi', done: presetHasAttributes },
+    { label: 'Profilo del brand approvato', done: brandApproved },
+  ];
+  const allGreen = checklist.every((c) => c.done);
+
+  const batches = (batchesRes.data ?? []) as BatchRow[];
 
   return (
     <div className="space-y-8">
+      {/* Intestazione */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">
-            I tuoi batch
+            {orgRow.name}
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Hai {credits} crediti disponibili.
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+            {sectorName && <Badge tone="blue">{sectorName}</Badge>}
+            <span>{categoryCount} categorie</span>
+            <span>·</span>
+            <span>
+              {presetCount} preset{presetCount === 1 ? '' : ''}
+            </span>
+            <span>·</span>
+            <span>{credits} crediti</span>
+          </div>
         </div>
-        <Link href="/app/batches/new">
-          <Button size="lg">
-            <Plus className="h-4 w-4" />
-            Nuovo batch
-          </Button>
-        </Link>
+        {allGreen && (
+          <Link href="/app/batches/new">
+            <Button size="lg">
+              <Plus className="h-4 w-4" />
+              Nuovo batch
+            </Button>
+          </Link>
+        )}
       </div>
 
-      {batches.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-400">
-              <PackageOpen className="h-7 w-7" />
+      {/* Completezza configurazione */}
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">
+              Completezza configurazione
+            </h2>
+            <span className="text-sm text-gray-500">
+              {checklist.filter((c) => c.done).length}/{checklist.length}
             </span>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Nessun batch ancora
-              </h2>
-              <p className="mt-1 max-w-sm text-sm text-gray-500">
-                Crea il tuo primo batch caricando un file CSV o Excel con il tuo
-                catalogo.
-              </p>
+          </div>
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            {checklist.map((item) => (
+              <li key={item.label} className="flex items-center gap-2 text-sm">
+                <span
+                  className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded-full',
+                    item.done
+                      ? 'bg-emerald-100 text-emerald-600'
+                      : 'bg-gray-200 text-gray-400',
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+                <span className={cn('text-gray-700', !item.done && 'text-gray-400')}>
+                  {item.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* Azione principale in base allo stato */}
+      {!allGreen && (
+        <Card className="border-brand-accent/40 bg-blue-50/40">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-accent">
+                <Settings2 className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  Completa la configurazione del catalogo
+                </h3>
+                <p className="mt-0.5 text-sm text-gray-500">
+                  Termina la configurazione per poter creare i tuoi batch di
+                  schede prodotto.
+                </p>
+              </div>
             </div>
-            <Link href="/app/batches/new">
-              <Button>
-                <Plus className="h-4 w-4" />
-                Crea il primo batch
-              </Button>
-            </Link>
+            <div className="flex shrink-0 gap-2">
+              <Link href="/app/settings/presets">
+                <Button variant="outline">Gestisci preset</Button>
+              </Link>
+              <Link href="/app/onboarding">
+                <Button>
+                  Completa
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid gap-4">
-          {batches.map((b) => {
-            const total = b.total_products ?? 0;
-            const processed = b.processed_products ?? 0;
-            const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
-            const isCompleted =
-              b.status === 'completed' || b.status === 'partial_failed';
-            return (
-              <Card key={b.id}>
-                <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-semibold text-gray-900">
-                        {b.name}
-                      </h3>
-                      <StatusBadge status={b.status} />
+      )}
+
+      {/* Batch recenti */}
+      <div>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+          Batch recenti
+        </h2>
+        {batches.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 px-6 py-16 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-400">
+                <PackageOpen className="h-7 w-7" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Nessun batch ancora
+                </h2>
+                <p className="mt-1 max-w-sm text-sm text-gray-500">
+                  {allGreen
+                    ? 'Crea il tuo primo batch caricando un file CSV o Excel con il tuo catalogo.'
+                    : 'Completa la configurazione del catalogo per creare il primo batch.'}
+                </p>
+              </div>
+              {allGreen && (
+                <Link href="/app/batches/new">
+                  <Button>
+                    <Plus className="h-4 w-4" />
+                    Crea il primo batch
+                  </Button>
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {batches.map((b) => {
+              const total = b.total_products ?? 0;
+              const processed = b.processed_products ?? 0;
+              const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+              const isCompleted =
+                b.status === 'completed' || b.status === 'partial_failed';
+              return (
+                <Card key={b.id}>
+                  <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate font-semibold text-gray-900">
+                          {b.name}
+                        </h3>
+                        <StatusBadge status={b.status} />
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+                        <span>{total} prodotti</span>
+                        {total > 0 && (
+                          <span>
+                            {processed}/{total} elaborati ({pct}%)
+                          </span>
+                        )}
+                        <span>Creato il {formatDate(b.created_at)}</span>
+                      </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                      <span>{total} prodotti</span>
-                      {total > 0 && (
-                        <span>
-                          {processed}/{total} elaborati ({pct}%)
-                        </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isCompleted && (
+                        <Link href={`/app/batches/${b.id}/results`}>
+                          <Button variant="outline" size="sm">
+                            <Download className="h-4 w-4" />
+                            Esporta
+                          </Button>
+                        </Link>
                       )}
-                      <span>Creato il {formatDate(b.created_at)}</span>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {isCompleted && (
-                      <Link href={`/app/batches/${b.id}/results`}>
-                        <Button variant="outline" size="sm">
-                          <Download className="h-4 w-4" />
-                          Esporta
+                      <Link href={batchHref(b.id, b.status)}>
+                        <Button variant="secondary" size="sm">
+                          Apri
+                          <ArrowRight className="h-4 w-4" />
                         </Button>
                       </Link>
-                    )}
-                    <Link href={batchHref(b.id, b.status)}>
-                      <Button variant="secondary" size="sm">
-                        Apri
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
