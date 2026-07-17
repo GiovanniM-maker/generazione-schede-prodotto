@@ -82,13 +82,17 @@ export function OnboardingStepper() {
       const examples = [example1, example2]
         .map((e) => e.trim())
         .filter(Boolean);
-      await createToneProfileAction({
+      const result = await createToneProfileAction({
         organizationId,
         name,
         style: style === 'Personalizzato' ? custom.trim() || 'Personalizzato' : style,
         examples: examples.length ? examples : undefined,
         guidance,
       });
+      if (!result.ok) {
+        setError(result.error ?? 'Errore durante la generazione del profilo');
+        return;
+      }
       setGenerated(true);
       setStep(6);
     } catch (e) {

@@ -15,7 +15,24 @@ export async function createToneProfileAction(input: {
   forbiddenWords?: string[];
   guidance?: string;
   batchId?: string;
-}): Promise<{ brandProfileId: string; versionId: string }> {
+}): Promise<{ ok: boolean; error?: string; brandProfileId?: string; versionId?: string }> {
+  try {
+    return await createToneProfileInner(input);
+  } catch (err) {
+    // Restituisce il messaggio reale al client (in prod Next redige le eccezioni).
+    return { ok: false, error: err instanceof Error ? err.message : 'Errore sconosciuto' };
+  }
+}
+
+async function createToneProfileInner(input: {
+  organizationId: string;
+  name: string;
+  style: string;
+  examples?: string[];
+  forbiddenWords?: string[];
+  guidance?: string;
+  batchId?: string;
+}): Promise<{ ok: boolean; brandProfileId: string; versionId: string }> {
   const user = await getSessionUser();
   if (!user) throw new Error('Non autenticato');
 
@@ -82,5 +99,5 @@ export async function createToneProfileAction(input: {
     metadata_json: { style: input.style },
   });
 
-  return { brandProfileId: bp.id, versionId: version.id };
+  return { ok: true, brandProfileId: bp.id, versionId: version.id };
 }
