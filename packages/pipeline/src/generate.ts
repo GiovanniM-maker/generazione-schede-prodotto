@@ -6,10 +6,12 @@ import {
   NON_ADDITIONAL_FIELDS,
   MODA_PRESET_VERSION,
   PRODUCT_COPY_PROMPT_VERSION,
+  computeCompleteness,
   type BrandProfile,
   type FactAttribute,
   type ProductCopy,
   type FactAuditResult,
+  type Completeness,
 } from '@app/core';
 import type { AiProviders } from '@app/ai';
 import { sectorSafetyRules, sectorSensitiveClaims, type ServerEnv } from '@app/config';
@@ -22,6 +24,8 @@ export interface PresetGenerationSpec {
   sectorKey: string;
   sectorName: string;
   instructions: string[];
+  /** Attributi del preset con chiave/nome e obbligatorietà. */
+  attributes: { key: string; name: string; isRequired: boolean }[];
 }
 
 /** Carica settore + istruzioni di generazione effettive dagli attributi del preset. */
@@ -48,20 +52,27 @@ export async function loadPresetGenerationSpec(
   // Istruzioni di generazione effettive per attributo (override o default).
   const { data: pas } = await client
     .from('preset_attributes')
-    .select('attribute_id, generation_instruction_override, enabled')
+    .select('attribute_id, generation_instruction_override, enabled, is_required')
     .eq('preset_version_id', presetVersionId);
   const attrIds = [...new Set((pas ?? []).map((p) => p.attribute_id))];
   const { data: attrs } = attrIds.length
-    ? await client.from('attributes').select('id, name, default_generation_instruction').in('id', attrIds)
+    ? await client.from('attributes').select('id, key, name, default_generation_instruction').in('id', attrIds)
     : { data: [] };
   const attrMap = new Map((attrs ?? []).map((a) => [a.id, a]));
 
   const instructions: string[] = [];
+  const attributes: PresetGenerationSpec['attributes'] = [];
+  const seenKeys = new Set<string>();
   for (const p of pas ?? []) {
     if (p.enabled === false) continue;
     const a = attrMap.get(p.attribute_id);
     const instr = p.generation_instruction_override ?? a?.default_generation_instruction ?? null;
     if (instr && instr.trim()) instructions.push(`${a?.name ?? ''}: ${instr}`.trim());
+    const key = a?.key ?? a?.name;
+    if (key && !seenKeys.has(key)) {
+      seenKeys.add(key);
+      attributes.push({ key, name: a?.name ?? key, isRequired: p.is_required === true });
+    }
   }
 
   return {
@@ -69,6 +80,7 @@ export async function loadPresetGenerationSpec(
     sectorKey: sector?.key ?? '',
     sectorName: sector?.name ?? '',
     instructions,
+    attributes,
   };
 }
 
@@ -134,6 +146,7 @@ export async function generateCopyWithAudit(
 ): Promise<{
   content: ProductCopy;
   audit: FactAuditResult;
+  completeness: Completeness;
   usage: { inputTokens: number; outputTokens: number; model: string; provider: string };
 }> {
   const safetyRules = sectorSafetyRules(spec?.sectorKey);
@@ -162,7 +175,21 @@ export async function generateCopyWithAudit(
     aiAudit = null;
   }
   const audit = mergeAudits(localAudit, aiAudit);
-  return { content: copyResult.data, audit, usage: copyResult.usage };
+
+  // Completezza rispetto agli attributi obbligatori del preset.
+  const presentKeys = facts.map((f) => f.fieldKey);
+  const requiredKeys = (spec?.attributes ?? []).filter((a) => a.isRequired).map((a) => a.key);
+  const optionalPresentCount = presentKeys.filter((k) => !requiredKeys.includes(k)).length;
+  const completeness = computeCompleteness({
+    hasSku: true,
+    hasAnySource: facts.length > 0,
+    requiredAttributeKeys: requiredKeys,
+    presentKeys,
+    optionalPresentCount,
+    auditSeverity: audit.severity,
+  });
+
+  return { content: copyResult.data, audit, completeness, usage: copyResult.usage };
 }
 
 export interface SampleResult {
@@ -170,6 +197,7 @@ export interface SampleResult {
   facts: FactAttribute[];
   content: ProductCopy;
   audit: FactAuditResult;
+  completeness: Completeness;
 }
 
 /** Genera un campione sincrono per un prodotto rappresentativo del batch. */
@@ -198,8 +226,8 @@ export async function generateSample(
   const facts = await loadProductFactsV2(ctx.client, candidate.id);
   const { profile } = await loadBrandProfile(ctx.client, batch.brand_profile_version_id);
   const spec = await loadPresetGenerationSpec(ctx.client, batch.preset_version_id);
-  const { content, audit } = await generateCopyWithAudit(ctx, facts, profile, spec);
-  return { productId: candidate.id, facts, content, audit };
+  const { content, audit, completeness } = await generateCopyWithAudit(ctx, facts, profile, spec);
+  return { productId: candidate.id, facts, content, audit, completeness };
 }
 
 export type GenerationOutcome =
@@ -268,7 +296,7 @@ export async function runProductGeneration(
   // Cache: riusa una generazione esistente con lo stesso hash (0 crediti).
   const { data: cached } = await client
     .from('product_generations')
-    .select('generated_content_json, audit_json, status')
+    .select('generated_content_json, audit_json, completeness_json, status')
     .eq('organization_id', job.organization_id)
     .eq('input_hash', inputHash)
     .in('status', ['generated', 'needs_review', 'accepted'])
@@ -283,6 +311,7 @@ export async function runProductGeneration(
       input_hash: inputHash,
       generated_content_json: cached.generated_content_json,
       audit_json: cached.audit_json,
+      completeness_json: cached.completeness_json,
       status: cached.status,
     });
     await client
@@ -300,7 +329,7 @@ export async function runProductGeneration(
     return { outcome: 'cache_hit' };
   }
 
-  const { content, audit, usage } = await generateCopyWithAudit(ctx, facts, profile, spec);
+  const { content, audit, completeness, usage } = await generateCopyWithAudit(ctx, facts, profile, spec);
   const genStatus = statusFromAudit(audit);
 
   const runId = await createRun(
@@ -320,6 +349,7 @@ export async function runProductGeneration(
     input_hash: inputHash,
     generated_content_json: content as unknown as Json,
     audit_json: audit as unknown as Json,
+    completeness_json: completeness as unknown as Json,
     status: genStatus,
   });
 

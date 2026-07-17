@@ -155,6 +155,64 @@ export function decideGeneration(input: GenerationEligibilityInput): ProductGene
   return 'insufficient';
 }
 
+/** Etichette italiane degli stati di completezza scheda. */
+export const DECISION_LABELS: Record<ProductGenerationDecision, string> = {
+  complete: 'Scheda completa',
+  partial: 'Scheda parziale',
+  insufficient: 'Dati insufficienti',
+  needs_review: 'Da verificare',
+  blocked: 'Bloccato',
+};
+
+export interface CompletenessInput {
+  hasSku: boolean;
+  hasAnySource: boolean;
+  requiredAttributeKeys: string[];
+  presentKeys: string[];
+  optionalPresentCount: number;
+  auditSeverity: 'none' | 'low' | 'medium' | 'high';
+  hasBlockingConflict?: boolean;
+}
+
+export interface Completeness {
+  status: ProductGenerationDecision;
+  missingAttributes: string[];
+  usedAttributes: string[];
+}
+
+/**
+ * Calcola lo stato di completezza di una scheda combinando la copertura degli
+ * attributi obbligatori del preset con la severità dell'audit.
+ * L'audit ha priorità: severità high -> bloccato, medium -> da verificare.
+ */
+export function computeCompleteness(input: CompletenessInput): Completeness {
+  const presentSet = new Set(input.presentKeys);
+  const missing = input.requiredAttributeKeys.filter((k) => !presentSet.has(k));
+  const presentRequired = input.requiredAttributeKeys.length - missing.length;
+
+  const decision = decideGeneration({
+    hasSku: input.hasSku,
+    hasAnySource: input.hasAnySource,
+    presentRequiredAttributes: presentRequired,
+    totalRequiredAttributes: input.requiredAttributeKeys.length,
+    presentOptionalAttributes: input.optionalPresentCount,
+    hasBlockingConflict: input.hasBlockingConflict ?? false,
+  });
+
+  let status: ProductGenerationDecision = decision;
+  if (input.auditSeverity === 'high') status = 'blocked';
+  else if (input.auditSeverity === 'medium' && decision !== 'blocked' && decision !== 'insufficient') {
+    status = 'needs_review';
+  }
+
+  return { status, missingAttributes: missing, usedAttributes: input.presentKeys };
+}
+
+/** Una scheda è esportabile se non è bloccata né insufficiente. */
+export function isCompletenessExportable(status: ProductGenerationDecision): boolean {
+  return status !== 'blocked' && status !== 'insufficient';
+}
+
 // ---------------------------------------------------------------------------
 // Conflitti tra sorgenti.
 // ---------------------------------------------------------------------------

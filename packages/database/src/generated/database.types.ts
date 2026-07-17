@@ -240,6 +240,7 @@ export interface Database {
           generated_content_json: Json;
           edited_content_json: Json | null;
           audit_json: Json | null;
+          completeness_json: Json | null;
           status: string;
           accepted_at: string | null;
         } & Timestamps

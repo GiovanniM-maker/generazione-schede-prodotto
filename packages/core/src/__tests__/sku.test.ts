@@ -198,3 +198,37 @@ describe('isBlockingConflict', () => {
     expect(isBlockingConflict('color_csv_vs_image')).toBe(false);
   });
 });
+
+describe('computeCompleteness', () => {
+  it('completa quando tutti gli obbligatori sono presenti', async () => {
+    const { computeCompleteness } = await import('../sources.js');
+    const r = computeCompleteness({
+      hasSku: true, hasAnySource: true,
+      requiredAttributeKeys: ['ingredienti', 'denominazione_alimento'],
+      presentKeys: ['ingredienti', 'denominazione_alimento', 'peso_netto'],
+      optionalPresentCount: 1, auditSeverity: 'none',
+    });
+    expect(r.status).toBe('complete');
+    expect(r.missingAttributes).toEqual([]);
+  });
+  it('parziale con obbligatori mancanti ma altri presenti', async () => {
+    const { computeCompleteness } = await import('../sources.js');
+    const r = computeCompleteness({
+      hasSku: true, hasAnySource: true,
+      requiredAttributeKeys: ['ingredienti', 'allergeni'],
+      presentKeys: ['ingredienti', 'peso_netto'],
+      optionalPresentCount: 1, auditSeverity: 'none',
+    });
+    expect(r.status).toBe('partial');
+    expect(r.missingAttributes).toContain('allergeni');
+  });
+  it('bloccato se audit high', async () => {
+    const { computeCompleteness } = await import('../sources.js');
+    const r = computeCompleteness({
+      hasSku: true, hasAnySource: true,
+      requiredAttributeKeys: [], presentKeys: ['x'],
+      optionalPresentCount: 1, auditSeverity: 'high',
+    });
+    expect(r.status).toBe('blocked');
+  });
+});
