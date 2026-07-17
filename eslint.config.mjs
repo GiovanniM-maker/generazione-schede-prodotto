@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/coverage/**',
       '**/*.config.*',
+      '**/next-env.d.ts',
       'packages/database/src/generated/**',
     ],
   },

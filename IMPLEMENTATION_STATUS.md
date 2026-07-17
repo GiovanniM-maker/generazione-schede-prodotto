@@ -4,6 +4,10 @@ Legenda stato: ✅ completo · 🟡 parziale/da verificare live · ⬜ non inizi
 Legenda test: **U** unit · **G** golden · **I** integrazione · **E2E** end-to-end ·
 **SQL** test RLS · **—** nessun test automatico.
 
+> Verifiche eseguite in questa sessione: `pnpm typecheck` (pulito), `pnpm lint`
+> (pulito), `pnpm test` (52/52 verdi), `pnpm build` (5 package + Next web con 18
+> route + bundle worker — tutti riusciti).
+>
 > Nota ambiente: in questo ambiente non erano disponibili il daemon Docker né la
 > Supabase CLI, quindi la verifica *live* (avvio DB, worker end-to-end, build
 > immagine Docker) non è stata eseguita qui. La logica di dominio è coperta da
@@ -46,10 +50,10 @@ Legenda test: **U** unit · **G** golden · **I** integrazione · **E2E** end-to
 | Webhook Stripe firmato + idempotente | ✅ | — | `checkout.session.completed` |
 | API sample / enqueue / export | ✅ | — | ownership sotto RLS |
 | Server actions (batch, upload, import, tono, results) | ✅ | — | persistenza + eventi |
-| Landing pubblica | 🟡 | — | costruita nell'app web (UI) |
-| Login / dashboard / onboarding | 🟡 | — | UI web |
-| Flusso batch (new→mapping→input→sample→processing→results) | 🟡 | — | UI web |
-| Billing UI | 🟡 | — | UI web |
+| Landing pubblica | ✅ | — | headline/CTA/FAQ, nessun claim non provato |
+| Login / dashboard / onboarding | ✅ | — | magic link, stepper tono |
+| Flusso batch (new→mapping→input→sample→processing→results) | ✅ | — | build Next OK, 18 route |
+| Billing UI | ✅ | — | pacchetti, cronologia ledger, checkout |
 | Fixtures CSV/XLSX (validi/varianti/avversariali) | ✅ | G | usati dai test |
 | CI GitHub Actions (lint/typecheck/test/build/docker/db) | ✅ | — | mock adapter |
 | Documentazione (README/ARCH/DEPLOY/SECURITY) | ✅ | — | completa |
