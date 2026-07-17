@@ -22,6 +22,8 @@ export interface HashInput {
   promptVersion: string;
   model: string;
   requestedOutput: string[];
+  /** Istruzioni del preset: se cambiano, l'hash cambia e la cache si invalida. */
+  presetInstructions?: string[];
 }
 
 /** Normalizza i fatti a coppie {fieldKey, value, status} ordinate per chiave. */
@@ -39,6 +41,7 @@ export function computeInputHash(input: HashInput): string {
     promptVersion: input.promptVersion,
     model: input.model,
     requestedOutput: [...input.requestedOutput].sort(),
+    presetInstructions: input.presetInstructions ?? [],
   };
   return createHash('sha256').update(stableStringify(payload)).digest('hex');
 }

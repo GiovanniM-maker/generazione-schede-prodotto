@@ -12,9 +12,65 @@ import {
   type FactAuditResult,
 } from '@app/core';
 import type { AiProviders } from '@app/ai';
-import type { ServerEnv } from '@app/config';
+import { sectorSafetyRules, sectorSensitiveClaims, type ServerEnv } from '@app/config';
 import type { TypedClient, Json, Database } from '@app/database';
-import { loadProductFacts } from './facts.js';
+import { loadProductFactsV2 } from './facts.js';
+
+// Spec di generazione derivata dal preset: settore + istruzioni per attributo.
+export interface PresetGenerationSpec {
+  presetVersionId: string;
+  sectorKey: string;
+  sectorName: string;
+  instructions: string[];
+}
+
+/** Carica settore + istruzioni di generazione effettive dagli attributi del preset. */
+export async function loadPresetGenerationSpec(
+  client: TypedClient,
+  presetVersionId: string | null,
+): Promise<PresetGenerationSpec | null> {
+  if (!presetVersionId) return null;
+  const { data: pv } = await client
+    .from('preset_versions')
+    .select('id, preset_id')
+    .eq('id', presetVersionId)
+    .maybeSingle();
+  if (!pv) return null;
+  const { data: preset } = await client
+    .from('presets')
+    .select('id, sector_id')
+    .eq('id', pv.preset_id)
+    .maybeSingle();
+  const { data: sector } = preset?.sector_id
+    ? await client.from('sectors').select('key, name').eq('id', preset.sector_id).maybeSingle()
+    : { data: null };
+
+  // Istruzioni di generazione effettive per attributo (override o default).
+  const { data: pas } = await client
+    .from('preset_attributes')
+    .select('attribute_id, generation_instruction_override, enabled')
+    .eq('preset_version_id', presetVersionId);
+  const attrIds = [...new Set((pas ?? []).map((p) => p.attribute_id))];
+  const { data: attrs } = attrIds.length
+    ? await client.from('attributes').select('id, name, default_generation_instruction').in('id', attrIds)
+    : { data: [] };
+  const attrMap = new Map((attrs ?? []).map((a) => [a.id, a]));
+
+  const instructions: string[] = [];
+  for (const p of pas ?? []) {
+    if (p.enabled === false) continue;
+    const a = attrMap.get(p.attribute_id);
+    const instr = p.generation_instruction_override ?? a?.default_generation_instruction ?? null;
+    if (instr && instr.trim()) instructions.push(`${a?.name ?? ''}: ${instr}`.trim());
+  }
+
+  return {
+    presetVersionId,
+    sectorKey: sector?.key ?? '',
+    sectorName: sector?.name ?? '',
+    instructions,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Orchestrazione della generazione di un singolo prodotto. Usata dal worker
@@ -74,20 +130,26 @@ export async function generateCopyWithAudit(
   ctx: GenerationContext,
   facts: FactAttribute[],
   profile: BrandProfile,
+  spec?: PresetGenerationSpec | null,
 ): Promise<{
   content: ProductCopy;
   audit: FactAuditResult;
   usage: { inputTokens: number; outputTokens: number; model: string; provider: string };
 }> {
+  const safetyRules = sectorSafetyRules(spec?.sectorKey);
   const copyResult = await ctx.providers.productCopy.generateCopy({
-    presetVersion: MODA_PRESET_VERSION,
+    presetVersion: spec?.presetVersionId ?? MODA_PRESET_VERSION,
     facts,
     brandProfile: profile,
     language: 'it',
     requestedOutput: REQUESTED_OUTPUT,
+    sectorName: spec?.sectorName,
+    presetInstructions: spec?.instructions,
+    safetyRules,
   });
 
-  const localAudit = deterministicAudit(facts, copyResult.data);
+  // Audit deterministico + claim sensibili specifici del settore.
+  const localAudit = deterministicAudit(facts, copyResult.data, sectorSensitiveClaims(spec?.sectorKey));
   let aiAudit: FactAuditResult | null = null;
   try {
     const auditResult = await ctx.providers.factAudit.auditCopy({
@@ -117,7 +179,7 @@ export async function generateSample(
 ): Promise<SampleResult> {
   const { data: batch } = await ctx.client
     .from('batches')
-    .select('id, organization_id, brand_profile_version_id')
+    .select('id, organization_id, brand_profile_version_id, preset_version_id')
     .eq('id', batchId)
     .single();
   if (!batch) throw new Error('INVALID_PRODUCT_DATA: batch non trovato');
@@ -133,9 +195,10 @@ export async function generateSample(
   const candidate = (products ?? [])[0];
   if (!candidate) throw new Error('INSUFFICIENT_FACTS: nessun prodotto disponibile');
 
-  const facts = await loadProductFacts(ctx.client, candidate.id);
+  const facts = await loadProductFactsV2(ctx.client, candidate.id);
   const { profile } = await loadBrandProfile(ctx.client, batch.brand_profile_version_id);
-  const { content, audit } = await generateCopyWithAudit(ctx, facts, profile);
+  const spec = await loadPresetGenerationSpec(ctx.client, batch.preset_version_id);
+  const { content, audit } = await generateCopyWithAudit(ctx, facts, profile, spec);
   return { productId: candidate.id, facts, content, audit };
 }
 
@@ -173,12 +236,12 @@ export async function runProductGeneration(
 
   const { data: batch } = await client
     .from('batches')
-    .select('id, organization_id, brand_profile_version_id')
+    .select('id, organization_id, brand_profile_version_id, preset_version_id')
     .eq('id', job.batch_id)
     .single();
   if (!batch) throw new Error('DATABASE_ERROR: batch non trovato');
 
-  const facts = await loadProductFacts(client, job.product_id);
+  const facts = await loadProductFactsV2(client, job.product_id);
   // Verifica fatti minimi (terminale, non ritentabile).
   const additional = facts.filter((f) => !NON_ADDITIONAL_FIELDS.has(f.fieldKey)).length;
   if (additional < 2) {
@@ -190,14 +253,16 @@ export async function runProductGeneration(
     batch.brand_profile_version_id,
   );
 
+  const spec = await loadPresetGenerationSpec(client, batch.preset_version_id);
   const model = ctx.env.OPENAI_MODEL_COPY;
   const inputHash = computeInputHash({
     facts,
-    presetVersion: MODA_PRESET_VERSION,
+    presetVersion: spec?.presetVersionId ?? MODA_PRESET_VERSION,
     brandProfileVersion: profileVersion,
     promptVersion: PRODUCT_COPY_PROMPT_VERSION,
     model,
     requestedOutput: REQUESTED_OUTPUT,
+    presetInstructions: spec?.instructions,
   });
 
   // Cache: riusa una generazione esistente con lo stesso hash (0 crediti).
@@ -235,7 +300,7 @@ export async function runProductGeneration(
     return { outcome: 'cache_hit' };
   }
 
-  const { content, audit, usage } = await generateCopyWithAudit(ctx, facts, profile);
+  const { content, audit, usage } = await generateCopyWithAudit(ctx, facts, profile, spec);
   const genStatus = statusFromAudit(audit);
 
   const runId = await createRun(

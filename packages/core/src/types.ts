@@ -57,6 +57,12 @@ export interface ProductCopyInput {
   brandProfile: BrandProfile;
   language: 'it';
   requestedOutput: string[];
+  /** Nome del settore (Moda/Food/Pharma) per contestualizzare la generazione. */
+  sectorName?: string;
+  /** Istruzioni di generazione configurate nel preset (effetto diretto). */
+  presetInstructions?: string[];
+  /** Regole di sicurezza per settore (es. Pharma: nessun claim sanitario). */
+  safetyRules?: string[];
 }
 
 /** Input generazione profilo tono. */

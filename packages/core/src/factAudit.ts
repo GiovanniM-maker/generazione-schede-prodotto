@@ -1,4 +1,4 @@
-import { FACT_USABLE_STATUSES } from '@app/config';
+import { FACT_USABLE_STATUSES, SENSITIVE_CLAIMS } from '@app/config';
 import { detectUnsupportedClaims } from './claims.js';
 import type { FactAttribute, FactAuditResult, ProductCopy, AuditSeverity } from './types.js';
 
@@ -34,9 +34,11 @@ export function collectGeneratedText(content: ProductCopy): string {
 export function deterministicAudit(
   facts: FactAttribute[],
   content: ProductCopy,
+  extraClaims: readonly string[] = [],
 ): FactAuditResult {
   const text = collectGeneratedText(content);
-  const unsupported = detectUnsupportedClaims(text, facts, FACT_USABLE_STATUSES);
+  const claims = [...SENSITIVE_CLAIMS, ...extraClaims];
+  const unsupported = detectUnsupportedClaims(text, facts, FACT_USABLE_STATUSES, claims);
 
   const unsupportedClaims = unsupported.map((u) => u.claim);
   // L'audit deterministico produce solo "none" o "high": un claim sensibile

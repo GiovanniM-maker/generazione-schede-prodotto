@@ -73,3 +73,45 @@ export async function loadProductFacts(
 
   return [...base.values()];
 }
+
+/**
+ * Carica i fatti dal modello v2 (product_attribute_values) usando la chiave/nome
+ * dell'attributo del preset. Copre tutti i settori (Moda/Food/Pharma). Se non
+ * esistono valori v2, fa fallback su canonical_attributes.
+ */
+export async function loadProductFactsV2(
+  client: TypedClient,
+  productId: string,
+): Promise<FactAttribute[]> {
+  const usable = ['provided', 'extracted_from_file', 'derived', 'confirmed'];
+  const { data: rows } = await client
+    .from('product_attribute_values')
+    .select('attribute_id, value_json, status, source_type')
+    .eq('product_id', productId);
+
+  if (!rows || rows.length === 0) return loadProductFacts(client, productId);
+
+  const attrIds = [...new Set(rows.map((r) => r.attribute_id))];
+  const { data: attrs } = await client
+    .from('attributes')
+    .select('id, key, name')
+    .in('id', attrIds);
+  const attrMap = new Map((attrs ?? []).map((a) => [a.id, a.key ?? a.name]));
+
+  const facts: FactAttribute[] = [];
+  for (const r of rows) {
+    if (!usable.includes(r.status)) continue;
+    const key = attrMap.get(r.attribute_id);
+    if (!key) continue;
+    const value =
+      typeof r.value_json === 'string' ? r.value_json : r.value_json == null ? '' : String(r.value_json);
+    if (value.trim() === '') continue;
+    facts.push({
+      fieldKey: key,
+      value,
+      status: 'provided',
+      sourceType: (r.source_type as FactAttribute['sourceType']) ?? 'csv',
+    });
+  }
+  return facts.length ? facts : loadProductFacts(client, productId);
+}

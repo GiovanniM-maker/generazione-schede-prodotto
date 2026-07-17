@@ -86,6 +86,51 @@ export const SENSITIVE_CLAIMS = [
   '100% naturale',
 ] as const;
 
+/** Regole di sicurezza per settore, iniettate nel prompt di generazione. */
+export const SECTOR_SAFETY_RULES: Record<string, string[]> = {
+  moda: [
+    'Non dedurre il materiale dal nome o dalle immagini.',
+    'Non usare "impermeabile" al posto di "resistente all\'acqua".',
+    'Non usare "sostenibile" o "Made in Italy" se non presenti nei dati.',
+  ],
+  food: [
+    'Non attribuire proprietà dimagranti, detox o curative non dichiarate.',
+    'Riporta ingredienti, allergeni e valori nutrizionali SOLO se presenti nei dati.',
+    'Non modificare quantità, pesi o percentuali dichiarate.',
+  ],
+  pharma: [
+    'NESSUN claim sanitario, terapeutico o di efficacia.',
+    'Non inventare indicazioni, dosaggi, controindicazioni o avvertenze.',
+    'Copia i dati dichiarati senza cambiarne il significato; nessuna inferenza clinica.',
+  ],
+};
+
+/** Claim sensibili aggiuntivi per settore (oltre a SENSITIVE_CLAIMS). */
+export const SECTOR_SENSITIVE_CLAIMS: Record<string, string[]> = {
+  moda: [],
+  food: ['dimagrante', 'detox', 'brucia grassi', 'miracoloso', 'depurativo'],
+  pharma: [
+    'guarisce',
+    'cura',
+    'curativo',
+    'terapeutico',
+    'efficace',
+    'clinicamente',
+    'previene',
+    'diagnosi',
+    'antinfiammatorio',
+    'antibiotico',
+  ],
+};
+
+export function sectorSafetyRules(sectorKey: string | undefined): string[] {
+  return SECTOR_SAFETY_RULES[sectorKey ?? ''] ?? [];
+}
+
+export function sectorSensitiveClaims(sectorKey: string | undefined): string[] {
+  return SECTOR_SENSITIVE_CLAIMS[sectorKey ?? ''] ?? [];
+}
+
 /** Attributi visuali suggeribili (sempre inferred_visual, richiedono conferma). */
 export const VISUAL_WHITELIST = [
   'product_type',

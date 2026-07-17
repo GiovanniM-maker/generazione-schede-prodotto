@@ -64,14 +64,29 @@ export function buildCopySystemPrompt(profile: BrandProfile): string {
 export function buildCopyUserPrompt(input: ProductCopyInput): string {
   const facts = usableFacts(input.facts);
   const factLines = facts.map((f) => `- ${f.fieldKey}: ${f.value}`).join('\n');
+  const sector = input.sectorName ? `Settore: ${input.sectorName}.` : '';
+  const presetInstructions =
+    input.presetInstructions && input.presetInstructions.length
+      ? ['Istruzioni di generazione dal preset (rispettale):', ...input.presetInstructions.map((i) => `- ${i}`)].join('\n')
+      : '';
+  const safety =
+    input.safetyRules && input.safetyRules.length
+      ? ['Regole di sicurezza obbligatorie:', ...input.safetyRules.map((r) => `- ${r}`)].join('\n')
+      : '';
   return [
+    sector,
     'Fatti disponibili (usa solo questi):',
     factLines || '(nessun fatto)',
+    '',
+    presetInstructions,
+    safety,
     '',
     `Output richiesto: ${input.requestedOutput.join(', ')}.`,
     'Restituisci un JSON con: title, shortDescription, longDescription, bullets[], metaDescription, usedFactKeys[], warnings[].',
     "In usedFactKeys elenca SOLO le chiavi dei fatti effettivamente usati. In warnings segnala eventuali dati mancanti importanti.",
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 const BRAND_SYSTEM_RULES = [
