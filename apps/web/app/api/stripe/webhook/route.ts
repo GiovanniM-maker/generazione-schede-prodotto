@@ -35,15 +35,21 @@ export async function POST(request: Request) {
   const service = getServiceClient();
 
   // Idempotenza: registra l'evento; se già presente, esci.
-  const { error: insertErr } = await service.from('stripe_events').insert({
-    stripe_event_id: event.id,
-    event_type: event.type,
-    status: 'pending',
-  });
-  if (insertErr) {
+  const { data: eventRow, error: insertErr } = await service
+    .from('stripe_events')
+    .insert({
+      stripe_event_id: event.id,
+      event_type: event.type,
+      status: 'pending',
+    })
+    .select('id')
+    .single();
+  if (insertErr || !eventRow) {
     // Violazione unique → evento già ricevuto: idempotente, nessuna doppia azione.
     return NextResponse.json({ received: true, duplicate: true });
   }
+  // Riferimento UUID stabile per il ledger (gli id Stripe non sono UUID).
+  const eventUuid = eventRow.id;
 
   try {
     if (event.type === 'checkout.session.completed') {
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
             await service.rpc('apply_credit_purchase', {
               org: orgId,
               amt: product.credits,
-              stripe_event: event.id,
+              stripe_event: eventUuid,
               price_key: packKey,
             });
             await service.from('app_events').insert({

@@ -141,7 +141,7 @@ export class MockFactAuditProvider implements FactAuditProvider {
 export class MockVisualExtractionProvider implements VisualExtractionProvider {
   constructor(private opts: MockOptions = {}) {}
   async extractVisualAttributes(
-    input: VisualExtractionInput,
+    _input: VisualExtractionInput,
   ): Promise<AiResult<VisualExtraction>> {
     await delay(this.opts.latencyMs ?? 0);
     // Mock: nessun attributo inferito (sicuro per default).
