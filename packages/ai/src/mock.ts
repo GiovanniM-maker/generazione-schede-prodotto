@@ -19,6 +19,9 @@ import type {
   CopilotProvider,
   FactAuditProvider,
   ProductCopyProvider,
+  TranscriptionInput,
+  TranscriptionProvider,
+  TranscriptionResult,
   VisualExtractionProvider,
 } from './interfaces.js';
 
@@ -224,6 +227,22 @@ export class MockCopilotProvider implements CopilotProvider {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Trascrizione mock: DETERMINISTICA e offline. Nessuna chiamata di rete.
+// Restituisce una frase fissa in italiano che include il nome del file.
+// ---------------------------------------------------------------------------
+
+export class MockTranscriptionProvider implements TranscriptionProvider {
+  constructor(private opts: MockOptions = {}) {}
+  async transcribe(input: TranscriptionInput): Promise<AiResult<TranscriptionResult>> {
+    await delay(this.opts.latencyMs ?? 0);
+    return {
+      data: { text: `Trascrizione simulata (${input.filename}).` },
+      usage: usage('mock-transcription', 0, 0),
+    };
+  }
+}
+
 export function createMockProviders(opts: MockOptions = {}) {
   return {
     brandProfile: new MockBrandProfileProvider(opts),
@@ -231,5 +250,6 @@ export function createMockProviders(opts: MockOptions = {}) {
     visual: new MockVisualExtractionProvider(opts),
     factAudit: new MockFactAuditProvider(opts),
     copilot: new MockCopilotProvider(opts),
+    transcription: new MockTranscriptionProvider(opts),
   };
 }

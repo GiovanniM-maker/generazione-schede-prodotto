@@ -34,11 +34,16 @@ export const serverEnvSchema = z
     OPENAI_MODEL_VISUAL: z.string().default('gpt-4o-mini'),
     OPENAI_MODEL_AUDIT: z.string().default('gpt-4o-mini'),
     OPENAI_MODEL_COPILOT: z.string().default('gpt-4o-mini'),
+    // Modello di trascrizione audio OpenAI (Whisper). Endpoint dedicato.
+    OPENAI_MODEL_TRANSCRIBE: z.string().default('whisper-1'),
 
     // OpenRouter (gateway OpenAI-compatibile via chat completions). Se presente,
     // ha priorità su OpenAI. Modello configurabile (default gpt-4o-mini).
     OPENROUTER_API_KEY: z.string().optional().default(''),
     OPENROUTER_MODEL: z.string().default('openai/gpt-4o-mini'),
+    // Modello per la trascrizione audio via OpenRouter (content input_audio).
+    // Deve essere un modello audio-capable (default Gemini 2.0 Flash).
+    OPENROUTER_TRANSCRIBE_MODEL: z.string().default('google/gemini-2.0-flash-001'),
 
     STRIPE_SECRET_KEY: z.string().optional().default(''),
     STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),

@@ -52,6 +52,27 @@ export interface CopilotProvider {
   suggestConfiguration(input: CopilotInput): Promise<AiResult<CopilotOutput>>;
 }
 
+// ---------------------------------------------------------------------------
+// Trascrizione audio (Fase 6). Nota: OpenRouter NON supporta l'audio (solo
+// chat-completions), quindi la trascrizione reale usa OpenAI Whisper. È
+// indipendente dal provider principale (mock / OpenRouter / OpenAI).
+// ---------------------------------------------------------------------------
+
+export interface TranscriptionInput {
+  audio: Buffer;
+  filename: string;
+  mimeType: string;
+  language?: string;
+}
+
+export interface TranscriptionResult {
+  text: string;
+}
+
+export interface TranscriptionProvider {
+  transcribe(input: TranscriptionInput): Promise<AiResult<TranscriptionResult>>;
+}
+
 /** Aggregato di tutti i provider AI. */
 export interface AiProviders {
   brandProfile: BrandProfileProvider;
@@ -59,4 +80,5 @@ export interface AiProviders {
   visual: VisualExtractionProvider;
   factAudit: FactAuditProvider;
   copilot: CopilotProvider;
+  transcription: TranscriptionProvider;
 }

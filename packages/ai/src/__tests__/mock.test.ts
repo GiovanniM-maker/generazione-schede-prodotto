@@ -61,6 +61,27 @@ describe('MockProductCopyProvider', () => {
   });
 });
 
+describe('MockTranscriptionProvider', () => {
+  it('trascrive in modo deterministico e offline, includendo il filename', async () => {
+    const { transcription } = createMockProviders();
+    const audio = Buffer.from('fake-audio');
+    const a = await transcription.transcribe({
+      audio,
+      filename: 'nota.webm',
+      mimeType: 'audio/webm',
+      language: 'it',
+    });
+    const b = await transcription.transcribe({
+      audio,
+      filename: 'nota.webm',
+      mimeType: 'audio/webm',
+      language: 'it',
+    });
+    expect(a.data).toEqual(b.data);
+    expect(a.data.text).toContain('nota.webm');
+  });
+});
+
 describe('MockFactAuditProvider', () => {
   it('blocca claim non supportati', async () => {
     const { factAudit } = createMockProviders();
