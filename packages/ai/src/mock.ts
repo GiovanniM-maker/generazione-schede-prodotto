@@ -3,6 +3,9 @@ import {
   usableFacts,
   type BrandProfile,
   type BrandProfileInput,
+  type CopilotDraftPatch,
+  type CopilotInput,
+  type CopilotOutput,
   type FactAuditInput,
   type FactAuditResult,
   type ProductCopy,
@@ -13,6 +16,7 @@ import {
 import type {
   AiResult,
   BrandProfileProvider,
+  CopilotProvider,
   FactAuditProvider,
   ProductCopyProvider,
   VisualExtractionProvider,
@@ -152,11 +156,80 @@ export class MockVisualExtractionProvider implements VisualExtractionProvider {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Copilot mock: DETERMINISTICO e offline. Ricava un draftPatch sensato dal
+// messaggio dell'utente (nome dall'ultima frase utile, dataType 'text', una
+// istruzione di estrazione generica). Chiede sempre conferma.
+// ---------------------------------------------------------------------------
+
+/** Estrae un "nome" plausibile dal messaggio (prima riga, ripulita, max ~60). */
+function deriveName(message: string): string {
+  const firstLine = message.split('\n')[0]?.trim() ?? '';
+  const cleaned = firstLine
+    .replace(
+      /^(crea|aggiungi|configura|vorrei|voglio|nuovo|nuova|un|una|attributo|categoria|per favore|per)\s+/gi,
+      '',
+    )
+    .trim();
+  const base = cleaned || firstLine || 'Nuovo elemento';
+  return base.length > 60 ? base.slice(0, 60).trim() : base;
+}
+
+export class MockCopilotProvider implements CopilotProvider {
+  constructor(private opts: MockOptions = {}) {}
+  async suggestConfiguration(input: CopilotInput): Promise<AiResult<CopilotOutput>> {
+    await delay(this.opts.latencyMs ?? 0);
+
+    const existingName =
+      typeof input.currentDraft.name === 'string' ? input.currentDraft.name : null;
+    const name = existingName || deriveName(input.userMessage);
+    const isAttribute = input.entityType === 'attribute';
+
+    const draftPatch: CopilotDraftPatch = {
+      name,
+      description: null,
+      attributeKind: isAttribute ? 'factual' : null,
+      dataType: isAttribute ? 'text' : null,
+      unit: null,
+      enumValues: null,
+      extractionInstruction: isAttribute
+        ? `Estrai il valore di "${name}" dalle fonti fornite: estrai solo il dato dichiarato, non stimare.`
+        : null,
+      generationInstruction: isAttribute
+        ? `Usa "${name}" nel testo solo se presente tra i fatti verificati.`
+        : null,
+      categoryKeys: null,
+      isRequired: isAttribute ? false : null,
+    };
+
+    const duplicate = input.existingSimilar.find(
+      (s) => s.name.toLowerCase() === name.toLowerCase(),
+    );
+    const duplicateNote = duplicate
+      ? ` Attenzione: esiste già "${duplicate.name}" con nome simile: valuta se riusarlo.`
+      : '';
+
+    const label = isAttribute ? 'attributo' : 'categoria';
+    const output: CopilotOutput = {
+      assistantMessage: `Ho preparato una bozza per l'${label} "${name}".${duplicateNote} Controlla i campi proposti e conferma per crearlo.`,
+      intent: isAttribute ? 'configure_attribute' : 'configure_category',
+      missingInformation: [],
+      suggestedActions: ['Rivedi la bozza proposta', 'Conferma per pubblicare'],
+      draftPatch,
+      requiresConfirmation: true,
+      confirmationSummary: `Verrà creata la ${label} "${name}" nel settore ${input.sectorName || 'selezionato'}.`,
+    };
+
+    return { data: output, usage: usage('mock-copilot', 120, 90) };
+  }
+}
+
 export function createMockProviders(opts: MockOptions = {}) {
   return {
     brandProfile: new MockBrandProfileProvider(opts),
     productCopy: new MockProductCopyProvider(opts),
     visual: new MockVisualExtractionProvider(opts),
     factAudit: new MockFactAuditProvider(opts),
+    copilot: new MockCopilotProvider(opts),
   };
 }

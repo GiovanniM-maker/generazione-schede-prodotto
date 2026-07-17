@@ -1,6 +1,8 @@
 import type {
   BrandProfile,
   BrandProfileInput,
+  CopilotInput,
+  CopilotOutput,
   FactAuditInput,
   FactAuditResult,
   ProductCopy,
@@ -42,10 +44,19 @@ export interface FactAuditProvider {
   auditCopy(input: FactAuditInput): Promise<AiResult<FactAuditResult>>;
 }
 
+/**
+ * Copilot di configurazione: propone una bozza strutturata per attributi e
+ * categorie a partire dal messaggio dell'utente. Non scrive mai nel catalogo.
+ */
+export interface CopilotProvider {
+  suggestConfiguration(input: CopilotInput): Promise<AiResult<CopilotOutput>>;
+}
+
 /** Aggregato di tutti i provider AI. */
 export interface AiProviders {
   brandProfile: BrandProfileProvider;
   productCopy: ProductCopyProvider;
   visual: VisualExtractionProvider;
   factAudit: FactAuditProvider;
+  copilot: CopilotProvider;
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Loader2, Copy, Eye } from 'lucide-react';
+import { Plus, Loader2, Copy, Eye, Sparkles } from 'lucide-react';
 import {
   createCategory,
   duplicateSystemCategory,
@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal } from '@/components/settings/modal';
+import { CopilotPanel } from '@/components/copilot/copilot-panel';
 
 export function CategoriesClient({
   categories,
@@ -33,6 +34,7 @@ export function CategoriesClient({
   const [search, setSearch] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [newSector, setNewSector] = useState(sectors[0]?.id ?? '');
@@ -87,17 +89,30 @@ export function CategoriesClient({
             organizzazione.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            setError(null);
-            setNewSector(sectorFilter || sectors[0]?.id || '');
-            setCreateOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Nuova categoria
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setCopilotOpen(true);
+            }}
+          >
+            <Sparkles className="h-4 w-4" />
+            Crea con AI
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setNewSector(sectorFilter || sectors[0]?.id || '');
+              setCreateOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nuova categoria
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -243,6 +258,21 @@ export function CategoriesClient({
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={copilotOpen}
+        onClose={() => setCopilotOpen(false)}
+        title="Crea una categoria con l'AI"
+        className="max-w-4xl"
+      >
+        {copilotOpen && (
+          <CopilotPanel
+            entityType="category"
+            sectorId={sectorFilter || sectors[0]?.id || undefined}
+            onClose={() => setCopilotOpen(false)}
+          />
+        )}
       </Modal>
     </div>
   );

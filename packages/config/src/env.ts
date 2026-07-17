@@ -33,6 +33,7 @@ export const serverEnvSchema = z
     OPENAI_MODEL_COPY: z.string().default('gpt-4o-mini'),
     OPENAI_MODEL_VISUAL: z.string().default('gpt-4o-mini'),
     OPENAI_MODEL_AUDIT: z.string().default('gpt-4o-mini'),
+    OPENAI_MODEL_COPILOT: z.string().default('gpt-4o-mini'),
 
     // OpenRouter (gateway OpenAI-compatibile via chat completions). Se presente,
     // ha priorità su OpenAI. Modello configurabile (default gpt-4o-mini).

@@ -19,3 +19,4 @@ export * from './schemas.js';
 export * from './sku.js';
 export * from './sources.js';
 export * from './template.js';
+export * from './copilot.js';

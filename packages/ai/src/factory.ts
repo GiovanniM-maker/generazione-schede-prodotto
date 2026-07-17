@@ -27,6 +27,7 @@ export function createAiProviders(env: ServerEnv): AiProviders {
       productCopy: router,
       visual: router,
       factAudit: router,
+      copilot: router,
     };
   }
 
@@ -40,6 +41,7 @@ export function createAiProviders(env: ServerEnv): AiProviders {
       copy: env.OPENAI_MODEL_COPY,
       visual: env.OPENAI_MODEL_VISUAL,
       audit: env.OPENAI_MODEL_AUDIT,
+      copilot: env.OPENAI_MODEL_COPILOT,
     },
   });
   return {
@@ -47,5 +49,6 @@ export function createAiProviders(env: ServerEnv): AiProviders {
     productCopy: providers,
     visual: providers,
     factAudit: providers,
+    copilot: providers,
   };
 }

@@ -5,16 +5,22 @@ import {
   buildCopySystemPrompt,
   buildCopyUserPrompt,
   buildAuditUserPrompt,
+  buildCopilotSystemPrompt,
+  buildCopilotUserPrompt,
   brandProfileSchema,
   productCopySchema,
   factAuditSchema,
   visualExtractionSchema,
+  copilotOutputSchema,
   BRAND_PROFILE_JSON_SCHEMA,
   PRODUCT_COPY_JSON_SCHEMA,
   FACT_AUDIT_JSON_SCHEMA,
   VISUAL_EXTRACTION_JSON_SCHEMA,
+  COPILOT_JSON_SCHEMA,
   type BrandProfile,
   type BrandProfileInput,
+  type CopilotInput,
+  type CopilotOutput,
   type FactAuditInput,
   type FactAuditResult,
   type ProductCopy,
@@ -26,6 +32,7 @@ import type { z } from 'zod';
 import type {
   AiResult,
   BrandProfileProvider,
+  CopilotProvider,
   FactAuditProvider,
   ProductCopyProvider,
   UsageInfo,
@@ -52,7 +59,8 @@ export class OpenRouterProviders
     BrandProfileProvider,
     ProductCopyProvider,
     VisualExtractionProvider,
-    FactAuditProvider
+    FactAuditProvider,
+    CopilotProvider
 {
   private client: OpenAI;
   private model: string;
@@ -158,5 +166,15 @@ export class OpenRouterProviders
       VISUAL_EXTRACTION_JSON_SCHEMA,
       visualExtractionSchema,
     );
+  }
+
+  async suggestConfiguration(input: CopilotInput): Promise<AiResult<CopilotOutput>> {
+    return this.structured(
+      buildCopilotSystemPrompt(input.entityType),
+      buildCopilotUserPrompt(input),
+      'copilot_configuration',
+      COPILOT_JSON_SCHEMA,
+      copilotOutputSchema,
+    ) as Promise<AiResult<CopilotOutput>>;
   }
 }

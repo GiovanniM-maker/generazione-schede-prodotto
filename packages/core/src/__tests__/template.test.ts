@@ -47,7 +47,7 @@ describe('buildTemplateCsv', () => {
     const cols = buildTemplateColumns(input);
     const csv = buildTemplateCsv(cols, { includeDescriptionRow: true, includeExampleRow: true });
     expect(csv.charCodeAt(0)).toBe(0xfeff);
-    const lines = csv.replace(/^﻿/, '').trim().split('\r\n');
+    const lines = csv.replace(/^\ufeff/, '').trim().split('\r\n');
     expect(lines[0]).toContain('SKU');
     expect(lines[0]).toContain('Colore');
     expect(lines.length).toBe(3); // header + descrizioni + esempio

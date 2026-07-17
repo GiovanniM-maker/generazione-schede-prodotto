@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Loader2, Eye } from 'lucide-react';
+import { Plus, Loader2, Eye, Sparkles } from 'lucide-react';
 import {
   listAttributes,
   createAttribute,
@@ -19,6 +19,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal } from '@/components/settings/modal';
+import { CopilotPanel } from '@/components/copilot/copilot-panel';
 
 const KINDS = [
   { value: 'factual', label: 'Fattuale' },
@@ -64,6 +65,7 @@ export function AttributesClient({
   const [search, setSearch] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -139,20 +141,33 @@ export function AttributesClient({
             organizzazione.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            setError(null);
-            setForm((f) => ({
-              ...f,
-              sectorId: sectorFilter || sectors[0]?.id || '',
-            }));
-            setCreateOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Nuovo attributo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setCopilotOpen(true);
+            }}
+          >
+            <Sparkles className="h-4 w-4" />
+            Crea con AI
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setForm((f) => ({
+                ...f,
+                sectorId: sectorFilter || sectors[0]?.id || '',
+              }));
+              setCreateOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nuovo attributo
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -417,6 +432,21 @@ export function AttributesClient({
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={copilotOpen}
+        onClose={() => setCopilotOpen(false)}
+        title="Crea un attributo con l'AI"
+        className="max-w-4xl"
+      >
+        {copilotOpen && (
+          <CopilotPanel
+            entityType="attribute"
+            sectorId={sectorFilter || sectors[0]?.id || undefined}
+            onClose={() => setCopilotOpen(false)}
+          />
+        )}
       </Modal>
     </div>
   );
