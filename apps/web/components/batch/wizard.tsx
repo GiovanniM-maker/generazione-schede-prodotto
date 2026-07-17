@@ -1260,8 +1260,20 @@ function Step9({
         setVisualErr(res.error);
         return;
       }
+      const warnings: string[] = [];
+      if (res.data.productsSkipped > 0) {
+        warnings.push(
+          `${res.data.productsSkipped} prodotti non sono stati analizzati (max ${res.data.maxProducts} per esecuzione): rilancia l'analisi per completarli.`,
+        );
+      }
+      if (res.data.productsWithTruncatedImages > 0) {
+        warnings.push(
+          `Per ${res.data.productsWithTruncatedImages} prodotti sono state usate solo le prime ${res.data.maxImagesPerProduct} immagini.`,
+        );
+      }
       setVisualMsg(
-        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti nella revisione dei dati.`,
+        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti nella revisione dei dati.` +
+          (warnings.length ? ` ${warnings.join(' ')}` : ''),
       );
     } catch {
       setVisualErr('Analisi immagini non riuscita. Riprova.');

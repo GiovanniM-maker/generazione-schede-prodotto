@@ -117,6 +117,23 @@ function buildFieldMapping(
 export interface VisualExtractionSummary {
   productsProcessed: number;
   attributesSuggested: number;
+  /** Prodotti con immagini esclusi perché oltre il limite per esecuzione. */
+  productsSkipped: number;
+  /** Prodotti per cui alcune immagini non sono state analizzate (oltre il cap). */
+  productsWithTruncatedImages: number;
+  maxProducts: number;
+  maxImagesPerProduct: number;
+}
+
+function emptyVisualSummary(): VisualExtractionSummary {
+  return {
+    productsProcessed: 0,
+    attributesSuggested: 0,
+    productsSkipped: 0,
+    productsWithTruncatedImages: 0,
+    maxProducts: MAX_PRODUCTS,
+    maxImagesPerProduct: MAX_IMAGES_PER_PRODUCT,
+  };
 }
 
 export async function runVisualExtractionForBatch(input: {
@@ -165,7 +182,7 @@ export async function runVisualExtractionForBatch(input: {
   const whitelist = sectorVisualWhitelist(sectorKey);
   if (whitelist.length === 0) {
     // Settore senza whitelist visuale (es. Food/Pharma): nessun suggerimento.
-    return ok({ productsProcessed: 0, attributesSuggested: 0 });
+    return ok(emptyVisualSummary());
   }
 
   const { data: presetAttrs } = await service
@@ -173,7 +190,7 @@ export async function runVisualExtractionForBatch(input: {
     .select('attribute_id, enabled')
     .eq('preset_version_id', presetVersionId);
   const attrIds = (presetAttrs ?? []).filter((a) => a.enabled !== false).map((a) => a.attribute_id);
-  if (attrIds.length === 0) return ok({ productsProcessed: 0, attributesSuggested: 0 });
+  if (attrIds.length === 0) return ok(emptyVisualSummary());
 
   const { data: attrRows } = await service
     .from('attributes')
@@ -182,7 +199,7 @@ export async function runVisualExtractionForBatch(input: {
   const attributes: PresetAttr[] = (attrRows ?? []).map((a) => ({ id: a.id, key: a.key, name: a.name }));
 
   const { allowedFields, fieldToAttrId } = buildFieldMapping(whitelist, attributes);
-  if (allowedFields.length === 0) return ok({ productsProcessed: 0, attributesSuggested: 0 });
+  if (allowedFields.length === 0) return ok(emptyVisualSummary());
 
   // 3) Prodotti del batch con immagini collegate.
   const { data: products } = await service
@@ -190,14 +207,14 @@ export async function runVisualExtractionForBatch(input: {
     .select('id')
     .eq('batch_id', input.batchId);
   const productIds = (products ?? []).map((p) => p.id);
-  if (productIds.length === 0) return ok({ productsProcessed: 0, attributesSuggested: 0 });
+  if (productIds.length === 0) return ok(emptyVisualSummary());
 
   const { data: links } = await service
     .from('product_source_links')
     .select('product_id, source_item_id')
     .in('product_id', productIds);
   const sourceItemIds = [...new Set((links ?? []).map((l) => l.source_item_id))];
-  if (sourceItemIds.length === 0) return ok({ productsProcessed: 0, attributesSuggested: 0 });
+  if (sourceItemIds.length === 0) return ok(emptyVisualSummary());
 
   const { data: items } = await service
     .from('source_items')
@@ -220,10 +237,21 @@ export async function runVisualExtractionForBatch(input: {
   }
 
   let targets = [...imagesByProduct.keys()];
-  if (targets.length === 0) return ok({ productsProcessed: 0, attributesSuggested: 0 });
+  if (targets.length === 0) {
+    return ok({
+      productsProcessed: 0,
+      attributesSuggested: 0,
+      productsSkipped: 0,
+      productsWithTruncatedImages: 0,
+      maxProducts: MAX_PRODUCTS,
+      maxImagesPerProduct: MAX_IMAGES_PER_PRODUCT,
+    });
+  }
+  let productsSkipped = 0;
   if (targets.length > MAX_PRODUCTS) {
+    productsSkipped = targets.length - MAX_PRODUCTS;
     console.warn(
-      `[visual] batch ${input.batchId}: ${targets.length} prodotti con immagini, limitati a ${MAX_PRODUCTS}.`,
+      `[visual] batch ${input.batchId}: ${targets.length} prodotti con immagini, limitati a ${MAX_PRODUCTS} (${productsSkipped} esclusi da questa esecuzione).`,
     );
     targets = targets.slice(0, MAX_PRODUCTS);
   }
@@ -247,9 +275,17 @@ export async function runVisualExtractionForBatch(input: {
 
   let productsProcessed = 0;
   let attributesSuggested = 0;
+  let productsWithTruncatedImages = 0;
 
   for (const productId of targets) {
-    const productItems = (imagesByProduct.get(productId) ?? []).slice(0, MAX_IMAGES_PER_PRODUCT);
+    const allItems = imagesByProduct.get(productId) ?? [];
+    const productItems = allItems.slice(0, MAX_IMAGES_PER_PRODUCT);
+    if (allItems.length > MAX_IMAGES_PER_PRODUCT) {
+      productsWithTruncatedImages++;
+      console.warn(
+        `[visual] prodotto ${productId}: ${allItems.length} immagini, analizzate solo le prime ${MAX_IMAGES_PER_PRODUCT}.`,
+      );
+    }
 
     // Signed URL per ogni immagine (evita il base64 per restare leggeri).
     const images: VisualExtractionImage[] = [];
@@ -336,10 +372,22 @@ export async function runVisualExtractionForBatch(input: {
     user_id: user.id,
     event_name: 'visual_extraction_run',
     batch_id: input.batchId,
-    metadata_json: { productsProcessed, attributesSuggested } as unknown as Json,
+    metadata_json: {
+      productsProcessed,
+      attributesSuggested,
+      productsSkipped,
+      productsWithTruncatedImages,
+    } as unknown as Json,
   });
 
-  return ok({ productsProcessed, attributesSuggested });
+  return ok({
+    productsProcessed,
+    attributesSuggested,
+    productsSkipped,
+    productsWithTruncatedImages,
+    maxProducts: MAX_PRODUCTS,
+    maxImagesPerProduct: MAX_IMAGES_PER_PRODUCT,
+  });
 }
 
 // ---------------------------------------------------------------------------

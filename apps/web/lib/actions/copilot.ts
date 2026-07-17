@@ -453,6 +453,29 @@ export async function confirmDraft(input: {
     if (!name) return { ok: false, error: 'La bozza non ha un nome' };
     if (!data.sectorId) return { ok: false, error: 'Settore mancante nella bozza' };
 
+    // Claim atomico: transiziona lo stato a 'published' SOLO se è ancora
+    // confermabile. Un doppio click concorrente troverà 0 righe aggiornate e
+    // uscirà, evitando la creazione di entità duplicate. Manca una transazione
+    // DB: in caso di errore nell'inserimento ripristiniamo lo stato originale.
+    const { data: claimed } = await service
+      .from('configuration_drafts')
+      .update({ status: 'published' })
+      .eq('id', draftRow.id)
+      .in('status', ['ready_for_confirmation', 'confirmed'])
+      .select('id');
+    if (!claimed || claimed.length === 0) {
+      return {
+        ok: false,
+        error: 'La bozza è già stata confermata o è in fase di conferma',
+      };
+    }
+    const rollbackClaim = async () => {
+      await service
+        .from('configuration_drafts')
+        .update({ status: draftRow.status })
+        .eq('id', draftRow.id);
+    };
+
     let entityId: string;
 
     if (entityType === 'attribute') {
@@ -480,6 +503,7 @@ export async function confirmDraft(input: {
         .select('id')
         .single();
       if (error || !attr) {
+        await rollbackClaim();
         return { ok: false, error: `Creazione attributo fallita: ${error?.message}` };
       }
       entityId = attr.id;
@@ -512,6 +536,7 @@ export async function confirmDraft(input: {
         .select('id')
         .single();
       if (error || !cat) {
+        await rollbackClaim();
         return { ok: false, error: `Creazione categoria fallita: ${error?.message}` };
       }
       entityId = cat.id;

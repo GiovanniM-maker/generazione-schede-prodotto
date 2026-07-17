@@ -712,6 +712,10 @@ export async function publishPresetVersion(input: {
       .maybeSingle();
     if (!draft) return { ok: false, error: 'Nessuna bozza da pubblicare' };
 
+    // Pubblicazione in due passi (manca una transazione lato DB): marca la
+    // versione come pubblicata e poi la rende attiva. Se il secondo passo
+    // fallisce, annulla il primo per non lasciare una versione "pubblicata ma
+    // non attiva" (stato incoerente che confonderebbe la dashboard).
     const now = new Date().toISOString();
     const { error: upErr } = await service
       .from('preset_versions')
@@ -723,7 +727,14 @@ export async function publishPresetVersion(input: {
       .from('presets')
       .update({ active_version_id: draft.id })
       .eq('id', preset.id);
-    if (pErr) return { ok: false, error: pErr.message };
+    if (pErr) {
+      // Rollback compensativo del primo passo.
+      await service
+        .from('preset_versions')
+        .update({ published_at: null })
+        .eq('id', draft.id);
+      return { ok: false, error: pErr.message };
+    }
 
     return { ok: true };
   } catch (err) {
