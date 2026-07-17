@@ -25,7 +25,8 @@ export const serverEnvSchema = z
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-    SUPABASE_DB_URL: z.string().min(1),
+    // Serve solo per migrazioni/CLI/test SQL: web e worker usano il service client.
+    SUPABASE_DB_URL: z.string().optional().default(''),
 
     OPENAI_API_KEY: z.string().optional().default(''),
     OPENAI_MODEL_BRAND_PROFILE: z.string().default('gpt-4o-mini'),
@@ -74,21 +75,9 @@ export const serverEnvSchema = z
           path: ['ENABLE_MOCK_BILLING'],
         });
       }
-      // In produzione con AI reale serve la chiave.
-      if (!env.ENABLE_MOCK_AI && !env.OPENAI_API_KEY) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'OPENAI_API_KEY richiesta in produzione quando i mock AI sono disattivi',
-          path: ['OPENAI_API_KEY'],
-        });
-      }
-      if (!env.ENABLE_MOCK_BILLING && !env.STRIPE_SECRET_KEY) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'STRIPE_SECRET_KEY richiesta in produzione quando i mock billing sono disattivi',
-          path: ['STRIPE_SECRET_KEY'],
-        });
-      }
+      // Nota: OPENAI_API_KEY e STRIPE_SECRET_KEY non sono richieste all'avvio.
+      // L'app parte con la sola config Supabase; i provider AI/Stripe lanciano un
+      // errore chiaro solo quando vengono effettivamente usati senza chiave.
     }
   });
 
