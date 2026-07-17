@@ -133,7 +133,7 @@ export function AttributesClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Attributi</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -184,6 +184,7 @@ export function AttributesClient({
             setCategoryFilter('');
           }}
           className="w-44"
+          aria-label="Filtra per settore"
         >
           <option value="">Tutti i settori</option>
           {sectors.map((s) => (
@@ -196,6 +197,7 @@ export function AttributesClient({
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="w-44"
+          aria-label="Filtra per categoria"
         >
           <option value="">Tutte le categorie</option>
           {categoriesForSector.map((c) => (
@@ -208,6 +210,7 @@ export function AttributesClient({
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value)}
           className="w-40"
+          aria-label="Filtra per tipo"
         >
           <option value="">Tutti i tipi</option>
           {KINDS.map((k) => (
@@ -221,6 +224,7 @@ export function AttributesClient({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cerca attributo…"
           className="w-56"
+          aria-label="Cerca attributo"
         />
         {pending && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
       </div>

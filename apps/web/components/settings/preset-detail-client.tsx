@@ -385,7 +385,7 @@ function AttributeEditor({
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-900">{attr.name}</span>
           <Badge tone="violet">
@@ -402,7 +402,7 @@ function AttributeEditor({
               onChange={(e) =>
                 persist({ id: attr.id, isRequired: e.target.checked })
               }
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-5 w-5 rounded border-gray-300"
             />
             Obbligatorio
           </label>

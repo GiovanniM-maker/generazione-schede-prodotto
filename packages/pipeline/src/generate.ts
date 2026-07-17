@@ -56,7 +56,10 @@ export async function loadPresetGenerationSpec(
     .eq('preset_version_id', presetVersionId);
   const attrIds = [...new Set((pas ?? []).map((p) => p.attribute_id))];
   const { data: attrs } = attrIds.length
-    ? await client.from('attributes').select('id, key, name, default_generation_instruction').in('id', attrIds)
+    ? await client
+        .from('attributes')
+        .select('id, key, name, attribute_kind, default_generation_instruction')
+        .in('id', attrIds)
     : { data: [] };
   const attrMap = new Map((attrs ?? []).map((a) => [a.id, a]));
 
@@ -71,7 +74,11 @@ export async function loadPresetGenerationSpec(
     const key = a?.key ?? a?.name;
     if (key && !seenKeys.has(key)) {
       seenKeys.add(key);
-      attributes.push({ key, name: a?.name ?? key, isRequired: p.is_required === true });
+      // Solo gli attributi FATTUALI possono essere "obbligatori" ai fini della
+      // completezza: derived/generative non arrivano dall'input, non vanno
+      // contati come mancanti.
+      const isFactual = (a?.attribute_kind ?? 'factual') === 'factual';
+      attributes.push({ key, name: a?.name ?? key, isRequired: p.is_required === true && isFactual });
     }
   }
 
@@ -224,6 +231,12 @@ export async function generateSample(
   if (!candidate) throw new Error('INSUFFICIENT_FACTS: nessun prodotto disponibile');
 
   const facts = await loadProductFactsV2(ctx.client, candidate.id);
+  // Stesso guard della generazione reale: senza ≥2 fatti il campione non è
+  // rappresentativo (evita di generare solo dallo SKU dando falsa sicurezza).
+  const additional = facts.filter((f) => !NON_ADDITIONAL_FIELDS.has(f.fieldKey)).length;
+  if (additional < 2) {
+    throw new Error('INSUFFICIENT_FACTS: dati insufficienti per generare un campione');
+  }
   const { profile } = await loadBrandProfile(ctx.client, batch.brand_profile_version_id);
   const spec = await loadPresetGenerationSpec(ctx.client, batch.preset_version_id);
   const { content, audit, completeness } = await generateCopyWithAudit(ctx, facts, profile, spec);
@@ -257,10 +270,19 @@ export async function runProductGeneration(
     return { outcome: 'already_done' };
   }
 
-  await client
+  // Claim ATOMICO: passa a 'processing' solo se il job è ancora accodabile.
+  // Se un altro processo l'ha già preso (o completato), nessuna riga torna
+  // indietro → evita doppia elaborazione dopo la scadenza del visibility timeout.
+  const claimAt = new Date().toISOString();
+  const { data: claimed } = await client
     .from('job_items')
-    .update({ status: 'processing', started_at: new Date().toISOString(), locked_at: new Date().toISOString() })
-    .eq('id', jobItemId);
+    .update({ status: 'processing', started_at: claimAt, locked_at: claimAt })
+    .eq('id', jobItemId)
+    .in('status', ['queued', 'pending', 'failed'])
+    .select('id');
+  if (!claimed || claimed.length === 0) {
+    return { outcome: 'already_done' };
+  }
 
   const { data: batch } = await client
     .from('batches')
@@ -304,6 +326,9 @@ export async function runProductGeneration(
     .maybeSingle();
 
   if (cached) {
+    // Non ereditare uno stato 'accepted' altrui: questo prodotto non è stato
+    // revisionato. Clampa a needs_review/generated.
+    const cachedStatus = cached.status === 'accepted' ? 'generated' : cached.status;
     await client.from('product_generations').insert({
       organization_id: job.organization_id,
       product_id: job.product_id,
@@ -312,8 +337,12 @@ export async function runProductGeneration(
       generated_content_json: cached.generated_content_json,
       audit_json: cached.audit_json,
       completeness_json: cached.completeness_json,
-      status: cached.status,
+      status: cachedStatus,
     });
+    await client
+      .from('products')
+      .update({ input_hash: inputHash, verification_status: cachedStatus })
+      .eq('id', job.product_id);
     await client
       .from('job_items')
       .update({ status: 'completed', completed_at: new Date().toISOString() })

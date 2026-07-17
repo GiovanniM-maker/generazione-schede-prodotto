@@ -20,10 +20,10 @@ async function processMessage(ctx: WorkerContext, msg: ReadMessage): Promise<voi
     env: ctx.env,
   };
   const jobItemId = msg.message.jobItemId;
+  let succeeded = false;
   try {
     const result = await runProductGeneration(genCtx, jobItemId);
-    // Successo (o già fatto / cache): rimuovi il messaggio dalla coda.
-    await queueDelete(ctx.client, msg.msg_id);
+    succeeded = true;
     logger.info('job elaborato', { jobItemId, outcome: result.outcome, msgId: msg.msg_id });
   } catch (err) {
     const decision = await handleJobFailure(
@@ -40,8 +40,20 @@ async function processMessage(ctx: WorkerContext, msg: ReadMessage): Promise<voi
       });
     } else {
       // Fallimento definitivo: rimuovi il messaggio, credito già rimborsato.
-      await queueDelete(ctx.client, msg.msg_id);
+      succeeded = true; // rimuovi comunque il messaggio (job in stato terminale)
       logger.error('job fallito definitivamente', { jobItemId, code: decision.code });
+    }
+  }
+  // La rimozione dal messaggio è FUORI dal try: un errore di queueDelete dopo un
+  // job riuscito non deve far scattare handleJobFailure (rimborso errato).
+  if (succeeded) {
+    try {
+      await queueDelete(ctx.client, msg.msg_id);
+    } catch (delErr) {
+      logger.warn('queueDelete fallita (il messaggio riapparirà, il job è idempotente)', {
+        jobItemId,
+        error: delErr instanceof Error ? delErr.message : String(delErr),
+      });
     }
   }
 }

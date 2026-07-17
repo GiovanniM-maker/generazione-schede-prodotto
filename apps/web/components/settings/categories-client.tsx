@@ -81,7 +81,7 @@ export function CategoriesClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Categorie</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -126,6 +126,7 @@ export function CategoriesClient({
           value={sectorFilter}
           onChange={(e) => setSectorFilter(e.target.value)}
           className="w-48"
+          aria-label="Filtra per settore"
         >
           <option value="">Tutti i settori</option>
           {sectors.map((s) => (
@@ -139,6 +140,7 @@ export function CategoriesClient({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cerca categoria…"
           className="w-64"
+          aria-label="Cerca categoria"
         />
       </div>
 

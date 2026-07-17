@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
   Search,
   Download,
@@ -291,6 +291,7 @@ export function ResultsTable({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cerca per nome, ID o titolo…"
             className="pl-9"
+            aria-label="Cerca"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -388,7 +389,7 @@ export function ResultsTable({
                       checked={allSelected}
                       onChange={toggleSelectAll}
                       aria-label="Seleziona tutti"
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="h-5 w-5 rounded border-gray-300"
                     />
                   </TH>
                   <TH>ID</TH>
@@ -411,7 +412,7 @@ export function ResultsTable({
                           checked={selected.has(r.id)}
                           onChange={() => toggleSelect(r.id)}
                           aria-label={`Seleziona ${r.name}`}
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="h-5 w-5 rounded border-gray-300"
                         />
                       </TD>
                       <TD className="font-mono text-xs text-gray-600">
@@ -539,6 +540,14 @@ function DetailDrawer({
   const [metaDescription, setMeta] = useState(base?.metaDescription ?? '');
 
   const original = row.generated;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-30 flex justify-end">

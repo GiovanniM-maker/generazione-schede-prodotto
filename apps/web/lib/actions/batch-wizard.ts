@@ -12,6 +12,7 @@ import {
   suggestSkuHeader,
   analyzeSources,
   computeQuality,
+  NON_ADDITIONAL_FIELDS,
   type ParseResult,
   type SourceAnalysis,
   type BuiltProduct,
@@ -788,6 +789,49 @@ export async function confirmImportV2(input: {
     else imageBySku.set(item.detected_sku, [item.id]);
   }
 
+  // Prima di ripulire, salva i fatti che l'utente ha confermato o rifiutato a
+  // mano (es. attributi visivi inferiti dalle immagini). Il re-import non deve
+  // cancellare questo lavoro: verranno ripristinati sul prodotto ricreato con
+  // lo stesso SKU. Chiave logica: (sku, attribute_id).
+  interface PavSnapshot {
+    sku: string;
+    attribute_id: string;
+    value_json: Json;
+    status: string;
+    source_type: string | null;
+    source_item_id: string | null;
+  }
+  const confirmedSnapshots: PavSnapshot[] = [];
+  {
+    const { data: existingProducts } = await service
+      .from('products')
+      .select('id, sku')
+      .eq('batch_id', input.batchId);
+    const skuByProductId = new Map(
+      (existingProducts ?? []).map((p) => [p.id, p.sku] as const),
+    );
+    const existingProductIds = (existingProducts ?? []).map((p) => p.id);
+    if (existingProductIds.length > 0) {
+      const { data: existingPavs } = await service
+        .from('product_attribute_values')
+        .select('product_id, attribute_id, value_json, status, source_type, source_item_id')
+        .in('product_id', existingProductIds)
+        .in('status', ['confirmed', 'rejected']);
+      for (const pav of existingPavs ?? []) {
+        const sku = skuByProductId.get(pav.product_id);
+        if (!sku) continue;
+        confirmedSnapshots.push({
+          sku,
+          attribute_id: pav.attribute_id,
+          value_json: pav.value_json,
+          status: pav.status,
+          source_type: pav.source_type,
+          source_item_id: pav.source_item_id,
+        });
+      }
+    }
+  }
+
   // Pulisci import precedenti dello stesso batch (re-import).
   await service.from('products').delete().eq('batch_id', input.batchId);
 
@@ -796,6 +840,8 @@ export async function confirmImportV2(input: {
   let invalid = 0;
   let imageOnly = 0;
   const importedSkus = new Set<string>();
+  // sku -> id del prodotto ricreato (per ripristinare i fatti confermati).
+  const newProductIdBySku = new Map<string, string>();
 
   if (spreadsheet && input.skuHeader) {
     for (const row of spreadsheet.parsed.rows) {
@@ -844,7 +890,16 @@ export async function confirmImportV2(input: {
       };
       const quality = computeQuality(built, { hasImages });
 
-      if (input.options.excludeIncomplete && !quality.eligible) {
+      // Eleggibilità SECTOR-AGNOSTICA: SKU presente + almeno 2 fatti aggiuntivi
+      // (attributi mappati non-identificativi). Allineata al guard della pipeline,
+      // così Food/Pharma (chiavi diverse da Moda) vengono correttamente accodati.
+      const additionalFacts = pavRows.filter((p) => {
+        const a = attrById.get(p.attribute_id);
+        return a && a.key && !NON_ADDITIONAL_FIELDS.has(a.key);
+      }).length;
+      const eligible = Boolean(sku) && additionalFacts >= 2;
+
+      if (input.options.excludeIncomplete && !eligible) {
         invalid++;
         continue;
       }
@@ -862,7 +917,7 @@ export async function confirmImportV2(input: {
           raw_input_json: row as unknown as Json,
           canonical_attributes_json: canonical as unknown as Json,
           data_quality_score: quality.score,
-          verification_status: quality.eligible ? 'eligible' : 'excluded',
+          verification_status: eligible ? 'eligible' : 'excluded',
         })
         .select('id')
         .single();
@@ -872,6 +927,7 @@ export async function confirmImportV2(input: {
       }
       imported++;
       importedSkus.add(sku);
+      newProductIdBySku.set(sku, productRow.id);
       if (quality.eligible) valid++;
       else invalid++;
 
@@ -944,6 +1000,7 @@ export async function confirmImportV2(input: {
       imageOnly++;
       invalid++;
       importedSkus.add(sku);
+      newProductIdBySku.set(sku, productRow.id);
 
       await service.from('product_source_links').insert(
         imgIds.map((id) => ({
@@ -953,6 +1010,37 @@ export async function confirmImportV2(input: {
           link_type: 'sku_exact',
         })),
       );
+    }
+  }
+
+  // Ripristina i fatti confermati/rifiutati a mano sul prodotto ricreato con lo
+  // stesso SKU. Se il re-import ha già inserito una PAV per quello stesso
+  // attributo (da spreadsheet, status 'provided'), la sovrascrive con lo stato
+  // più forte confermato dall'utente; altrimenti la reinserisce.
+  for (const snap of confirmedSnapshots) {
+    const newProductId = newProductIdBySku.get(snap.sku);
+    if (!newProductId) continue;
+    const { data: existing } = await service
+      .from('product_attribute_values')
+      .select('id')
+      .eq('product_id', newProductId)
+      .eq('attribute_id', snap.attribute_id)
+      .maybeSingle();
+    if (existing) {
+      await service
+        .from('product_attribute_values')
+        .update({ status: snap.status, value_json: snap.value_json })
+        .eq('id', existing.id);
+    } else {
+      await service.from('product_attribute_values').insert({
+        organization_id: orgId,
+        product_id: newProductId,
+        attribute_id: snap.attribute_id,
+        value_json: snap.value_json,
+        status: snap.status,
+        source_type: snap.source_type ?? 'image',
+        source_item_id: snap.source_item_id,
+      });
     }
   }
 

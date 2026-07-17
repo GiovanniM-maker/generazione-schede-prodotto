@@ -940,6 +940,46 @@ async function requireDraftVersion(
   return { ok: true, presetId: version.preset_id };
 }
 
+/**
+ * Verifica che una categoria sia accessibile dall'org: di sistema
+ * (owner_organization_id null) oppure di proprietà dell'org. Impedisce di
+ * agganciare risorse di ALTRE organizzazioni tramite id manipolati.
+ */
+async function requireAccessibleCategory(
+  service: ServiceClient,
+  organizationId: string,
+  categoryId: string,
+): Promise<OkVoid | Fail> {
+  const { data } = await service
+    .from('categories')
+    .select('id, owner_organization_id')
+    .eq('id', categoryId)
+    .maybeSingle();
+  if (!data) return { ok: false, error: 'Categoria non trovata' };
+  if (data.owner_organization_id !== null && data.owner_organization_id !== organizationId) {
+    return { ok: false, error: 'Categoria non accessibile' };
+  }
+  return { ok: true };
+}
+
+/** Come sopra ma per gli attributi. */
+async function requireAccessibleAttribute(
+  service: ServiceClient,
+  organizationId: string,
+  attributeId: string,
+): Promise<OkVoid | Fail> {
+  const { data } = await service
+    .from('attributes')
+    .select('id, owner_organization_id')
+    .eq('id', attributeId)
+    .maybeSingle();
+  if (!data) return { ok: false, error: 'Attributo non trovato' };
+  if (data.owner_organization_id !== null && data.owner_organization_id !== organizationId) {
+    return { ok: false, error: 'Attributo non accessibile' };
+  }
+  return { ok: true };
+}
+
 export async function addCategoryToPreset(input: {
   presetVersionId: string;
   categoryId: string;
@@ -954,6 +994,12 @@ export async function addCategoryToPreset(input: {
       input.presetVersionId,
     );
     if (!chk.ok) return chk;
+    const catChk = await requireAccessibleCategory(
+      service,
+      organizationId,
+      input.categoryId,
+    );
+    if (!catChk.ok) return catChk;
 
     const { data: existing } = await service
       .from('preset_categories')
@@ -1052,6 +1098,20 @@ export async function addAttributeToPreset(input: {
       input.presetVersionId,
     );
     if (!chk.ok) return chk;
+    const attrChk = await requireAccessibleAttribute(
+      service,
+      organizationId,
+      input.attributeId,
+    );
+    if (!attrChk.ok) return attrChk;
+    if (input.categoryId) {
+      const catChk = await requireAccessibleCategory(
+        service,
+        organizationId,
+        input.categoryId,
+      );
+      if (!catChk.ok) return catChk;
+    }
 
     const { data: existing } = await service
       .from('preset_attributes')
@@ -1262,6 +1322,14 @@ export async function duplicateSystemCategory(input: {
       .eq('id', input.categoryId)
       .maybeSingle();
     if (!src) return { ok: false, error: 'Categoria non trovata' };
+    // Non consentire di duplicare categorie private di ALTRE organizzazioni:
+    // ammesse solo quelle di sistema o già di proprietà dell'org.
+    if (
+      src.owner_organization_id !== null &&
+      src.owner_organization_id !== organizationId
+    ) {
+      return { ok: false, error: 'Categoria non accessibile' };
+    }
 
     const { data: copy, error } = await service
       .from('categories')
@@ -1479,6 +1547,12 @@ export async function addAttributeToCategory(input: {
     const { service, organizationId } = auth;
     const chk = await loadOwnedCategory(service, organizationId, input.categoryId);
     if (!chk.ok) return chk;
+    const attrChk = await requireAccessibleAttribute(
+      service,
+      organizationId,
+      input.attributeId,
+    );
+    if (!attrChk.ok) return attrChk;
 
     const { data: existing } = await service
       .from('category_attributes')

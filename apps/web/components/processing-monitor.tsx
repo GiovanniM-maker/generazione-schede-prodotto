@@ -16,10 +16,14 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
 
   const poll = useCallback(async () => {
     try {
-      const p = await getBatchProgressAction(batchId);
-      setProgress(p);
+      const res = await getBatchProgressAction(batchId);
+      if (!res.ok) {
+        setError(res.error);
+        return null;
+      }
+      setProgress(res.progress);
       setError(null);
-      return p.status;
+      return res.progress.status;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Errore di aggiornamento');
       return null;

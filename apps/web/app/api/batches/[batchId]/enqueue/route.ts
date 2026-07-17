@@ -23,6 +23,25 @@ export async function POST(
   try {
     await service.from('batches').update({ status: 'approved' }).eq('id', batchId);
     const result = await enqueueBatch(service, env, batchId);
+
+    // Nessun prodotto eleggibile: non lasciare il batch in "approved" (finirebbe
+    // in una schermata di elaborazione bloccata a 0/0). Riporta l'utente alla
+    // verifica dati con un messaggio chiaro.
+    if (result.enqueued === 0) {
+      await service
+        .from('batches')
+        .update({ status: 'input_review' })
+        .eq('id', batchId);
+      return NextResponse.json(
+        {
+          error:
+            'Nessun prodotto è eleggibile per la generazione. Servono uno SKU e almeno 2 attributi valorizzati per prodotto. Controlla la mappatura e i dati.',
+          code: 'NO_ELIGIBLE_PRODUCTS',
+        },
+        { status: 422 },
+      );
+    }
+
     await service.from('app_events').insert({
       organization_id: orgId,
       user_id: user.id,
