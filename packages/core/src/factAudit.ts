@@ -39,19 +39,16 @@ export function deterministicAudit(
   const unsupported = detectUnsupportedClaims(text, facts, FACT_USABLE_STATUSES);
 
   const unsupportedClaims = unsupported.map((u) => u.claim);
-  let severity: AuditSeverity = 'none';
-  if (unsupportedClaims.length > 0) severity = 'high';
-
-  const passed = severity === 'none' || severity === 'low';
-  const recommendedStatus =
-    severity === 'high' ? 'rejected' : severity === 'medium' ? 'needs_review' : 'generated';
+  // L'audit deterministico produce solo "none" o "high": un claim sensibile
+  // non supportato è sempre grave. La severità intermedia arriva dall'audit AI.
+  const severity: AuditSeverity = unsupportedClaims.length > 0 ? 'high' : 'none';
 
   return {
-    passed,
+    passed: severity === 'none',
     unsupportedClaims,
     conflicts: [],
     severity,
-    recommendedStatus,
+    recommendedStatus: severity === 'high' ? 'rejected' : 'generated',
   };
 }
 

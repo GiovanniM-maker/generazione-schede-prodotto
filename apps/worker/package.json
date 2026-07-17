@@ -1,0 +1,28 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsup",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "health": "tsx src/health.ts"
+  },
+  "dependencies": {
+    "@app/ai": "workspace:*",
+    "@app/config": "workspace:*",
+    "@app/core": "workspace:*",
+    "@app/database": "workspace:*",
+    "@app/pipeline": "workspace:*",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
+  }
+}

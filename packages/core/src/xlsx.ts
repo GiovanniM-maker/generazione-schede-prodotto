@@ -31,7 +31,10 @@ function cellToString(cell: ExcelJS.Cell): string {
 
 export async function parseXlsx(input: Buffer, opts?: { maxRows?: number }): Promise<ParseResult> {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(input);
+  // Copia in un ArrayBuffer dedicato: aggira l'attrito di tipi tra il Buffer
+  // generico di @types/node 22 e la firma di exceljs, senza usare `any`.
+  const ab = input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
+  await wb.xlsx.load(ab as ArrayBuffer);
   const ws = wb.worksheets[0];
   if (!ws) {
     return {
