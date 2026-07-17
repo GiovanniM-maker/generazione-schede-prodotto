@@ -19,6 +19,12 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  COMPLETENESS_LABELS,
+  COMPLETENESS_TONES,
+  normalizeCompleteness,
+  type Completeness,
+} from '@/lib/completeness';
 
 const STYLES = [
   'Essenziale e diretto',
@@ -51,6 +57,7 @@ interface SampleResult {
   facts: SampleFact[];
   content: SampleContent;
   audit: SampleAudit;
+  completeness: Completeness | null;
 }
 
 export function SampleRunner({
@@ -96,7 +103,10 @@ export function SampleRunner({
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       throw new Error(body.error ?? 'Errore nella generazione del campione');
     }
-    return (await res.json()) as SampleResult;
+    const raw = (await res.json()) as Omit<SampleResult, 'completeness'> & {
+      completeness?: unknown;
+    };
+    return { ...raw, completeness: normalizeCompleteness(raw.completeness ?? null) };
   }
 
   async function generate() {
@@ -257,6 +267,44 @@ export function SampleRunner({
                 )}
               </div>
             </div>
+          )}
+
+          {/* Completezza campione */}
+          {sample.completeness && (
+            <Card>
+              <CardContent className="space-y-2 p-6">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                    Completezza
+                  </h3>
+                  <Badge tone={COMPLETENESS_TONES[sample.completeness.status]}>
+                    {COMPLETENESS_LABELS[sample.completeness.status]}
+                  </Badge>
+                </div>
+                {(sample.completeness.status === 'partial' ||
+                  sample.completeness.status === 'insufficient') && (
+                  <p className="text-sm text-amber-700">
+                    Generazione parziale: i dati mancanti non sono stati
+                    inventati.
+                  </p>
+                )}
+                {sample.completeness.missingAttributes.length > 0 && (
+                  <div>
+                    <FieldLabel>Attributi mancanti</FieldLabel>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {sample.completeness.missingAttributes.map((a) => (
+                        <span
+                          key={a}
+                          className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800"
+                        >
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Fatti utilizzati */}

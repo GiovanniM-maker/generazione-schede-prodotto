@@ -1,6 +1,9 @@
 import { requireUser } from '@/lib/auth';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ResultsTable, type ResultRow, type GenContent } from '@/components/results-table';
+import { ImportIssuesBanner } from '@/components/import-issues-banner';
+import { computeImportIssues } from '@/lib/import-issues';
+import { normalizeCompleteness } from '@/lib/completeness';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +11,7 @@ interface GenRow {
   product_id: string;
   generated_content_json: unknown;
   edited_content_json: unknown;
+  completeness_json: unknown;
   status: string;
   created_at: string;
 }
@@ -52,7 +56,7 @@ export default async function ResultsPage({
     ? await supabase
         .from('product_generations')
         .select(
-          'product_id, generated_content_json, edited_content_json, status, created_at',
+          'product_id, generated_content_json, edited_content_json, completeness_json, status, created_at',
         )
         .in('product_id', productIds)
         .order('created_at', { ascending: false })
@@ -97,8 +101,11 @@ export default async function ResultsPage({
       hasEdited,
       generated,
       edited,
+      completeness: normalizeCompleteness(latest?.completeness_json ?? null),
     };
   });
+
+  const importIssues = await computeImportIssues(supabase, batchId);
 
   return (
     <div className="space-y-6">
@@ -109,6 +116,7 @@ export default async function ResultsPage({
           catalogo.
         </p>
       </div>
+      <ImportIssuesBanner batchId={batchId} issues={importIssues} />
       <ResultsTable batchId={batchId} rows={rows} />
     </div>
   );

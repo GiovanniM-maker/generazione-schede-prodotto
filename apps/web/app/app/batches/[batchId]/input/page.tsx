@@ -4,6 +4,8 @@ import { requireUser } from '@/lib/auth';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { InputTable, type InputProduct } from '@/components/input-table';
+import { ImportIssuesBanner } from '@/components/import-issues-banner';
+import { computeImportIssues } from '@/lib/import-issues';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +62,8 @@ export default async function InputPage({
     };
   });
 
+  const importIssues = await computeImportIssues(supabase, batchId);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -78,6 +82,8 @@ export default async function InputPage({
           </Button>
         </Link>
       </div>
+
+      <ImportIssuesBanner batchId={batchId} issues={importIssues} />
 
       <InputTable products={rows} />
     </div>

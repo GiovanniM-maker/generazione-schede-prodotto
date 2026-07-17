@@ -28,6 +28,12 @@ import { StatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import {
+  COMPLETENESS_LABELS,
+  COMPLETENESS_TONES,
+  type Completeness,
+  type CompletenessStatus,
+} from '@/lib/completeness';
 
 export interface GenContent {
   title: string;
@@ -47,17 +53,38 @@ export interface ResultRow {
   hasEdited: boolean;
   generated: GenContent | null;
   edited: GenContent | null;
+  completeness: Completeness | null;
 }
 
-type Filter = 'tutti' | 'pronti' | 'verifica' | 'modificati' | 'falliti';
+type Filter =
+  | 'tutti'
+  | 'complete'
+  | 'parziali'
+  | 'verifica'
+  | 'insufficienti'
+  | 'bloccati'
+  | 'modificati'
+  | 'falliti';
 
 const TABS: { key: Filter; label: string }[] = [
   { key: 'tutti', label: 'Tutti' },
-  { key: 'pronti', label: 'Pronti' },
+  { key: 'complete', label: 'Complete' },
+  { key: 'parziali', label: 'Parziali' },
   { key: 'verifica', label: 'Da verificare' },
+  { key: 'insufficienti', label: 'Insufficienti' },
+  { key: 'bloccati', label: 'Bloccati' },
   { key: 'modificati', label: 'Modificati' },
   { key: 'falliti', label: 'Falliti' },
 ];
+
+// Mappa una tab di completezza al relativo stato.
+const COMPLETENESS_FILTER: Partial<Record<Filter, CompletenessStatus>> = {
+  complete: 'complete',
+  parziali: 'partial',
+  verifica: 'needs_review',
+  insufficienti: 'insufficient',
+  bloccati: 'blocked',
+};
 
 function effective(row: ResultRow): GenContent | null {
   if (row.edited) return row.edited;
@@ -85,9 +112,9 @@ export function ResultsTable({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (filter === 'pronti' && !['accepted', 'generated'].includes(r.status))
+      const completenessStatus = COMPLETENESS_FILTER[filter];
+      if (completenessStatus && r.completeness?.status !== completenessStatus)
         return false;
-      if (filter === 'verifica' && r.status !== 'needs_review') return false;
       if (filter === 'modificati' && !r.hasEdited) return false;
       if (filter === 'falliti' && !r.jobFailed && r.status !== 'failed')
         return false;
@@ -100,17 +127,20 @@ export function ResultsTable({
     });
   }, [rows, filter, query]);
 
-  const counts = useMemo(
-    () => ({
+  const counts = useMemo(() => {
+    const byStatus = (s: CompletenessStatus) =>
+      rows.filter((r) => r.completeness?.status === s).length;
+    return {
       tutti: rows.length,
-      pronti: rows.filter((r) => ['accepted', 'generated'].includes(r.status))
-        .length,
-      verifica: rows.filter((r) => r.status === 'needs_review').length,
+      complete: byStatus('complete'),
+      parziali: byStatus('partial'),
+      verifica: byStatus('needs_review'),
+      insufficienti: byStatus('insufficient'),
+      bloccati: byStatus('blocked'),
       modificati: rows.filter((r) => r.hasEdited).length,
       falliti: rows.filter((r) => r.jobFailed || r.status === 'failed').length,
-    }),
-    [rows],
-  ) satisfies Record<Filter, number>;
+    } satisfies Record<Filter, number>;
+  }, [rows]);
 
   function patchRow(id: string, patch: Partial<ResultRow>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -365,6 +395,7 @@ export function ResultsTable({
                   <TH>Nome</TH>
                   <TH>Titolo</TH>
                   <TH>Descrizione breve</TH>
+                  <TH>Completezza</TH>
                   <TH>Stato</TH>
                   <TH className="text-right">Azioni</TH>
                 </TR>
@@ -392,6 +423,15 @@ export function ResultsTable({
                       </TD>
                       <TD className="max-w-[18rem] truncate text-gray-500">
                         {eff?.shortDescription || (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </TD>
+                      <TD>
+                        {r.completeness ? (
+                          <Badge tone={COMPLETENESS_TONES[r.completeness.status]}>
+                            {COMPLETENESS_LABELS[r.completeness.status]}
+                          </Badge>
+                        ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </TD>
@@ -519,6 +559,42 @@ function DetailDrawer({
         </div>
 
         <div className="flex-1 space-y-5 px-6 py-5">
+          {row.completeness && (
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">
+                  Completezza
+                </span>
+                <Badge tone={COMPLETENESS_TONES[row.completeness.status]}>
+                  {COMPLETENESS_LABELS[row.completeness.status]}
+                </Badge>
+              </div>
+              {(row.completeness.status === 'partial' ||
+                row.completeness.status === 'insufficient') && (
+                <p className="text-sm text-amber-700">
+                  Generazione parziale: i dati mancanti non sono stati inventati.
+                </p>
+              )}
+              {row.completeness.missingAttributes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    Attributi mancanti
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {row.completeness.missingAttributes.map((a) => (
+                      <span
+                        key={a}
+                        className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800"
+                      >
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {original && (
             <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
               <summary className="cursor-pointer text-sm font-medium text-gray-600">

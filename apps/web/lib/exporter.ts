@@ -1,6 +1,13 @@
 import { stringify } from 'csv-stringify/sync';
 import ExcelJS from 'exceljs';
-import { buildExportRow, exportColumns, type ProductCopy, type FactAuditResult } from '@app/core';
+import {
+  buildExportRow,
+  exportColumns,
+  isCompletenessExportable,
+  type ProductCopy,
+  type FactAuditResult,
+  type ProductGenerationDecision,
+} from '@app/core';
 import type { TypedClient, Json } from '@app/database';
 
 // Costruisce l'export (CSV/XLSX) di un batch: testo editato preferito al
@@ -30,7 +37,7 @@ export async function buildBatchExport(
   for (const product of products ?? []) {
     const { data: gen } = await service
       .from('product_generations')
-      .select('generated_content_json, edited_content_json, audit_json, status')
+      .select('generated_content_json, edited_content_json, audit_json, completeness_json, status')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -40,6 +47,14 @@ export async function buildBatchExport(
     const audit = (gen.audit_json ?? null) as unknown as FactAuditResult | null;
     // Esclude i prodotti con severità high non risolti.
     if (audit?.severity === 'high') continue;
+
+    // Esclude anche le schede non esportabili per completezza (blocked/insufficient):
+    // dati troppo carenti per un export affidabile.
+    const completeness = (gen.completeness_json ?? null) as {
+      status?: ProductGenerationDecision;
+    } | null;
+    if (completeness?.status && !isCompletenessExportable(completeness.status))
+      continue;
 
     const generated = gen.generated_content_json as unknown as ProductCopy;
     const edited = (gen.edited_content_json ?? null) as unknown as Partial<ProductCopy> | null;

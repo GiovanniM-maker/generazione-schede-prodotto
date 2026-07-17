@@ -45,6 +45,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import {
+  COMPLETENESS_LABELS,
+  COMPLETENESS_TONES,
+  normalizeCompleteness,
+  type Completeness,
+} from '@/lib/completeness';
 
 // ---------------------------------------------------------------------------
 // Wizard "Nuovo batch" v2 — multi-step, centrato sullo SKU. Ogni passo chiama
@@ -143,6 +149,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
+  const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
 
   const hasSpreadsheet = sourceMode === 'spreadsheet' || sourceMode === 'both';
   const hasImages = sourceMode === 'images' || sourceMode === 'both';
@@ -355,6 +362,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         const body = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Errore nella generazione del campione');
       }
+      const body = (await r.json().catch(() => ({}))) as { completeness?: unknown };
+      setSampleCompleteness(normalizeCompleteness(body.completeness ?? null));
       setSampleDone(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Errore');
@@ -447,7 +456,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 9 && <Step9 products={products} importSummary={importSummary} />}
 
-      {stepId === 10 && <Step10 sampleDone={sampleDone} busy={busy} onRun={runSample} />}
+      {stepId === 10 && (
+        <Step10
+          sampleDone={sampleDone}
+          busy={busy}
+          onRun={runSample}
+          completeness={sampleCompleteness}
+        />
+      )}
 
       {stepId === 11 && <Step11 importSummary={importSummary} />}
 
@@ -1282,7 +1298,17 @@ function Step9({
 // Step 10 — Campione.
 // ---------------------------------------------------------------------------
 
-function Step10({ sampleDone, busy, onRun }: { sampleDone: boolean; busy: boolean; onRun: () => void }) {
+function Step10({
+  sampleDone,
+  busy,
+  onRun,
+  completeness,
+}: {
+  sampleDone: boolean;
+  busy: boolean;
+  onRun: () => void;
+  completeness: Completeness | null;
+}) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">Genera un campione gratuito su un prodotto rappresentativo per verificare tono e correttezza prima della generazione in massa.</p>
@@ -1292,8 +1318,40 @@ function Step10({ sampleDone, busy, onRun }: { sampleDone: boolean; busy: boolea
           Genera campione
         </Button>
       ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          <Check className="h-4 w-4" /> Campione generato. Puoi rivederlo nella scheda del batch o proseguire.
+        <>
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+            <Check className="h-4 w-4" /> Campione generato. Puoi rivederlo nella scheda del batch o proseguire.
+          </div>
+          {completeness && <SampleCompleteness completeness={completeness} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Riepilogo completezza del campione (stato + attributi mancanti).
+function SampleCompleteness({ completeness }: { completeness: Completeness }) {
+  const isPartial =
+    completeness.status === 'partial' || completeness.status === 'insufficient';
+  return (
+    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-gray-700">Completezza campione</span>
+        <Badge tone={COMPLETENESS_TONES[completeness.status]}>{COMPLETENESS_LABELS[completeness.status]}</Badge>
+      </div>
+      {isPartial && (
+        <p className="text-sm text-amber-700">Generazione parziale: i dati mancanti non sono stati inventati.</p>
+      )}
+      {completeness.missingAttributes.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Attributi mancanti</p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {completeness.missingAttributes.map((a) => (
+              <span key={a} className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
+                {a}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>
