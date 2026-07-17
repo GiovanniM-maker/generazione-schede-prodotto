@@ -117,11 +117,62 @@ export interface Database {
           name: string | null;
           product_type: string | null;
           category: string | null;
+          sku: string | null;
+          preset_version_id: string | null;
           raw_input_json: Json;
           canonical_attributes_json: Json;
           input_hash: string | null;
           data_quality_score: number;
           verification_status: string | null;
+        } & Timestamps
+      >;
+      batch_sources: T<
+        {
+          id: string;
+          organization_id: string;
+          batch_id: string;
+          source_type: string;
+          status: string;
+          configuration_json: Json;
+        } & Timestamps
+      >;
+      source_items: T<{
+        id: string;
+        organization_id: string;
+        batch_source_id: string;
+        source_file_id: string | null;
+        external_source_id: string | null;
+        filename: string;
+        mime_type: string | null;
+        size_bytes: number;
+        sha256: string | null;
+        detected_sku: string | null;
+        status: string;
+        metadata_json: Json;
+        created_at: string;
+      }>;
+      product_source_links: T<{
+        id: string;
+        organization_id: string;
+        product_id: string;
+        source_item_id: string;
+        link_type: string;
+        created_at: string;
+      }>;
+      product_attribute_values: T<
+        {
+          id: string;
+          organization_id: string;
+          product_id: string;
+          attribute_id: string;
+          value_json: Json | null;
+          status: string;
+          source_type: string;
+          source_item_id: string | null;
+          source_locator: string | null;
+          confidence: number | null;
+          confirmed_by: string | null;
+          confirmed_at: string | null;
         } & Timestamps
       >;
       product_variants: T<
