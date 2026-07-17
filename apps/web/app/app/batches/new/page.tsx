@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
+import { IMAGE_NAMING_GUIDE } from '@app/core';
 import { requireUser, getUserOrg } from '@/lib/auth';
-import { NewBatchFlow } from '@/components/new-batch-flow';
+import { BatchWizard } from '@/components/batch/wizard';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,13 +11,13 @@ export default async function NewBatchPage() {
   if (!org) redirect('/app/onboarding');
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-semibold text-gray-900">Nuovo batch</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Dai un nome al batch e carica il file del catalogo.
+        Configura il batch passo dopo passo: preset, fonti, caricamento e verifica dei prodotti.
       </p>
       <div className="mt-6">
-        <NewBatchFlow organizationId={org.organizationId} />
+        <BatchWizard imageNamingGuide={IMAGE_NAMING_GUIDE} />
       </div>
     </div>
   );

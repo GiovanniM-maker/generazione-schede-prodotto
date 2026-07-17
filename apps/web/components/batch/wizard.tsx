@@ -1,0 +1,1328 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Loader2,
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  Sparkles,
+  UploadCloud,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Download,
+  ArrowLeft,
+  ArrowRight,
+} from 'lucide-react';
+import {
+  listPublishedPresets,
+  createBatchV2,
+  getPresetExplorer,
+  setBatchSources,
+  uploadBatchFiles,
+  analyzeBatch,
+  getBatchPresetAttributes,
+  confirmImportV2,
+  getBatchProductsV2,
+  type PublishedPresetSummary,
+  type PresetExplorer,
+  type UploadSpreadsheetResult,
+  type UploadImagesResult,
+  type UploadedFileSummary,
+  type PresetAttributeOption,
+  type BatchProductRow,
+  type WizardSourceType,
+} from '@/lib/actions/batch-wizard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
+
+// ---------------------------------------------------------------------------
+// Wizard "Nuovo batch" v2 — multi-step, centrato sullo SKU. Ogni passo chiama
+// le server action e mostra gli errori restituiti inline.
+// ---------------------------------------------------------------------------
+
+type AnalyzeData = Extract<Awaited<ReturnType<typeof analyzeBatch>>, { ok: true }>['data'];
+
+type SourceMode = 'images' | 'spreadsheet' | 'both';
+
+interface StepDef {
+  id: number;
+  title: string;
+}
+
+const STEP_DEFS: StepDef[] = [
+  { id: 1, title: 'Informazioni' },
+  { id: 2, title: 'Preset' },
+  { id: 3, title: 'Fonti' },
+  { id: 4, title: 'Istruzioni e template' },
+  { id: 5, title: 'Caricamento' },
+  { id: 6, title: 'Analisi file' },
+  { id: 7, title: 'Associazione SKU' },
+  { id: 8, title: 'Mapping attributi' },
+  { id: 9, title: 'Verifica dati' },
+  { id: 10, title: 'Campione' },
+  { id: 11, title: 'Conferma e avvio' },
+];
+
+const SPREADSHEET_STEPS = new Set([7, 8]);
+
+function normalize(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\-.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Suggerisce l'header più simile a un attributo (match esatto poi contenuto). */
+function fuzzyHeader(attr: PresetAttributeOption, headers: string[]): string {
+  const targets = [normalize(attr.name), attr.key ? normalize(attr.key) : ''].filter(Boolean);
+  for (const h of headers) {
+    if (targets.includes(normalize(h))) return h;
+  }
+  for (const h of headers) {
+    const nh = normalize(h);
+    if (targets.some((t) => t.length >= 4 && (nh.includes(t) || t.includes(nh)))) return h;
+  }
+  return '';
+}
+
+export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) {
+  const router = useRouter();
+
+  const [stepId, setStepId] = useState(1);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [presetVersionId, setPresetVersionId] = useState<string | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Step 1
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [presets, setPresets] = useState<PublishedPresetSummary[] | null>(null);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+
+  // Step 2
+  const [explorer, setExplorer] = useState<PresetExplorer | null>(null);
+  const [expandedCat, setExpandedCat] = useState<Set<string>>(new Set());
+  const [expandedAttr, setExpandedAttr] = useState<Set<string>>(new Set());
+
+  // Step 5
+  const [spreadsheetResult, setSpreadsheetResult] = useState<UploadSpreadsheetResult | null>(null);
+  const [imagesResult, setImagesResult] = useState<UploadImagesResult | null>(null);
+
+  // Step 6
+  const [analysis, setAnalysis] = useState<AnalyzeData | null>(null);
+
+  // Step 7
+  const [skuHeader, setSkuHeader] = useState('');
+  const [importOption, setImportOption] = useState<'complete' | 'includeImageOnly' | 'excludeIncomplete'>('complete');
+
+  // Step 8
+  const [attributes, setAttributes] = useState<PresetAttributeOption[] | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+
+  // Step 9
+  const [products, setProducts] = useState<BatchProductRow[] | null>(null);
+  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number } | null>(null);
+
+  // Step 10
+  const [sampleDone, setSampleDone] = useState(false);
+
+  const hasSpreadsheet = sourceMode === 'spreadsheet' || sourceMode === 'both';
+  const hasImages = sourceMode === 'images' || sourceMode === 'both';
+
+  const activeSteps = STEP_DEFS.filter((s) => !SPREADSHEET_STEPS.has(s.id) || hasSpreadsheet);
+  const activeIndex = activeSteps.findIndex((s) => s.id === stepId);
+
+  const goTo = useCallback((id: number) => {
+    setError(null);
+    setStepId(id);
+  }, []);
+
+  const nextStep = useCallback(() => {
+    const idx = activeSteps.findIndex((s) => s.id === stepId);
+    const next = activeSteps[idx + 1];
+    if (next) goTo(next.id);
+  }, [activeSteps, stepId, goTo]);
+
+  const prevStep = useCallback(() => {
+    const idx = activeSteps.findIndex((s) => s.id === stepId);
+    const prev = activeSteps[idx - 1];
+    if (prev) goTo(prev.id);
+  }, [activeSteps, stepId, goTo]);
+
+  // --- Loaders per-step ---
+
+  // Step 1: preset pubblicati.
+  useEffect(() => {
+    if (presets !== null) return;
+    void listPublishedPresets().then((res) => {
+      if (res.ok) setPresets(res.data);
+      else setError(res.error);
+    });
+  }, [presets]);
+
+  // Step 2: esploratore preset.
+  useEffect(() => {
+    if (stepId !== 2 || !presetVersionId) return;
+    setExplorer(null);
+    void getPresetExplorer({ presetVersionId }).then((res) => {
+      if (res.ok) setExplorer(res.data);
+      else setError(res.error);
+    });
+  }, [stepId, presetVersionId]);
+
+  // Step 6: analisi.
+  useEffect(() => {
+    if (stepId !== 6 || !batchId) return;
+    setAnalysis(null);
+    void analyzeBatch({ batchId }).then((res) => {
+      if (res.ok) {
+        setAnalysis(res.data);
+        if (!skuHeader && res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
+      } else setError(res.error);
+    });
+  }, [stepId, batchId, skuHeader]);
+
+  // Step 8: attributi + header per mapping.
+  useEffect(() => {
+    if (stepId !== 8 || !batchId) return;
+    setAttributes(null);
+    void getBatchPresetAttributes({ batchId }).then((res) => {
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setAttributes(res.data.attributes);
+      setHeaders(res.data.headers);
+      if (!skuHeader && res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
+      setMapping((prev) => {
+        if (Object.keys(prev).length > 0) return prev;
+        const next: Record<string, string> = {};
+        for (const attr of res.data.attributes) {
+          const guess = fuzzyHeader(attr, res.data.headers);
+          if (guess) next[attr.id] = guess;
+        }
+        return next;
+      });
+    });
+  }, [stepId, batchId, skuHeader]);
+
+  // Step 9: import + prodotti.
+  useEffect(() => {
+    if (stepId !== 9 || !batchId) return;
+    setProducts(null);
+    setImportSummary(null);
+    const options = {
+      includeImageOnly: hasImages && (importOption === 'includeImageOnly' || sourceMode === 'images'),
+      excludeIncomplete: importOption === 'excludeIncomplete',
+    };
+    void (async () => {
+      const imp = await confirmImportV2({
+        batchId,
+        skuHeader: hasSpreadsheet ? skuHeader : '',
+        attributeMapping: hasSpreadsheet ? mapping : {},
+        options,
+      });
+      if (!imp.ok) {
+        setError(imp.error);
+        return;
+      }
+      setImportSummary(imp.data);
+      const list = await getBatchProductsV2({ batchId });
+      if (list.ok) setProducts(list.data.products);
+      else setError(list.error);
+    })();
+  }, [stepId, batchId]);
+
+  // --- Azioni di transizione ---
+
+  async function submitStep1() {
+    if (name.trim() === '') {
+      setError('Inserisci un nome per il batch');
+      return;
+    }
+    if (!selectedPresetId) {
+      setError('Seleziona un preset');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await createBatchV2({ name, description: description || undefined, presetId: selectedPresetId });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    const preset = presets?.find((p) => p.id === selectedPresetId);
+    setBatchId(res.data.batchId);
+    setPresetVersionId(preset?.versionId ?? null);
+    nextStep();
+  }
+
+  async function submitSources() {
+    if (!batchId || !sourceMode) {
+      setError('Seleziona una fonte');
+      return;
+    }
+    const sourceTypes: WizardSourceType[] =
+      sourceMode === 'both' ? ['spreadsheet', 'images'] : sourceMode === 'spreadsheet' ? ['spreadsheet'] : ['images'];
+    setBusy(true);
+    setError(null);
+    const res = await setBatchSources({ batchId, sourceTypes });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    nextStep();
+  }
+
+  async function doUploadSpreadsheet(file: File) {
+    if (!batchId) return;
+    setBusy(true);
+    setError(null);
+    const fd = new FormData();
+    fd.set('batchId', batchId);
+    fd.set('sourceType', 'spreadsheet');
+    fd.set('files', file);
+    const res = await uploadBatchFiles(fd);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    if (res.data.kind === 'spreadsheet') {
+      setSpreadsheetResult(res.data);
+      if (res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
+    }
+  }
+
+  async function doUploadImages(files: FileList | File[]) {
+    if (!batchId) return;
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    setBusy(true);
+    setError(null);
+    const fd = new FormData();
+    fd.set('batchId', batchId);
+    fd.set('sourceType', 'images');
+    for (const f of arr) fd.append('files', f);
+    const res = await uploadBatchFiles(fd);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    const data = res.data;
+    if (data.kind === 'images') {
+      setImagesResult((prev) =>
+        prev
+          ? {
+              kind: 'images',
+              files: [...prev.files, ...data.files],
+              validCount: prev.validCount + data.validCount,
+              invalidCount: prev.invalidCount + data.invalidCount,
+            }
+          : data,
+      );
+    }
+  }
+
+  async function runSample() {
+    if (!batchId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/batches/${batchId}/sample`, { method: 'POST' });
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Errore nella generazione del campione');
+      }
+      setSampleDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Errore');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startGeneration() {
+    if (!batchId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/batches/${batchId}/enqueue`, { method: 'POST' });
+      if (r.status === 402) {
+        setError('Crediti insufficienti per generare l’intero batch. Acquista crediti dalla pagina Abbonamento.');
+        return;
+      }
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Errore nell’avvio della generazione');
+      }
+      router.push(`/app/batches/${batchId}/processing`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Errore');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // --- Render ---
+
+  return (
+    <div className="space-y-6">
+      <ProgressBar steps={activeSteps} activeIndex={activeIndex} />
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {stepId === 1 && (
+        <Step1
+          name={name}
+          setName={setName}
+          description={description}
+          setDescription={setDescription}
+          presets={presets}
+          selectedPresetId={selectedPresetId}
+          setSelectedPresetId={setSelectedPresetId}
+        />
+      )}
+
+      {stepId === 2 && <Step2 explorer={explorer} expandedCat={expandedCat} setExpandedCat={setExpandedCat} expandedAttr={expandedAttr} setExpandedAttr={setExpandedAttr} />}
+
+      {stepId === 3 && <Step3 sourceMode={sourceMode} setSourceMode={setSourceMode} />}
+
+      {stepId === 4 && batchId && <Step4 batchId={batchId} hasSpreadsheet={hasSpreadsheet} hasImages={hasImages} imageNamingGuide={imageNamingGuide} />}
+
+      {stepId === 5 && (
+        <Step5
+          hasSpreadsheet={hasSpreadsheet}
+          hasImages={hasImages}
+          busy={busy}
+          spreadsheetResult={spreadsheetResult}
+          imagesResult={imagesResult}
+          onUploadSpreadsheet={doUploadSpreadsheet}
+          onUploadImages={doUploadImages}
+        />
+      )}
+
+      {stepId === 6 && <Step6 analysis={analysis} hasImages={hasImages} hasSpreadsheet={hasSpreadsheet} />}
+
+      {stepId === 7 && (
+        <Step7
+          analysis={analysis}
+          hasImages={hasImages}
+          hasSpreadsheet={hasSpreadsheet}
+          headers={spreadsheetResult?.headers ?? []}
+          skuHeader={skuHeader}
+          setSkuHeader={setSkuHeader}
+          importOption={importOption}
+          setImportOption={setImportOption}
+        />
+      )}
+
+      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} />}
+
+      {stepId === 9 && <Step9 products={products} importSummary={importSummary} />}
+
+      {stepId === 10 && <Step10 sampleDone={sampleDone} busy={busy} onRun={runSample} />}
+
+      {stepId === 11 && <Step11 importSummary={importSummary} />}
+
+      {/* Navigazione */}
+      <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+        <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
+          <ArrowLeft className="h-4 w-4" />
+          Indietro
+        </Button>
+
+        <StepPrimaryAction
+          stepId={stepId}
+          busy={busy}
+          canProceed={{
+            1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
+            3: !!sourceMode,
+            5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
+            10: sampleDone,
+          }}
+          onStep1={submitStep1}
+          onSources={submitSources}
+          onSample={runSample}
+          onStart={startGeneration}
+          onNext={nextStep}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Barra di avanzamento.
+// ---------------------------------------------------------------------------
+
+function ProgressBar({ steps, activeIndex }: { steps: StepDef[]; activeIndex: number }) {
+  const pct = steps.length > 1 ? Math.round((Math.max(0, activeIndex) / (steps.length - 1)) * 100) : 0;
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
+        <span className="font-medium text-gray-700">
+          Passo {Math.max(1, activeIndex + 1)} di {steps.length}
+        </span>
+        <span>{steps[Math.max(0, activeIndex)]?.title}</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+        <div className="h-full rounded-full bg-brand-accent transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Azione primaria per passo.
+// ---------------------------------------------------------------------------
+
+function StepPrimaryAction({
+  stepId,
+  busy,
+  canProceed,
+  onStep1,
+  onSources,
+  onSample,
+  onStart,
+  onNext,
+}: {
+  stepId: number;
+  busy: boolean;
+  canProceed: Record<number, boolean>;
+  onStep1: () => void;
+  onSources: () => void;
+  onSample: () => void;
+  onStart: () => void;
+  onNext: () => void;
+}) {
+  const spinner = <Loader2 className="h-4 w-4 animate-spin" />;
+
+  if (stepId === 1) {
+    return (
+      <Button onClick={onStep1} disabled={busy || !canProceed[1]}>
+        {busy ? spinner : <>Crea e continua <ArrowRight className="h-4 w-4" /></>}
+      </Button>
+    );
+  }
+  if (stepId === 3) {
+    return (
+      <Button onClick={onSources} disabled={busy || !canProceed[3]}>
+        {busy ? spinner : <>Continua <ArrowRight className="h-4 w-4" /></>}
+      </Button>
+    );
+  }
+  if (stepId === 5) {
+    return (
+      <Button onClick={onNext} disabled={busy || !canProceed[5]}>
+        Continua <ArrowRight className="h-4 w-4" />
+      </Button>
+    );
+  }
+  if (stepId === 10) {
+    return (
+      <Button onClick={onNext} disabled={busy || !canProceed[10]}>
+        Continua <ArrowRight className="h-4 w-4" />
+      </Button>
+    );
+  }
+  if (stepId === 11) {
+    return (
+      <Button onClick={onStart} disabled={busy}>
+        {busy ? spinner : <><Sparkles className="h-4 w-4" /> Avvia generazione</>}
+      </Button>
+    );
+  }
+  void onSample;
+  return (
+    <Button onClick={onNext} disabled={busy}>
+      Continua <ArrowRight className="h-4 w-4" />
+    </Button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 — Informazioni batch.
+// ---------------------------------------------------------------------------
+
+function Step1({
+  name,
+  setName,
+  description,
+  setDescription,
+  presets,
+  selectedPresetId,
+  setSelectedPresetId,
+}: {
+  name: string;
+  setName: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  presets: PublishedPresetSummary[] | null;
+  selectedPresetId: string | null;
+  setSelectedPresetId: (v: string) => void;
+}) {
+  const selected = presets?.find((p) => p.id === selectedPresetId) ?? null;
+  return (
+    <div className="space-y-6">
+      <div>
+        <Label htmlFor="batch-name">Nome del batch</Label>
+        <Input id="batch-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Collezione autunno 2026" />
+      </div>
+      <div>
+        <Label htmlFor="batch-desc">Descrizione (facoltativa)</Label>
+        <Textarea id="batch-desc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Note interne su questo batch." />
+      </div>
+
+      <div>
+        <Label>Preset</Label>
+        {presets === null && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Caricamento preset…
+          </div>
+        )}
+        {presets !== null && presets.length === 0 && (
+          <Card>
+            <CardContent className="space-y-3 p-6 text-sm text-gray-600">
+              <p className="font-medium text-gray-900">Nessun preset pubblicato</p>
+              <p>
+                Per creare un batch devi prima configurare e pubblicare un preset con le sue categorie e i suoi attributi.
+              </p>
+              <Link href="/app/settings/presets" className="inline-flex font-medium text-brand-accent underline underline-offset-2">
+                Vai alle impostazioni preset
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+        {presets !== null && presets.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {presets.map((p) => {
+              const active = p.id === selectedPresetId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPresetId(p.id)}
+                  className={cn(
+                    'rounded-xl border p-4 text-left transition-colors',
+                    active ? 'border-brand-accent bg-blue-50/50 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-900">{p.name}</span>
+                    {active && <Check className="h-4 w-4 text-brand-accent" />}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-500">Settore: {p.sectorName}</div>
+                  <div className="mt-2 flex gap-2 text-xs text-gray-500">
+                    <Badge tone="gray">{p.categoriesCount} categorie</Badge>
+                    <Badge tone="gray">{p.attributesCount} attributi</Badge>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div className="text-sm text-gray-500">
+          <Link href="/app/settings/presets" className="font-medium text-brand-accent underline underline-offset-2">
+            Modifica preset
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — Esploratore preset (sola lettura).
+// ---------------------------------------------------------------------------
+
+function Step2({
+  explorer,
+  expandedCat,
+  setExpandedCat,
+  expandedAttr,
+  setExpandedAttr,
+}: {
+  explorer: PresetExplorer | null;
+  expandedCat: Set<string>;
+  setExpandedCat: (s: Set<string>) => void;
+  expandedAttr: Set<string>;
+  setExpandedAttr: (s: Set<string>) => void;
+}) {
+  if (explorer === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Caricamento preset…
+      </div>
+    );
+  }
+  function toggle(set: Set<string>, apply: (s: Set<string>) => void, id: string) {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    apply(next);
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Settore <span className="font-medium text-gray-800">{explorer.sectorName}</span>. Questi sono gli attributi che verranno estratti e generati. Sola lettura.
+      </p>
+      {explorer.categories.length === 0 && <p className="text-sm text-gray-500">Nessuna categoria configurata nel preset.</p>}
+      {explorer.categories.map((cat) => {
+        const open = expandedCat.has(cat.id);
+        return (
+          <Card key={cat.id}>
+            <button type="button" onClick={() => toggle(expandedCat, setExpandedCat, cat.id)} className="flex w-full items-center justify-between p-4 text-left">
+              <span className="font-medium text-gray-900">{cat.name}</span>
+              <span className="flex items-center gap-2 text-sm text-gray-500">
+                {cat.attributes.length} attributi
+                {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </span>
+            </button>
+            {open && (
+              <CardContent className="space-y-2 pt-0">
+                {cat.attributes.map((attr) => {
+                  const aopen = expandedAttr.has(attr.id);
+                  return (
+                    <div key={attr.id} className="rounded-lg border border-gray-100">
+                      <button type="button" onClick={() => toggle(expandedAttr, setExpandedAttr, attr.id)} className="flex w-full items-center justify-between px-3 py-2 text-left">
+                        <span className="flex items-center gap-2">
+                          <span className="text-sm text-gray-800">{attr.name}</span>
+                          <Badge tone="gray">{attr.dataType}</Badge>
+                          {attr.isRequired && <Badge tone="amber">obbligatorio</Badge>}
+                        </span>
+                        {aopen ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                      </button>
+                      {aopen && (
+                        <div className="space-y-2 border-t border-gray-100 px-3 py-2 text-sm text-gray-600">
+                          <div>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Istruzione di estrazione</span>
+                            <p className="mt-0.5">{attr.extractionInstruction ?? '—'}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Istruzione di generazione</span>
+                            <p className="mt-0.5">{attr.generationInstruction ?? '—'}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 3 — Fonti.
+// ---------------------------------------------------------------------------
+
+interface SourceCard {
+  mode: SourceMode | null;
+  title: string;
+  description: string;
+  disabled?: boolean;
+  note?: string;
+}
+
+const SOURCE_CARDS: SourceCard[] = [
+  { mode: 'images', title: 'Solo immagini', description: 'Carichi solo le foto dei prodotti. Lo SKU viene letto dal nome del file (es. TSHIRT001_front.jpg).' },
+  { mode: 'spreadsheet', title: 'CSV o Excel', description: 'Carichi un foglio con una riga per SKU e le colonne degli attributi.' },
+  { mode: 'both', title: 'Immagini + CSV', description: 'Combini foglio e immagini: gli SKU della colonna SKU vengono associati al prefisso dei nomi immagine.' },
+  { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true, note: 'In arrivo' },
+  { mode: null, title: 'PDF', description: 'Estrazione da schede tecniche in PDF.', disabled: true, note: 'Prossimamente' },
+];
+
+function Step3({ sourceMode, setSourceMode }: { sourceMode: SourceMode | null; setSourceMode: (m: SourceMode) => void }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-500">Scegli da dove arrivano i dati dei prodotti.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {SOURCE_CARDS.map((card) => {
+          const active = card.mode !== null && card.mode === sourceMode;
+          return (
+            <button
+              key={card.title}
+              type="button"
+              disabled={card.disabled}
+              onClick={() => card.mode && setSourceMode(card.mode)}
+              className={cn(
+                'rounded-xl border p-4 text-left transition-colors',
+                card.disabled && 'cursor-not-allowed opacity-60',
+                active ? 'border-brand-accent bg-blue-50/50 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-900">{card.title}</span>
+                {card.note && <Badge tone="violet">{card.note}</Badge>}
+                {active && <Check className="h-4 w-4 text-brand-accent" />}
+              </div>
+              <p className="mt-1 text-sm text-gray-500">{card.description}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 — Istruzioni e template.
+// ---------------------------------------------------------------------------
+
+function Step4({ batchId, hasSpreadsheet, hasImages, imageNamingGuide }: { batchId: string; hasSpreadsheet: boolean; hasImages: boolean; imageNamingGuide: string }) {
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardContent className="space-y-2 p-5 text-sm text-gray-600">
+          <p className="font-medium text-gray-900">Regole SKU</p>
+          <ul className="list-inside list-disc space-y-1">
+            <li>Ogni prodotto ha uno SKU univoco. Una riga per SKU.</li>
+            <li>Lo SKU non può contenere underscore; sono ammessi lettere, numeri, trattini e punti.</li>
+            <li>I dati forniti vengono usati come fatti: le informazioni assenti non verranno inventate.</li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      {hasSpreadsheet && (
+        <div className="flex flex-wrap gap-2">
+          <a href={`/api/batches/${batchId}/template?format=csv`} className="inline-flex">
+            <Button variant="outline" size="sm" type="button">
+              <Download className="h-4 w-4" /> Template CSV
+            </Button>
+          </a>
+          <a href={`/api/batches/${batchId}/template?format=xlsx`} className="inline-flex">
+            <Button variant="outline" size="sm" type="button">
+              <Download className="h-4 w-4" /> Template Excel
+            </Button>
+          </a>
+          <a href={`/api/batches/${batchId}/template?format=guide`} className="inline-flex">
+            <Button variant="outline" size="sm" type="button">
+              <Download className="h-4 w-4" /> Guida nomi immagini
+            </Button>
+          </a>
+        </div>
+      )}
+
+      {hasImages && (
+        <Card>
+          <CardContent className="p-5">
+            <pre className="whitespace-pre-wrap font-sans text-sm text-gray-600">{imageNamingGuide}</pre>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 5 — Caricamento.
+// ---------------------------------------------------------------------------
+
+function Step5({
+  hasSpreadsheet,
+  hasImages,
+  busy,
+  spreadsheetResult,
+  imagesResult,
+  onUploadSpreadsheet,
+  onUploadImages,
+}: {
+  hasSpreadsheet: boolean;
+  hasImages: boolean;
+  busy: boolean;
+  spreadsheetResult: UploadSpreadsheetResult | null;
+  imagesResult: UploadImagesResult | null;
+  onUploadSpreadsheet: (file: File) => void;
+  onUploadImages: (files: FileList | File[]) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  return (
+    <div className="space-y-6">
+      {hasSpreadsheet && (
+        <div>
+          <Label>Foglio CSV o Excel</Label>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white p-6 text-center hover:bg-gray-50">
+            <FileSpreadsheet className="h-6 w-6 text-gray-400" />
+            <span className="text-sm text-gray-600">Seleziona un file .csv o .xlsx</span>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUploadSpreadsheet(f);
+              }}
+            />
+          </label>
+          {spreadsheetResult && (
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <Check className="h-4 w-4" /> {spreadsheetResult.file.filename} — {spreadsheetResult.totalRows} righe
+              </div>
+              <PreviewTable headers={spreadsheetResult.headers} rows={spreadsheetResult.previewRows} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasImages && (
+        <div>
+          <Label>Immagini prodotto</Label>
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (e.dataTransfer.files.length > 0) onUploadImages(e.dataTransfer.files);
+            }}
+            className={cn(
+              'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center',
+              dragOver ? 'border-brand-accent bg-blue-50/50' : 'border-gray-300 bg-white hover:bg-gray-50',
+            )}
+          >
+            <UploadCloud className="h-6 w-6 text-gray-400" />
+            <span className="text-sm text-gray-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
+            <input
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,.zip"
+              multiple
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) onUploadImages(e.target.files);
+              }}
+            />
+          </label>
+          {imagesResult && (
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center gap-3">
+                <Badge tone="green">{imagesResult.validCount} valide</Badge>
+                <Badge tone="amber">{imagesResult.invalidCount} da controllare</Badge>
+              </div>
+              <FilesTable files={imagesResult.files} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {busy && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Caricamento in corso…
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record<string, string>> }) {
+  if (rows.length === 0) return <p className="text-sm text-gray-500">Nessuna riga da mostrare.</p>;
+  return (
+    <Table>
+      <THead>
+        <TR>
+          {headers.map((h) => (
+            <TH key={h}>{h}</TH>
+          ))}
+        </TR>
+      </THead>
+      <TBody>
+        {rows.map((r, i) => (
+          <TR key={i}>
+            {headers.map((h) => (
+              <TD key={h}>{r[h] ?? ''}</TD>
+            ))}
+          </TR>
+        ))}
+      </TBody>
+    </Table>
+  );
+}
+
+function FilesTable({ files }: { files: UploadedFileSummary[] }) {
+  return (
+    <Table>
+      <THead>
+        <TR>
+          <TH>SKU</TH>
+          <TH>File</TH>
+          <TH>Stato</TH>
+          <TH>Problemi</TH>
+        </TR>
+      </THead>
+      <TBody>
+        {files.map((f, i) => (
+          <TR key={i}>
+            <TD>{f.sku ?? '—'}</TD>
+            <TD>{f.filename}</TD>
+            <TD>
+              <Badge tone={f.status === 'valid' || f.status === 'ready' ? 'green' : 'amber'}>{f.status}</Badge>
+            </TD>
+            <TD className="text-gray-500">{f.problem ?? '—'}</TD>
+          </TR>
+        ))}
+      </TBody>
+    </Table>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 6 — Analisi file.
+// ---------------------------------------------------------------------------
+
+function Metric({ label, value, tone = 'gray' }: { label: string; value: number; tone?: BadgeTone }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="text-2xl font-semibold text-gray-900">{value}</div>
+        <div className="mt-1 text-sm text-gray-500">{label}</div>
+        <div className="mt-2">
+          <Badge tone={tone}>{tone === 'red' ? 'da risolvere' : tone === 'amber' ? 'da controllare' : 'ok'}</Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Step6({ analysis, hasImages, hasSpreadsheet }: { analysis: AnalyzeData | null; hasImages: boolean; hasSpreadsheet: boolean }) {
+  if (analysis === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Analisi in corso…
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">Risultato del confronto tra le sorgenti (unione tramite SKU esatto).</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Metric label="SKU totali unici" value={analysis.totalUniqueSkus} tone="gray" />
+        {hasSpreadsheet && hasImages && <Metric label="SKU in entrambe le fonti" value={analysis.inBoth.length} tone="gray" />}
+        {hasSpreadsheet && <Metric label="Solo nel file" value={analysis.onlyFile.length} tone={analysis.onlyFile.length > 0 ? 'amber' : 'gray'} />}
+        {hasImages && <Metric label="Solo nelle immagini" value={analysis.onlyImages.length} tone={analysis.onlyImages.length > 0 ? 'amber' : 'gray'} />}
+        {hasSpreadsheet && <Metric label="SKU duplicati nel file" value={analysis.duplicateFileSkus.length} tone={analysis.duplicateFileSkus.length > 0 ? 'red' : 'gray'} />}
+        {hasSpreadsheet && <Metric label="Righe senza SKU" value={analysis.rowsWithoutSku} tone={analysis.rowsWithoutSku > 0 ? 'red' : 'gray'} />}
+        {hasImages && <Metric label="Immagini senza SKU" value={analysis.filesWithoutSku.length} tone={analysis.filesWithoutSku.length > 0 ? 'amber' : 'gray'} />}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 7 — Associazione SKU.
+// ---------------------------------------------------------------------------
+
+function Step7({
+  analysis,
+  hasImages,
+  hasSpreadsheet,
+  headers,
+  skuHeader,
+  setSkuHeader,
+  importOption,
+  setImportOption,
+}: {
+  analysis: AnalyzeData | null;
+  hasImages: boolean;
+  hasSpreadsheet: boolean;
+  headers: string[];
+  skuHeader: string;
+  setSkuHeader: (v: string) => void;
+  importOption: 'complete' | 'includeImageOnly' | 'excludeIncomplete';
+  setImportOption: (v: 'complete' | 'includeImageOnly' | 'excludeIncomplete') => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {hasSpreadsheet && (
+        <div>
+          <Label htmlFor="sku-header">Colonna SKU</Label>
+          <Select id="sku-header" value={skuHeader} onChange={(e) => setSkuHeader(e.target.value)}>
+            <option value="">— Seleziona la colonna SKU —</option>
+            {headers.map((h) => (
+              <option key={h} value={h}>
+                {h}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-gray-500">Le righe senza SKU in questa colonna verranno scartate.</p>
+        </div>
+      )}
+
+      {hasImages && hasSpreadsheet && analysis && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SkuList title="In entrambe le fonti" skus={analysis.inBoth} tone="green" />
+          <SkuList title="Solo nel file" skus={analysis.onlyFile} tone="amber" />
+          <SkuList title="Solo nelle immagini" skus={analysis.onlyImages} tone="amber" />
+          <SkuList title="Duplicati nel file" skus={analysis.duplicateFileSkus} tone="red" />
+          {analysis.filesWithoutSku.length > 0 && <SkuList title="Immagini senza SKU" skus={analysis.filesWithoutSku} tone="red" />}
+        </div>
+      )}
+
+      <div>
+        <Label>Come procedere</Label>
+        <div className="space-y-2">
+          <OptionRow checked={importOption === 'complete'} onSelect={() => setImportOption('complete')} title="Continua con i prodotti completi" description="Importa i prodotti con SKU valido; i solo-immagini restano esclusi." />
+          {hasImages && (
+            <OptionRow checked={importOption === 'includeImageOnly'} onSelect={() => setImportOption('includeImageOnly')} title="Includi anche i prodotti solo-immagini" description="Crea un prodotto anche per gli SKU presenti solo tra le immagini." />
+          )}
+          <OptionRow checked={importOption === 'excludeIncomplete'} onSelect={() => setImportOption('excludeIncomplete')} title="Escludi i prodotti incompleti" description="Scarta i prodotti che non raggiungono i requisiti minimi di qualità." />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkuList({ title, skus, tone }: { title: string; skus: string[]; tone: BadgeTone }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-800">{title}</span>
+          <Badge tone={tone}>{skus.length}</Badge>
+        </div>
+        {skus.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {skus.slice(0, 30).map((s) => (
+              <span key={s} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
+                {s}
+              </span>
+            ))}
+            {skus.length > 30 && <span className="text-xs text-gray-400">+{skus.length - 30}</span>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OptionRow({ checked, onSelect, title, description }: { checked: boolean; onSelect: () => void; title: string; description: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn('flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors', checked ? 'border-brand-accent bg-blue-50/50' : 'border-gray-200 bg-white hover:bg-gray-50')}
+    >
+      <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', checked ? 'border-brand-accent bg-brand-accent' : 'border-gray-300')}>
+        {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+      </span>
+      <span>
+        <span className="block text-sm font-medium text-gray-900">{title}</span>
+        <span className="block text-sm text-gray-500">{description}</span>
+      </span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 8 — Mapping attributi.
+// ---------------------------------------------------------------------------
+
+function Step8({
+  attributes,
+  headers,
+  mapping,
+  setMapping,
+  skuHeader,
+}: {
+  attributes: PresetAttributeOption[] | null;
+  headers: string[];
+  mapping: Record<string, string>;
+  setMapping: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
+  skuHeader: string;
+}) {
+  if (attributes === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Caricamento attributi…
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">Associa ogni attributo del preset a una colonna del file. Gli attributi non associati verranno lasciati vuoti.</p>
+      <div className="space-y-2">
+        {attributes.map((attr) => (
+          <div key={attr.id} className="grid grid-cols-1 items-center gap-2 rounded-lg border border-gray-100 p-3 sm:grid-cols-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-800">{attr.name}</span>
+              {attr.isRequired && <Badge tone="amber">obbligatorio</Badge>}
+            </div>
+            <Select
+              value={mapping[attr.id] ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setMapping((prev) => {
+                  const next = { ...prev };
+                  if (v) next[attr.id] = v;
+                  else delete next[attr.id];
+                  return next;
+                });
+              }}
+            >
+              <option value="">— Nessuna colonna —</option>
+              {headers.map((h) => (
+                <option key={h} value={h} disabled={h === skuHeader}>
+                  {h}
+                  {h === skuHeader ? ' (colonna SKU)' : ''}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 9 — Verifica dati.
+// ---------------------------------------------------------------------------
+
+function Step9({
+  products,
+  importSummary,
+}: {
+  products: BatchProductRow[] | null;
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number } | null;
+}) {
+  if (products === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Importazione dei prodotti…
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {importSummary && (
+        <div className="flex flex-wrap gap-2 text-sm">
+          <Badge tone="blue">{importSummary.imported} importati</Badge>
+          <Badge tone="green">{importSummary.valid} validi</Badge>
+          <Badge tone="amber">{importSummary.invalid} da rivedere</Badge>
+          {importSummary.imageOnly > 0 && <Badge tone="violet">{importSummary.imageOnly} solo-immagini</Badge>}
+        </div>
+      )}
+      {products.length === 0 ? (
+        <p className="text-sm text-gray-500">Nessun prodotto importato. Torna indietro e controlla la colonna SKU o le sorgenti.</p>
+      ) : (
+        <Table>
+          <THead>
+            <TR>
+              <TH>SKU</TH>
+              <TH>Nome</TH>
+              <TH>Categoria</TH>
+              <TH>Qualità</TH>
+              <TH>Attributi</TH>
+              <TH>Immagini</TH>
+              <TH>Stato</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {products.map((p) => (
+              <TR key={p.id}>
+                <TD className="font-medium text-gray-900">{p.sku ?? '—'}</TD>
+                <TD>{p.name ?? '—'}</TD>
+                <TD>{p.category ?? '—'}</TD>
+                <TD>
+                  <Badge tone={p.quality >= 80 ? 'green' : p.quality >= 60 ? 'amber' : 'red'}>{p.quality}</Badge>
+                </TD>
+                <TD>{p.attributesCount}</TD>
+                <TD>{p.imagesCount}</TD>
+                <TD>
+                  <Badge tone={p.status === 'eligible' ? 'green' : 'gray'}>{p.status}</Badge>
+                </TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 10 — Campione.
+// ---------------------------------------------------------------------------
+
+function Step10({ sampleDone, busy, onRun }: { sampleDone: boolean; busy: boolean; onRun: () => void }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">Genera un campione gratuito su un prodotto rappresentativo per verificare tono e correttezza prima della generazione in massa.</p>
+      {!sampleDone ? (
+        <Button onClick={onRun} disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          Genera campione
+        </Button>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          <Check className="h-4 w-4" /> Campione generato. Puoi rivederlo nella scheda del batch o proseguire.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 11 — Conferma e avvio.
+// ---------------------------------------------------------------------------
+
+function Step11({ importSummary }: { importSummary: { imported: number; valid: number; invalid: number; imageOnly: number } | null }) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-3 p-5 text-sm text-gray-600">
+          <p className="font-medium text-gray-900">Pronto per la generazione</p>
+          {importSummary && (
+            <ul className="list-inside list-disc space-y-1">
+              <li>{importSummary.imported} prodotti importati</li>
+              <li>{importSummary.valid} idonei alla generazione</li>
+              {importSummary.imageOnly > 0 && <li>{importSummary.imageOnly} prodotti solo-immagini</li>}
+            </ul>
+          )}
+          <p>Verrà riservato 1 credito per ogni prodotto idoneo. La generazione avviene in background.</p>
+          <div className="flex items-center gap-2 text-gray-500">
+            <ImageIcon className="h-4 w-4" /> Potrai rivedere e correggere i risultati al termine.
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
