@@ -12,14 +12,18 @@ import {
   Rocket,
   Info,
   Save,
+  ClipboardList,
+  Eraser,
 } from 'lucide-react';
 import {
   addCategoryToPreset,
   removeCategoryFromPreset,
   addAttributeToPreset,
+  addAttributesFromListToPreset,
   removeAttributeFromPreset,
   setPresetAttribute,
   publishPresetVersion,
+  clearPresetVersion,
   ensureDraftVersion,
   type PresetDetail,
   type PresetAttrRow,
@@ -51,6 +55,30 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [addAttrOpen, setAddAttrOpen] = useState(false);
   const [removeCatTarget, setRemoveCatTarget] = useState<string | null>(null);
+  const [importAttrOpen, setImportAttrOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  function handleImportAttrs() {
+    setError(null);
+    setImportMsg(null);
+    startTransition(async () => {
+      const res = await addAttributesFromListToPreset({
+        presetVersionId: detail.workingVersionId,
+        text: importText,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setImportText('');
+      setImportMsg(
+        `${res.added} attributi aggiunti al preset (${res.created} nuovi creati).`,
+      );
+      router.refresh();
+    });
+  }
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError(null);
@@ -108,6 +136,36 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               Disponibile a breve
             </span>
           </div>
+          {editable && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  setImportMsg(null);
+                  setImportAttrOpen(true);
+                }}
+              >
+                <ClipboardList className="h-4 w-4" />
+                Attributi da lista
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                title="Rimuovi tutte le categorie e gli attributi dalla bozza"
+                onClick={() => {
+                  setError(null);
+                  setConfirmClear(true);
+                }}
+              >
+                <Eraser className="h-4 w-4" />
+                Svuota
+              </Button>
+            </>
+          )}
           {editable ? (
             <Button
               size="sm"
@@ -307,6 +365,61 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         available={detail.availableCategories}
         versionId={detail.workingVersionId}
         onError={setError}
+      />
+
+      {/* Importa attributi da lista */}
+      <Modal
+        open={importAttrOpen}
+        onClose={() => setImportAttrOpen(false)}
+        title="Aggiungi attributi da lista"
+      >
+        <div className="space-y-4">
+          <div>
+            <Textarea
+              rows={8}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={'Materiale\nColore\nVestibilità\nStagione'}
+              aria-label="Attributi, uno per riga"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Un attributo per riga. Quelli non ancora esistenti vengono creati (fattuali,
+              testo) e aggiunti al preset. Max 300 per volta.
+            </p>
+          </div>
+          {importMsg && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {importMsg}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportAttrOpen(false)}>
+              Chiudi
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleImportAttrs}
+              disabled={pending || !importText.trim()}
+            >
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Aggiungi
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Svuota preset */}
+      <ConfirmDialog
+        open={confirmClear}
+        onCancel={() => setConfirmClear(false)}
+        title="Svuotare il preset?"
+        message="Verranno rimosse tutte le categorie e gli attributi da questa bozza. I campi generati restano. L'operazione riguarda solo la bozza corrente."
+        confirmLabel="Svuota"
+        busy={pending}
+        onConfirm={() => {
+          setConfirmClear(false);
+          run(() => clearPresetVersion({ presetVersionId: detail.workingVersionId }));
+        }}
       />
 
       {/* Aggiungi attributo */}

@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Loader2, Copy, Eye, Sparkles } from 'lucide-react';
+import { Plus, Loader2, Copy, Eye, Sparkles, ClipboardList } from 'lucide-react';
 import {
   createCategory,
+  createCategoriesFromList,
   duplicateSystemCategory,
   type CategoryListItem,
   type SectorRow,
@@ -15,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal } from '@/components/settings/modal';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
@@ -38,6 +40,10 @@ export function CategoriesClient({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [newSector, setNewSector] = useState(sectors[0]?.id ?? '');
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,6 +70,26 @@ export function CategoriesClient({
       setName('');
       setDescription('');
       router.push(`/app/settings/categories/${res.categoryId}`);
+    });
+  }
+
+  function handleImport() {
+    setError(null);
+    setImportMsg(null);
+    startTransition(async () => {
+      const res = await createCategoriesFromList({
+        sectorId: newSector,
+        text: importText,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setImportText('');
+      setImportMsg(
+        `${res.created} categorie create${res.skipped > 0 ? `, ${res.skipped} già esistenti saltate` : ''}.`,
+      );
+      router.refresh();
     });
   }
 
@@ -100,6 +126,19 @@ export function CategoriesClient({
           >
             <Sparkles className="h-4 w-4" />
             Crea con AI
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setImportMsg(null);
+              setNewSector(sectorFilter || sectors[0]?.id || '');
+              setImportOpen(true);
+            }}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Importa lista
           </Button>
           <Button
             size="sm"
@@ -257,6 +296,56 @@ export function CategoriesClient({
             <Button size="sm" onClick={handleCreate} disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Crea
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Importa categorie da lista"
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="imp-cat-sector">Settore</Label>
+            <Select
+              id="imp-cat-sector"
+              value={newSector}
+              onChange={(e) => setNewSector(e.target.value)}
+            >
+              {sectors.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="imp-cat-text">Una categoria per riga</Label>
+            <Textarea
+              id="imp-cat-text"
+              rows={8}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={'T-shirt\nCamicie\nPantaloni\nGiacche'}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Incolla la tua lista. I nomi già esistenti vengono saltati. Max 300 per volta.
+            </p>
+          </div>
+          {importMsg && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {importMsg}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>
+              Chiudi
+            </Button>
+            <Button size="sm" onClick={handleImport} disabled={pending || !importText.trim()}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Importa
             </Button>
           </div>
         </div>

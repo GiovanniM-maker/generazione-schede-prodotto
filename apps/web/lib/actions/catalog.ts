@@ -38,6 +38,29 @@ function toError(err: unknown): string {
   return err instanceof Error ? err.message : 'Errore sconosciuto';
 }
 
+/** Numero massimo di voci creabili in un'unica importazione da lista. */
+const MAX_LIST_ITEMS = 300;
+
+/**
+ * Estrae una lista di nomi da testo incollato: una voce per riga, oppure
+ * separate da virgola/punto e virgola/tab. Rimuove vuoti e duplicati
+ * (case-insensitive), preservando il primo ordine di comparsa.
+ */
+function parseNameList(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of (raw ?? '').split(/[\n,;\t]+/)) {
+    const name = part.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= MAX_LIST_ITEMS) break;
+  }
+  return out;
+}
+
 /** Risolve sessione + organizzazione + appartenenza in un colpo solo. */
 async function requireOrg(): Promise<Ctx | Fail> {
   const user = await getSessionUser();
@@ -2006,6 +2029,231 @@ export async function updateAttribute(input: {
       .eq('id', a.id);
     if (error) return { ok: false, error: error.message };
     return { ok: true, attributeId: a.id, forked: false };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+}
+
+// =====================================================================
+// Import in blocco da lista incollata (velocità di setup).
+// =====================================================================
+
+/**
+ * Crea in blocco categorie a partire da una lista incollata (una per riga).
+ * Salta i nomi già esistenti (di sistema o dell'org) per non duplicare.
+ */
+export async function createCategoriesFromList(input: {
+  sectorId: string;
+  text: string;
+}): Promise<Ok<{ created: number; skipped: number; total: number }> | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    if (!input.sectorId) return { ok: false, error: 'Settore obbligatorio' };
+    const names = parseNameList(input.text);
+    if (names.length === 0) return { ok: false, error: 'Nessun nome valido nella lista' };
+
+    const { data: existing } = await service
+      .from('categories')
+      .select('name')
+      .eq('sector_id', input.sectorId)
+      .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`);
+    const existingSet = new Set((existing ?? []).map((c) => c.name.trim().toLowerCase()));
+    const toCreate = names.filter((n) => !existingSet.has(n.toLowerCase()));
+
+    if (toCreate.length > 0) {
+      const { error } = await service.from('categories').insert(
+        toCreate.map((name) => ({
+          sector_id: input.sectorId,
+          owner_organization_id: organizationId,
+          name,
+          is_system: false,
+          status: 'active',
+        })),
+      );
+      if (error) return { ok: false, error: error.message };
+    }
+    return {
+      ok: true,
+      created: toCreate.length,
+      skipped: names.length - toCreate.length,
+      total: names.length,
+    };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+}
+
+/**
+ * Crea in blocco attributi FATTUALI (testo) da una lista incollata. Le
+ * istruzioni di default ribadiscono il principio "solo dati dichiarati".
+ * Salta i nomi già esistenti nel settore.
+ */
+export async function createAttributesFromList(input: {
+  sectorId: string;
+  text: string;
+}): Promise<Ok<{ created: number; skipped: number; total: number }> | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    if (!input.sectorId) return { ok: false, error: 'Settore obbligatorio' };
+    const names = parseNameList(input.text);
+    if (names.length === 0) return { ok: false, error: 'Nessun nome valido nella lista' };
+
+    const { data: existing } = await service
+      .from('attributes')
+      .select('name')
+      .eq('sector_id', input.sectorId)
+      .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`);
+    const existingSet = new Set((existing ?? []).map((a) => a.name.trim().toLowerCase()));
+    const toCreate = names.filter((n) => !existingSet.has(n.toLowerCase()));
+
+    if (toCreate.length > 0) {
+      const { error } = await service.from('attributes').insert(
+        toCreate.map((name) => ({
+          sector_id: input.sectorId,
+          owner_organization_id: organizationId,
+          name,
+          attribute_kind: 'factual',
+          data_type: 'text',
+          default_extraction_instruction: `Estrai il valore di "${name}" dalle fonti: solo il dato dichiarato, non stimare.`,
+          default_generation_instruction: `Usa "${name}" nel testo solo se presente tra i fatti verificati.`,
+          is_system: false,
+          status: 'active',
+          version: 1,
+        })),
+      );
+      if (error) return { ok: false, error: error.message };
+    }
+    return {
+      ok: true,
+      created: toCreate.length,
+      skipped: names.length - toCreate.length,
+      total: names.length,
+    };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+}
+
+/**
+ * Svuota una BOZZA di preset: rimuove tutte le categorie e gli attributi
+ * collegati (i campi di output generati restano). Solo su versioni non
+ * pubblicate.
+ */
+export async function clearPresetVersion(input: {
+  presetVersionId: string;
+}): Promise<OkVoid | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    const chk = await requireDraftVersion(service, organizationId, input.presetVersionId);
+    if (!chk.ok) return chk;
+
+    await service.from('preset_attributes').delete().eq('preset_version_id', input.presetVersionId);
+    await service.from('preset_categories').delete().eq('preset_version_id', input.presetVersionId);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+}
+
+/**
+ * Popola un preset (bozza) da una lista di attributi incollata: crea gli
+ * attributi mancanti nel settore del preset e li collega tutti alla versione.
+ * Serve al caso "ho già le mie voci, creo il preset incollandole".
+ */
+export async function addAttributesFromListToPreset(input: {
+  presetVersionId: string;
+  text: string;
+}): Promise<Ok<{ added: number; created: number; total: number }> | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    const chk = await requireDraftVersion(service, organizationId, input.presetVersionId);
+    if (!chk.ok) return chk;
+
+    const names = parseNameList(input.text);
+    if (names.length === 0) return { ok: false, error: 'Nessun nome valido nella lista' };
+
+    // Settore del preset (per creare/cercare gli attributi giusti).
+    const { data: preset } = await service
+      .from('presets')
+      .select('sector_id')
+      .eq('id', chk.presetId)
+      .maybeSingle();
+    const sectorId = preset?.sector_id;
+    if (!sectorId) return { ok: false, error: 'Settore del preset non trovato' };
+
+    // Attributi esistenti (sistema o org) del settore, per nome normalizzato.
+    const { data: existing } = await service
+      .from('attributes')
+      .select('id, name')
+      .eq('sector_id', sectorId)
+      .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`);
+    const idByName = new Map(
+      (existing ?? []).map((a) => [a.name.trim().toLowerCase(), a.id] as const),
+    );
+
+    // Crea gli attributi mancanti.
+    const missing = names.filter((n) => !idByName.has(n.toLowerCase()));
+    let created = 0;
+    if (missing.length > 0) {
+      const { data: inserted, error } = await service
+        .from('attributes')
+        .insert(
+          missing.map((name) => ({
+            sector_id: sectorId,
+            owner_organization_id: organizationId,
+            name,
+            attribute_kind: 'factual',
+            data_type: 'text',
+            default_extraction_instruction: `Estrai il valore di "${name}" dalle fonti: solo il dato dichiarato, non stimare.`,
+            default_generation_instruction: `Usa "${name}" nel testo solo se presente tra i fatti verificati.`,
+            is_system: false,
+            status: 'active',
+            version: 1,
+          })),
+        )
+        .select('id, name');
+      if (error) return { ok: false, error: error.message };
+      for (const a of inserted ?? []) idByName.set(a.name.trim().toLowerCase(), a.id);
+      created = (inserted ?? []).length;
+    }
+
+    // Attributi già collegati alla versione (per non duplicare).
+    const { data: presentRows } = await service
+      .from('preset_attributes')
+      .select('attribute_id, display_order')
+      .eq('preset_version_id', input.presetVersionId);
+    const present = new Set((presentRows ?? []).map((p) => p.attribute_id));
+    let nextOrder = (presentRows ?? []).reduce((m, p) => Math.max(m, p.display_order ?? 0), 0);
+
+    const toLink = names
+      .map((n) => idByName.get(n.toLowerCase()))
+      .filter((id): id is string => Boolean(id) && !present.has(id as string));
+    // Dedup fra loro mantenendo l'ordine.
+    const uniqueToLink = [...new Set(toLink)];
+
+    if (uniqueToLink.length > 0) {
+      const { error } = await service.from('preset_attributes').insert(
+        uniqueToLink.map((attribute_id) => ({
+          preset_version_id: input.presetVersionId,
+          attribute_id,
+          category_id: null,
+          is_required: false,
+          display_order: ++nextOrder,
+          enabled: true,
+        })),
+      );
+      if (error) return { ok: false, error: error.message };
+    }
+
+    return { ok: true, added: uniqueToLink.length, created, total: names.length };
   } catch (err) {
     return { ok: false, error: toError(err) };
   }
