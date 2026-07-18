@@ -20,3 +20,4 @@ export * from './sku.js';
 export * from './sources.js';
 export * from './template.js';
 export * from './copilot.js';
+export * from './prompt-improve.js';

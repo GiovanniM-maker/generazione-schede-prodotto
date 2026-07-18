@@ -7,6 +7,8 @@ import type {
   FactAuditResult,
   ProductCopy,
   ProductCopyInput,
+  PromptImproveInput,
+  PromptImproveOutput,
   VisualExtraction,
   VisualExtractionInput,
 } from '@app/core';
@@ -52,6 +54,15 @@ export interface CopilotProvider {
   suggestConfiguration(input: CopilotInput): Promise<AiResult<CopilotOutput>>;
 }
 
+/**
+ * Miglioramento del prompt: a partire dalle correzioni dell'utente sugli
+ * output, propone istruzioni di generazione migliori per campo. Non scrive mai
+ * nel catalogo: il risultato diventa una bozza di preset che l'utente pubblica.
+ */
+export interface PromptImproveProvider {
+  improvePrompt(input: PromptImproveInput): Promise<AiResult<PromptImproveOutput>>;
+}
+
 // ---------------------------------------------------------------------------
 // Trascrizione audio (Fase 6). Nota: OpenRouter NON supporta l'audio (solo
 // chat-completions), quindi la trascrizione reale usa OpenAI Whisper. È
@@ -80,5 +91,6 @@ export interface AiProviders {
   visual: VisualExtractionProvider;
   factAudit: FactAuditProvider;
   copilot: CopilotProvider;
+  promptImprove: PromptImproveProvider;
   transcription: TranscriptionProvider;
 }

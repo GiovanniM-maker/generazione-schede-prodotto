@@ -62,6 +62,7 @@ export function createAiProviders(env: ServerEnv): AiProviders {
       visual: router,
       factAudit: router,
       copilot: router,
+      promptImprove: router,
       transcription,
     };
   }
@@ -85,6 +86,7 @@ export function createAiProviders(env: ServerEnv): AiProviders {
     visual: providers,
     factAudit: providers,
     copilot: providers,
+    promptImprove: providers,
     transcription,
   };
 }

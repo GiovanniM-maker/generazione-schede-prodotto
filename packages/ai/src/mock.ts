@@ -10,6 +10,8 @@ import {
   type FactAuditResult,
   type ProductCopy,
   type ProductCopyInput,
+  type PromptImproveInput,
+  type PromptImproveOutput,
   type VisualExtraction,
   type VisualExtractionInput,
 } from '@app/core';
@@ -19,6 +21,7 @@ import type {
   CopilotProvider,
   FactAuditProvider,
   ProductCopyProvider,
+  PromptImproveProvider,
   TranscriptionInput,
   TranscriptionProvider,
   TranscriptionResult,
@@ -238,6 +241,51 @@ export class MockCopilotProvider implements CopilotProvider {
 }
 
 // ---------------------------------------------------------------------------
+// Miglioramento prompt mock: DETERMINISTICO e offline. Raggruppa le correzioni
+// per campo e produce un'istruzione migliorata che integra le motivazioni.
+// ---------------------------------------------------------------------------
+
+export class MockPromptImproveProvider implements PromptImproveProvider {
+  constructor(private opts: MockOptions = {}) {}
+  async improvePrompt(input: PromptImproveInput): Promise<AiResult<PromptImproveOutput>> {
+    await delay(this.opts.latencyMs ?? 0);
+
+    const byField = new Map<
+      string,
+      { fieldLabel: string; reasons: string[]; count: number }
+    >();
+    for (const c of input.corrections) {
+      const e = byField.get(c.fieldKey) ?? { fieldLabel: c.fieldLabel, reasons: [], count: 0 };
+      if (c.reason.trim()) e.reasons.push(c.reason.trim());
+      e.count += 1;
+      byField.set(c.fieldKey, e);
+    }
+    const currentByField = new Map(input.currentInstructions.map((i) => [i.fieldKey, i.instruction]));
+
+    const fields = [...byField.entries()].map(([fieldKey, e]) => {
+      const current = currentByField.get(fieldKey) ?? '';
+      const reasonPart = e.reasons.length
+        ? ` Tieni conto di queste indicazioni ricorrenti dell'utente: ${e.reasons.join('; ')}.`
+        : '';
+      const base = current || `Scrivi il campo "${e.fieldLabel}" in modo chiaro e fedele ai fatti.`;
+      return {
+        fieldKey,
+        improvedInstruction: `${base}${reasonPart}`.trim(),
+        rationale: `${e.count} correzioni sul campo "${e.fieldLabel}": integro le motivazioni ricorrenti.`,
+      };
+    });
+
+    return {
+      data: {
+        summary: `Proposte ${fields.length} istruzioni migliorate a partire da ${input.corrections.length} correzioni.`,
+        fields,
+      },
+      usage: usage('mock-prompt-improve', 200, 150),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Trascrizione mock: DETERMINISTICA e offline. Nessuna chiamata di rete.
 // Restituisce una frase fissa in italiano che include il nome del file.
 // ---------------------------------------------------------------------------
@@ -260,6 +308,7 @@ export function createMockProviders(opts: MockOptions = {}) {
     visual: new MockVisualExtractionProvider(opts),
     factAudit: new MockFactAuditProvider(opts),
     copilot: new MockCopilotProvider(opts),
+    promptImprove: new MockPromptImproveProvider(opts),
     transcription: new MockTranscriptionProvider(opts),
   };
 }

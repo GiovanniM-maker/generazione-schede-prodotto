@@ -82,6 +82,21 @@ export async function loadPresetGenerationSpec(
     }
   }
 
+  // Istruzioni per-CAMPO-OUTPUT (titolo, descrizione breve, ...). Sono il
+  // bersaglio dei "miglioramenti del prompt" appresi dalle correzioni utente:
+  // vengono salvate in preset_generated_fields.config_json.instruction e qui
+  // iniettate nel prompt, così i miglioramenti hanno effetto reale.
+  const { data: genFields } = await client
+    .from('preset_generated_fields')
+    .select('field_key, label, enabled, config_json')
+    .eq('preset_version_id', presetVersionId);
+  for (const f of genFields ?? []) {
+    if (f.enabled === false) continue;
+    const cfg = (f.config_json ?? {}) as { instruction?: unknown };
+    const instr = typeof cfg.instruction === 'string' ? cfg.instruction.trim() : '';
+    if (instr) instructions.push(`Campo "${f.label ?? f.field_key}": ${instr}`);
+  }
+
   return {
     presetVersionId,
     sectorKey: sector?.key ?? '',

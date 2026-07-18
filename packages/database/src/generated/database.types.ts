@@ -309,6 +309,24 @@ export interface Database {
         metadata_json: Json;
         created_at: string;
       }>;
+      output_corrections: T<{
+        id: string;
+        organization_id: string;
+        batch_id: string | null;
+        product_id: string | null;
+        generation_id: string | null;
+        preset_id: string | null;
+        preset_version_id: string | null;
+        field_key: string;
+        original_value: string | null;
+        corrected_value: string | null;
+        reason: string | null;
+        applied_to_prompt: boolean;
+        applied_at: string | null;
+        improvement_version_id: string | null;
+        created_by: string | null;
+        created_at: string;
+      }>;
       // --- Modello configurazione v2 ---
       sectors: T<
         { id: string; key: string; name: string; description: string | null; icon: string | null; is_system: boolean; status: string } & Timestamps
