@@ -337,6 +337,10 @@ export async function sendCopilotMessage(input: {
 
     const message = input.message?.trim();
     if (!message) return { ok: false, error: 'Il messaggio è vuoto' };
+    // Limite anti-abuso (prompt gigante = costo/latenza). 4000 caratteri ~ 1k token.
+    if (message.length > 4000) {
+      return { ok: false, error: 'Messaggio troppo lungo (massimo 4000 caratteri).' };
+    }
 
     // Carica conversazione + bozza + cronologia, verificando l'appartenenza.
     const { data: conversation } = await service

@@ -153,6 +153,9 @@ export async function saveOutputEdit(input: {
     .update({ edited_content_json: input.edited as unknown as Json })
     .eq('id', gen.id);
 
+  // Limiti anti-abuso sul testo che poi confluisce nel prompt di miglioramento.
+  const cap = (s: string, max: number) => (s.length > max ? s.slice(0, max) : s);
+
   // Registra solo le modifiche reali (corrected != original), con o senza motivo.
   const rows = input.changes
     .filter((c) => (c.corrected ?? '') !== (c.original ?? ''))
@@ -166,9 +169,9 @@ export async function saveOutputEdit(input: {
         preset_id: scope.presetId,
         preset_version_id: scope.presetVersionId,
         field_key: fieldKey,
-        original_value: c.original ?? '',
-        corrected_value: c.corrected ?? '',
-        reason: c.reason?.trim() || null,
+        original_value: cap(c.original ?? '', 8000),
+        corrected_value: cap(c.corrected ?? '', 8000),
+        reason: c.reason?.trim() ? cap(c.reason.trim(), 1000) : null,
         created_by: user.id,
       };
     });
