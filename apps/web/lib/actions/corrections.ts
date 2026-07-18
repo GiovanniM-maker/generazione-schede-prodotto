@@ -441,5 +441,23 @@ export async function publishImprovement(input: {
     .eq('applied_to_prompt', false)
     .select('id');
 
+  // Storico: registra il miglioramento del prompt pubblicato.
+  const user = await getSessionUser();
+  try {
+    await service.from('app_events').insert({
+      organization_id: ctx.orgId,
+      user_id: user?.id ?? null,
+      event_name: 'prompt_improved',
+      metadata_json: {
+        presetId: input.presetId,
+        presetName: ctx.presetName,
+        correctionsApplied: (applied ?? []).length,
+        versionId: preset?.active_version_id ?? null,
+      } as unknown as Json,
+    });
+  } catch {
+    // storico best-effort
+  }
+
   return ok({ published: true, correctionsApplied: (applied ?? []).length });
 }

@@ -38,6 +38,26 @@ function toError(err: unknown): string {
   return err instanceof Error ? err.message : 'Errore sconosciuto';
 }
 
+/** Registra un evento nello storico (best-effort: non blocca l'azione). */
+async function logEvent(
+  service: ServiceClient,
+  organizationId: string,
+  userId: string | null,
+  eventName: string,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    await service.from('app_events').insert({
+      organization_id: organizationId,
+      user_id: userId,
+      event_name: eventName,
+      metadata_json: metadata as unknown as Json,
+    });
+  } catch {
+    // Lo storico è accessorio: un errore qui non deve far fallire l'operazione.
+  }
+}
+
 /** Numero massimo di voci creabili in un'unica importazione da lista. */
 const MAX_LIST_ITEMS = 300;
 
@@ -721,13 +741,13 @@ export async function publishPresetVersion(input: {
   try {
     const auth = await requireOrg();
     if (!auth.ok) return auth;
-    const { service, organizationId } = auth;
+    const { service, organizationId, userId } = auth;
     const preset = await loadOwnedPreset(service, organizationId, input.presetId);
     if (!preset) return { ok: false, error: 'Preset non trovato' };
 
     const { data: draft } = await service
       .from('preset_versions')
-      .select('id')
+      .select('id, version')
       .eq('preset_id', preset.id)
       .is('published_at', null)
       .order('version', { ascending: false })
@@ -759,6 +779,11 @@ export async function publishPresetVersion(input: {
       return { ok: false, error: pErr.message };
     }
 
+    await logEvent(service, organizationId, userId, 'preset_published', {
+      presetId: preset.id,
+      presetName: preset.name,
+      version: draft.version,
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: toError(err) };
@@ -2074,6 +2099,10 @@ export async function createCategoriesFromList(input: {
       );
       if (error) return { ok: false, error: error.message };
     }
+    await logEvent(service, organizationId, auth.userId, 'categories_imported', {
+      created: toCreate.length,
+      skipped: names.length - toCreate.length,
+    });
     return {
       ok: true,
       created: toCreate.length,
@@ -2127,6 +2156,10 @@ export async function createAttributesFromList(input: {
       );
       if (error) return { ok: false, error: error.message };
     }
+    await logEvent(service, organizationId, auth.userId, 'attributes_imported', {
+      created: toCreate.length,
+      skipped: names.length - toCreate.length,
+    });
     return {
       ok: true,
       created: toCreate.length,
@@ -2155,6 +2188,9 @@ export async function clearPresetVersion(input: {
 
     await service.from('preset_attributes').delete().eq('preset_version_id', input.presetVersionId);
     await service.from('preset_categories').delete().eq('preset_version_id', input.presetVersionId);
+    await logEvent(service, organizationId, auth.userId, 'preset_cleared', {
+      presetId: chk.presetId,
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: toError(err) };
@@ -2253,6 +2289,11 @@ export async function addAttributesFromListToPreset(input: {
       if (error) return { ok: false, error: error.message };
     }
 
+    await logEvent(service, organizationId, auth.userId, 'attributes_imported', {
+      added: uniqueToLink.length,
+      created,
+      target: 'preset',
+    });
     return { ok: true, added: uniqueToLink.length, created, total: names.length };
   } catch (err) {
     return { ok: false, error: toError(err) };
