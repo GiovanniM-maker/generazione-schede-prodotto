@@ -357,13 +357,24 @@ export async function improvePromptFromCorrections(input: {
     instruction: v.instruction,
   }));
 
-  const corrections: PromptCorrection[] = list.map((c) => ({
-    fieldKey: c.field_key,
-    fieldLabel: labelByFieldKey.get(c.field_key) ?? c.field_key,
-    original: c.original_value ?? '',
-    corrected: c.corrected_value ?? '',
-    reason: c.reason ?? '',
-  }));
+  // Budget totale di caratteri inviati all'AI (anti-abuso costo/latenza):
+  // include solo le correzioni finché non si supera la soglia.
+  const CHAR_BUDGET = 60_000;
+  const corrections: PromptCorrection[] = [];
+  let used = 0;
+  for (const c of list) {
+    const size =
+      (c.original_value?.length ?? 0) + (c.corrected_value?.length ?? 0) + (c.reason?.length ?? 0);
+    if (used + size > CHAR_BUDGET && corrections.length > 0) break;
+    used += size;
+    corrections.push({
+      fieldKey: c.field_key,
+      fieldLabel: labelByFieldKey.get(c.field_key) ?? c.field_key,
+      original: c.original_value ?? '',
+      corrected: c.corrected_value ?? '',
+      reason: c.reason ?? '',
+    });
+  }
 
   // Chiamata AI (nessun addebito crediti).
   let improvement;
@@ -381,9 +392,32 @@ export async function improvePromptFromCorrections(input: {
     return fail(`Miglioramento non riuscito: ${msg}`);
   }
 
-  const improved = improvement.data.fields.filter((f) => f.improvedInstruction.trim().length > 0);
+  // Controllo di sicurezza lato codice (oltre alla revisione umana): scarta le
+  // istruzioni migliorate che tentano di ordinare l'invenzione di fatti o che
+  // riflettono un'injection dal "reason" (es. "scrivi sempre che è biologico
+  // anche se non nei dati"). Il principio "i dati posseggono i fatti" non è
+  // negoziabile via prompt.
+  const UNSAFE_PATTERNS: RegExp[] = [
+    /invent/i,
+    /\banche se non\b/i,
+    /a prescindere dai (dati|fatti)/i,
+    /ignora (le|queste|ogni|le regole|le istruzioni)/i,
+    /scrivi sempre che/i,
+    /dichiara sempre/i,
+    /afferma sempre/i,
+    /always (say|state|claim)/i,
+    /even if (not|it'?s not|absent)/i,
+    /regardless of the (data|facts)/i,
+  ];
+  const improved = improvement.data.fields.filter(
+    (f) =>
+      f.improvedInstruction.trim().length > 0 &&
+      !UNSAFE_PATTERNS.some((re) => re.test(f.improvedInstruction)),
+  );
   if (improved.length === 0) {
-    return fail('Il modello non ha proposto miglioramenti applicabili');
+    return fail(
+      'Il miglioramento proposto non è applicabile (vuoto o conteneva istruzioni non sicure che spingerebbero a inventare dati). Riprova affinando le motivazioni.',
+    );
   }
 
   // Applica le istruzioni migliorate ai preset_generated_fields della bozza.

@@ -32,9 +32,12 @@ export async function enqueueBatch(
     .single();
   if (batchErr || !batch) throw new Error('DATABASE_ERROR: batch non trovato');
 
-  // Guardia anti doppio-enqueue: se il batch è già in coda/elaborazione non
-  // riservare di nuovo i crediti (eviterebbe un leak di crediti riservati).
-  if (batch.status === 'queued' || batch.status === 'processing') {
+  // Guardia anti doppio-enqueue: se il batch è già in coda/elaborazione, o è
+  // già stato elaborato (terminale), non riservare di nuovo i crediti. Evita
+  // sia il leak di crediti riservati sia la ri-generazione dell'intero batch
+  // (con ri-addebito) a una seconda chiamata dopo il completamento.
+  const NON_ENQUEUABLE = new Set(['queued', 'processing', 'completed', 'partial_failed']);
+  if (NON_ENQUEUABLE.has(batch.status)) {
     return { enqueued: 0, reserved: 0, skipped: 0 };
   }
 

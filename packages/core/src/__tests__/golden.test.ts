@@ -102,6 +102,33 @@ describe('golden: claim sensibili non supportati', () => {
     expect(audit.unsupportedClaims.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('un fatto a valore VUOTO non disattiva il rilevamento claim (backstop)', () => {
+    // Regressione: con includes grezzo un fatto vuoto "supportava" ogni claim.
+    const facts: FactAttribute[] = [
+      { fieldKey: 'note', value: '', status: 'provided', sourceType: 'csv' },
+      { fieldKey: 'product_type', value: 'giacca', status: 'provided', sourceType: 'csv' },
+    ];
+    const bad = deterministicAudit(facts, copy({ shortDescription: 'Giacca impermeabile e sostenibile.' }));
+    expect(bad.unsupportedClaims).toEqual(expect.arrayContaining(['impermeabile', 'sostenibile']));
+    expect(bad.severity).toBe('high');
+  });
+
+  it('claim NON supportato per sotto-stringa accidentale (cura in accurata)', () => {
+    const facts: FactAttribute[] = [
+      { fieldKey: 'finish', value: 'finitura accurata', status: 'provided', sourceType: 'csv' },
+    ];
+    // "accurata" contiene "cura" come sotto-stringa ma NON deve supportare un
+    // claim sanitario "cura".
+    expect(containsClaim('Questo prodotto cura le infezioni', 'cura')).toBe(true);
+    const bad = detectUnsupportedClaims(
+      'Questo prodotto cura le infezioni',
+      facts,
+      usable,
+      ['cura'],
+    );
+    expect(bad.map((d) => d.claim)).toContain('cura');
+  });
+
   it('claim supportato dai fatti NON viene segnalato', () => {
     const facts: FactAttribute[] = [
       { fieldKey: 'country_of_origin', value: 'Made in Italy', status: 'provided', sourceType: 'csv' },

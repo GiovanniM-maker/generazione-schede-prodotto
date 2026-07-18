@@ -35,11 +35,12 @@ export async function POST(request: Request): Promise<Response> {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
 
+  // Rate limit sempre applicato: se l'utente non ha org, usa il suo id come
+  // chiave (evita abuso della trascrizione a pagamento da account org-less).
   const org = await getUserOrg(user.id);
-  if (org) {
-    const rl = await checkAiRateLimit(org.organizationId, 'transcribe');
-    if (!rl.allowed) return NextResponse.json({ error: rl.message }, { status: 429 });
-  }
+  const rlKey = org?.organizationId ?? user.id;
+  const rl = await checkAiRateLimit(rlKey, 'transcribe');
+  if (!rl.allowed) return NextResponse.json({ error: rl.message }, { status: 429 });
 
   let form: FormData;
   try {

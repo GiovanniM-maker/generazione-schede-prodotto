@@ -172,9 +172,20 @@ export async function generateCopyWithAudit(
   usage: { inputTokens: number; outputTokens: number; model: string; provider: string };
 }> {
   const safetyRules = sectorSafetyRules(spec?.sectorKey);
+  // Cap difensivo sui fatti che entrano nel PROMPT (anti prompt-gigante). Non
+  // tocca i fatti usati per l'AUDIT (sotto), che restano completi per non
+  // indebolire il rilevamento dei claim.
+  const MAX_PROMPT_FACTS = 150;
+  const MAX_VALUE_LEN = 2000;
+  const promptFacts =
+    facts.length <= MAX_PROMPT_FACTS && facts.every((f) => f.value.length <= MAX_VALUE_LEN)
+      ? facts
+      : facts.slice(0, MAX_PROMPT_FACTS).map((f) =>
+          f.value.length > MAX_VALUE_LEN ? { ...f, value: f.value.slice(0, MAX_VALUE_LEN) } : f,
+        );
   const copyResult = await ctx.providers.productCopy.generateCopy({
     presetVersion: spec?.presetVersionId ?? MODA_PRESET_VERSION,
-    facts,
+    facts: promptFacts,
     brandProfile: profile,
     language: 'it',
     requestedOutput: REQUESTED_OUTPUT,
@@ -183,7 +194,7 @@ export async function generateCopyWithAudit(
     safetyRules,
   });
 
-  // Audit deterministico + claim sensibili specifici del settore.
+  // Audit deterministico + claim sensibili specifici del settore (fatti COMPLETI).
   const localAudit = deterministicAudit(facts, copyResult.data, sectorSensitiveClaims(spec?.sectorKey));
   let aiAudit: FactAuditResult | null = null;
   try {

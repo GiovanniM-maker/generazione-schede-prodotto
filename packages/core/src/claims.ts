@@ -20,18 +20,32 @@ export function containsClaim(text: string, claim: string): boolean {
   return re.test(nt);
 }
 
-/** True se un claim è supportato da almeno un fatto ammesso. */
+/**
+ * True se un claim è supportato da almeno un fatto ammesso.
+ *
+ * SICUREZZA (backstop deterministico): il supporto usa il match a CONFINE DI
+ * PAROLA (come containsClaim), non un `includes` grezzo. Questo evita due
+ * bypass gravi:
+ *  - un fatto con valore VUOTO non deve "supportare" ogni claim (con includes,
+ *    "".includes o includes("") risultavano sempre veri → audit disattivato);
+ *  - un claim non deve risultare supportato per sotto-stringa accidentale
+ *    (es. "cura" dentro "accurata"/"sicura").
+ */
 export function claimSupportedByFacts(
   claim: string,
   facts: FactAttribute[],
   usableStatuses: string[],
 ): boolean {
   const nc = normalize(claim);
+  if (nc === '') return true; // claim vuoto: niente da verificare
   return facts.some((f) => {
     if (!usableStatuses.includes(f.status)) return false;
-    const fv = normalize(f.value);
-    const fk = normalize(f.fieldKey);
-    return fv.includes(nc) || nc.includes(fv) || fk.includes(nc);
+    const valueOk = f.value.trim() !== '' && containsClaim(f.value, claim);
+    // La chiave dell'attributo (es. "sustainability_claims") può nominare il
+    // claim: normalizza gli underscore a spazi per il match a parola.
+    const keyText = (f.fieldKey ?? '').replace(/[_-]+/g, ' ');
+    const keyOk = keyText.trim() !== '' && containsClaim(keyText, claim);
+    return valueOk || keyOk;
   });
 }
 

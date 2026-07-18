@@ -21,17 +21,28 @@ export async function POST(
   const service = getServiceClient();
 
   try {
-    await service.from('batches').update({ status: 'approved' }).eq('id', batchId);
+    // NON pre-impostare lo stato: la guardia di enqueueBatch deve restare
+    // autoritativa (evita ri-addebito su chiamate ripetute dopo il completamento).
     const result = await enqueueBatch(service, env, batchId);
 
-    // Nessun prodotto eleggibile: non lasciare il batch in "approved" (finirebbe
-    // in una schermata di elaborazione bloccata a 0/0). Riporta l'utente alla
-    // verifica dati con un messaggio chiaro.
     if (result.enqueued === 0) {
-      await service
+      // Distingui "già in coda/elaborato" (guardia) da "nessun eleggibile".
+      const { data: b } = await service
         .from('batches')
-        .update({ status: 'input_review' })
-        .eq('id', batchId);
+        .select('status')
+        .eq('id', batchId)
+        .maybeSingle();
+      const alreadyRunning = ['queued', 'processing', 'completed', 'partial_failed'].includes(
+        b?.status ?? '',
+      );
+      if (alreadyRunning) {
+        return NextResponse.json(
+          { error: 'Il batch è già stato avviato o completato.', code: 'ALREADY_STARTED' },
+          { status: 409 },
+        );
+      }
+      // Genuinamente 0 eleggibili pre-elaborazione: torna alla verifica dati.
+      await service.from('batches').update({ status: 'input_review' }).eq('id', batchId);
       return NextResponse.json(
         {
           error:
@@ -42,13 +53,18 @@ export async function POST(
       );
     }
 
-    await service.from('app_events').insert({
-      organization_id: orgId,
-      user_id: user.id,
-      event_name: 'generation_started',
-      batch_id: batchId,
-      metadata_json: { enqueued: result.enqueued },
-    });
+    // Evento storico best-effort: non deve far scattare il rollback del catch.
+    try {
+      await service.from('app_events').insert({
+        organization_id: orgId,
+        user_id: user.id,
+        event_name: 'generation_started',
+        batch_id: batchId,
+        metadata_json: { enqueued: result.enqueued },
+      });
+    } catch {
+      /* storico accessorio */
+    }
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Errore';

@@ -83,6 +83,16 @@ export async function regenerateProductAction(input: {
   if (!orgId) return { ok: false, error: 'Non accessibile' };
   const service = getServiceClient();
 
+  // IDOR guard: il prodotto deve appartenere a QUESTO batch (e quindi a questa
+  // org). Senza questo, si potrebbe rigenerare il prodotto di un'altra org.
+  const { data: product } = await service
+    .from('products')
+    .select('id')
+    .eq('id', input.productId)
+    .eq('batch_id', input.batchId)
+    .maybeSingle();
+  if (!product) return { ok: false, error: 'Prodotto non appartenente al batch' };
+
   const { data: reserved } = await service.rpc('reserve_credits', {
     org: orgId,
     amt: 1,
@@ -101,7 +111,20 @@ export async function regenerateProductAction(input: {
     })
     .select('id')
     .single();
-  if (error || !job) return { ok: false, error: error?.message ?? 'Job non creato' };
+  if (error || !job) {
+    // L'insert può fallire se esiste già un job attivo per il prodotto
+    // (unique index). Rilascia il credito riservato per non addebitarlo a vuoto.
+    await service.rpc('release_credits', {
+      org: orgId,
+      amt: 1,
+      ref_type: 'regen_failed',
+      ref_id: input.productId,
+    });
+    return {
+      ok: false,
+      error: 'Rigenerazione già in corso per questo prodotto. Attendi il completamento.',
+    };
+  }
   await queueSend(service, { jobItemId: job.id });
   return { ok: true };
 }

@@ -434,6 +434,16 @@ export async function uploadBatchFiles(
   const files = formData.getAll('files').filter((f): f is File => f instanceof File);
   if (files.length === 0) return fail('Nessun file caricato');
 
+  // Limiti anti-abuso / robustezza: dimensione per file e numero di file.
+  const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+  const MAX_IMAGES_PER_UPLOAD = 200;
+  const MAX_ROWS = 50_000;
+  const tooBig = files.find((f) => f.size > MAX_FILE_BYTES);
+  if (tooBig) return fail(`File troppo grande: ${tooBig.name} (massimo 20 MB per file).`);
+  if (sourceType === 'images' && files.length > MAX_IMAGES_PER_UPLOAD) {
+    return fail(`Troppe immagini in un solo caricamento (massimo ${MAX_IMAGES_PER_UPLOAD}). Caricale a blocchi.`);
+  }
+
   const service = getServiceClient();
 
   // ----- Spreadsheet -----
@@ -452,6 +462,9 @@ export async function uploadBatchFiles(
       parsed = ext === '.csv' ? parseCsv(buffer) : await parseXlsx(buffer);
     } catch (e) {
       return fail(`Lettura file fallita: ${e instanceof Error ? e.message : 'errore'}`);
+    }
+    if (parsed.rows.length > MAX_ROWS) {
+      return fail(`Troppe righe (${parsed.rows.length}). Massimo ${MAX_ROWS} per file: dividi il catalogo.`);
     }
 
     const batchSourceId = await getOrCreateBatchSource(service, orgId, batchId, SPREADSHEET_SOURCE);
