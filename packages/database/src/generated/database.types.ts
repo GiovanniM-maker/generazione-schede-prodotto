@@ -508,6 +508,10 @@ export interface Database {
         Args: { user_id: string; org_name: string; org_slug: string; welcome_amt?: number };
         Returns: string;
       };
+      consume_rate_limit: {
+        Args: { org: string; act: string; max_per_window: number; window_seconds: number };
+        Returns: boolean;
+      };
       queue_send: { Args: { msg: Json }; Returns: number };
       queue_read: { Args: { vt: number; qty: number }; Returns: Json };
       queue_delete: { Args: { msg_id: number }; Returns: boolean };

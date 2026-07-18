@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAiProviders } from '@app/ai';
 import { getServerEnv } from '@/lib/env.server';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, getUserOrg } from '@/lib/auth';
+import { checkAiRateLimit } from '@/lib/rate-limit';
 
 // POST /api/copilot/transcribe — trascrive un singolo file audio (multipart
 // form-data, campo `audio`) e restituisce il testo. NON invia mai nulla in chat
@@ -33,6 +34,12 @@ function isAllowedMime(mimeType: string): boolean {
 export async function POST(request: Request): Promise<Response> {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
+
+  const org = await getUserOrg(user.id);
+  if (org) {
+    const rl = await checkAiRateLimit(org.organizationId, 'transcribe');
+    if (!rl.allowed) return NextResponse.json({ error: rl.message }, { status: 429 });
+  }
 
   let form: FormData;
   try {

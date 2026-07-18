@@ -11,6 +11,7 @@ import type { Json } from '@app/database';
 import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
+import { checkAiRateLimit } from '@/lib/rate-limit';
 
 // =====================================================================
 // Server actions per il "Copilot di Configurazione".
@@ -373,6 +374,10 @@ export async function sendCopilotMessage(input: {
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
       }));
+
+    // Rate limit per org sulle chiamate AI del copilot.
+    const rl = await checkAiRateLimit(organizationId, 'copilot');
+    if (!rl.allowed) return { ok: false, error: rl.message };
 
     const existingSimilar = await suggestSimilar(
       service,

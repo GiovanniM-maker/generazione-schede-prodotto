@@ -5,6 +5,7 @@ import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
+import { checkAiRateLimit } from '@/lib/rate-limit';
 
 // POST /api/batches/[batchId]/sample — genera un campione sincrono (gratuito).
 export async function POST(
@@ -17,6 +18,9 @@ export async function POST(
 
   const orgId = await assertBatchAccess(batchId);
   if (!orgId) return NextResponse.json({ error: 'Batch non accessibile' }, { status: 403 });
+
+  const rl = await checkAiRateLimit(orgId, 'sample');
+  if (!rl.allowed) return NextResponse.json({ error: rl.message }, { status: 429 });
 
   const env = getServerEnv();
   const service = getServiceClient();

@@ -12,6 +12,7 @@ import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getServerEnv } from '@/lib/env.server';
 import { assertBatchAccess } from '@/lib/ownership';
+import { checkAiRateLimit } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------
 // Correzioni degli output + miglioramento del prompt (apprendimento).
@@ -322,6 +323,10 @@ export async function improvePromptFromCorrections(input: {
   const list = pending ?? [];
   if (list.length === 0) return fail('Nessuna correzione in sospeso da apprendere');
   const usedIds = list.map((c) => c.id);
+
+  // Rate limit per org sui miglioramenti del prompt.
+  const rl = await checkAiRateLimit(ctx.orgId, 'prompt_improve');
+  if (!rl.allowed) return fail(rl.message);
 
   // Contesto: settore.
   let sectorName = '';

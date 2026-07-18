@@ -8,6 +8,7 @@ import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getServerEnv } from '@/lib/env.server';
 import { assertBatchAccess } from '@/lib/ownership';
+import { checkAiRateLimit } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------
 // Estrazione visuale REALE dalle immagini di prodotto.
@@ -143,6 +144,10 @@ export async function runVisualExtractionForBatch(input: {
   if (!user) return fail('Non autenticato');
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
+
+  const rl = await checkAiRateLimit(orgId, 'visual');
+  if (!rl.allowed) return fail(rl.message);
+
   const service = getServiceClient();
 
   // 1) Preset + settore del batch.
