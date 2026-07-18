@@ -310,6 +310,17 @@ export interface Database {
         metadata_json: Json;
         created_at: string;
       }>;
+      organization_invitations: T<{
+        id: string;
+        organization_id: string;
+        email: string;
+        role: string;
+        token: string;
+        status: string;
+        invited_by: string | null;
+        created_at: string;
+        accepted_at: string | null;
+      }>;
       output_corrections: T<{
         id: string;
         organization_id: string;
