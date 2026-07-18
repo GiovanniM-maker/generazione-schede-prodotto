@@ -71,12 +71,16 @@ const ENTITY_LABEL: Record<CopilotEntityType, string> = {
 export function CopilotPanel({
   entityType,
   sectorId,
+  entityId,
   onClose,
 }: {
   entityType: CopilotEntityType;
   sectorId?: string;
+  /** Se presente, il copilot MODIFICA l'entità esistente. */
+  entityId?: string;
   onClose?: () => void;
 }) {
+  const isEdit = Boolean(entityId);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [starting, setStarting] = useState(true);
@@ -255,7 +259,7 @@ export function CopilotPanel({
   useEffect(() => {
     let active = true;
     (async () => {
-      const res = await startCopilotConversation({ entityType, sectorId });
+      const res = await startCopilotConversation({ entityType, sectorId, entityId });
       if (!active) return;
       if (!res.ok) {
         setError(res.error);
@@ -269,7 +273,7 @@ export function CopilotPanel({
     return () => {
       active = false;
     };
-  }, [entityType, sectorId]);
+  }, [entityType, sectorId, entityId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -337,7 +341,7 @@ export function CopilotPanel({
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-brand-accent" />
           <h3 className="text-base font-semibold text-gray-900">
-            Copilot — nuova {label}
+            Copilot — {isEdit ? `modifica ${label}` : `nuova ${label}`}
           </h3>
         </div>
 
@@ -358,11 +362,23 @@ export function CopilotPanel({
             </div>
           ) : messages.length === 0 ? (
             <div className="text-sm text-gray-500">
-              Descrivi la {label} che vuoi creare. Per esempio: «
-              {entityType === 'attribute'
-                ? 'Aggiungi un attributo Materiale per le magliette'
-                : 'Crea una categoria Magliette'}
-              ». Preparerò una bozza da confermare.
+              {isEdit ? (
+                <>
+                  Descrivi come vuoi modificare questa {label}. Per esempio: «
+                  {entityType === 'attribute'
+                    ? 'Rinominala in Composizione e rendila un elenco'
+                    : 'Cambia il nome in Capispalla e aggiorna la descrizione'}
+                  ». Preparerò una bozza da confermare.
+                </>
+              ) : (
+                <>
+                  Descrivi la {label} che vuoi creare. Per esempio: «
+                  {entityType === 'attribute'
+                    ? 'Aggiungi un attributo Materiale per le magliette'
+                    : 'Crea una categoria Magliette'}
+                  ». Preparerò una bozza da confermare.
+                </>
+              )}
             </div>
           ) : (
             messages.map((m, i) => (
