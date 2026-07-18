@@ -105,6 +105,22 @@ export default async function ResultsPage({
     };
   });
 
+  // Preset del batch: serve per l'apprendimento del prompt dalle correzioni.
+  let presetId: string | null = null;
+  const { data: batchRow } = await supabase
+    .from('batches')
+    .select('preset_version_id')
+    .eq('id', batchId)
+    .maybeSingle();
+  if (batchRow?.preset_version_id) {
+    const { data: pv } = await supabase
+      .from('preset_versions')
+      .select('preset_id')
+      .eq('id', batchRow.preset_version_id)
+      .maybeSingle();
+    presetId = pv?.preset_id ?? null;
+  }
+
   const importIssues = await computeImportIssues(supabase, batchId);
 
   return (
@@ -117,7 +133,7 @@ export default async function ResultsPage({
         </p>
       </div>
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
-      <ResultsTable batchId={batchId} rows={rows} />
+      <ResultsTable batchId={batchId} presetId={presetId} rows={rows} />
     </div>
   );
 }
