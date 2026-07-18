@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, Loader2, Copy, Info, Save } from 'lucide-react';
+import { Plus, Trash2, Loader2, Copy, Info, Save, Sparkles } from 'lucide-react';
 import {
   addAttributeToCategory,
   removeAttributeFromCategory,
@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { CopilotPanel } from '@/components/copilot/copilot-panel';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -29,6 +30,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const editable = !detail.category.isSystem;
 
   function duplicate() {
@@ -66,12 +68,27 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
             </p>
           )}
         </div>
-        {detail.category.isSystem && (
-          <Button size="sm" onClick={duplicate} disabled={pending}>
-            <Copy className="h-4 w-4" />
-            Duplica per personalizzare
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setCopilotOpen(true);
+              }}
+            >
+              <Sparkles className="h-4 w-4" />
+              Modifica con AI
+            </Button>
+          )}
+          {detail.category.isSystem && (
+            <Button size="sm" onClick={duplicate} disabled={pending}>
+              <Copy className="h-4 w-4" />
+              Duplica per personalizzare
+            </Button>
+          )}
+        </div>
       </div>
 
       {detail.category.isSystem && (
@@ -155,6 +172,21 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
         categoryId={detail.category.id}
         onError={setError}
       />
+
+      <Modal
+        open={copilotOpen}
+        onClose={() => setCopilotOpen(false)}
+        title="Modifica la categoria con l'AI"
+        className="max-w-4xl"
+      >
+        {copilotOpen && (
+          <CopilotPanel
+            entityType="category"
+            entityId={detail.category.id}
+            onClose={() => setCopilotOpen(false)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

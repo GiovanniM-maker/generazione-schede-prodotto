@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Layers, FolderTree, Tags, Grid3x3, Plug } from 'lucide-react';
+import { Layers, FolderTree, Tags, Grid3x3, Plug, History, Users, UserCog } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const items = [
@@ -10,7 +10,10 @@ const items = [
   { href: '/app/settings/categories', label: 'Categorie', icon: FolderTree },
   { href: '/app/settings/attributes', label: 'Attributi', icon: Tags },
   { href: '/app/settings/sectors', label: 'Settori', icon: Grid3x3 },
+  { href: '/app/settings/storico', label: 'Storico', icon: History },
+  { href: '/app/settings/team', label: 'Team', icon: Users },
   { href: '/app/settings/integrations', label: 'Integrazioni', icon: Plug },
+  { href: '/app/settings/account', label: 'Account', icon: UserCog },
 ];
 
 export function SettingsNav() {

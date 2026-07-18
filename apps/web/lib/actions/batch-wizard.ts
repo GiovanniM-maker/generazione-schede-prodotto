@@ -12,6 +12,7 @@ import {
   suggestSkuHeader,
   analyzeSources,
   computeQuality,
+  NON_ADDITIONAL_FIELDS,
   type ParseResult,
   type SourceAnalysis,
   type BuiltProduct,
@@ -433,6 +434,16 @@ export async function uploadBatchFiles(
   const files = formData.getAll('files').filter((f): f is File => f instanceof File);
   if (files.length === 0) return fail('Nessun file caricato');
 
+  // Limiti anti-abuso / robustezza: dimensione per file e numero di file.
+  const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+  const MAX_IMAGES_PER_UPLOAD = 200;
+  const MAX_ROWS = 50_000;
+  const tooBig = files.find((f) => f.size > MAX_FILE_BYTES);
+  if (tooBig) return fail(`File troppo grande: ${tooBig.name} (massimo 20 MB per file).`);
+  if (sourceType === 'images' && files.length > MAX_IMAGES_PER_UPLOAD) {
+    return fail(`Troppe immagini in un solo caricamento (massimo ${MAX_IMAGES_PER_UPLOAD}). Caricale a blocchi.`);
+  }
+
   const service = getServiceClient();
 
   // ----- Spreadsheet -----
@@ -451,6 +462,9 @@ export async function uploadBatchFiles(
       parsed = ext === '.csv' ? parseCsv(buffer) : await parseXlsx(buffer);
     } catch (e) {
       return fail(`Lettura file fallita: ${e instanceof Error ? e.message : 'errore'}`);
+    }
+    if (parsed.rows.length > MAX_ROWS) {
+      return fail(`Troppe righe (${parsed.rows.length}). Massimo ${MAX_ROWS} per file: dividi il catalogo.`);
     }
 
     const batchSourceId = await getOrCreateBatchSource(service, orgId, batchId, SPREADSHEET_SOURCE);
@@ -752,6 +766,20 @@ export interface ImportResultV2 {
   valid: number;
   invalid: number;
   imageOnly: number;
+  /** Prodotti collegati a una categoria merceologica dell'organizzazione. */
+  categoriesMatched: number;
+  /** Nomi di categoria presenti nel file ma non riconosciuti (da creare). */
+  unmatchedCategories: string[];
+}
+
+/** Normalizza un nome di categoria per il match (case/accenti/spazi). */
+function normalizeCategoryName(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 export async function confirmImportV2(input: {
@@ -776,6 +804,44 @@ export async function confirmImportV2(input: {
   const attributes = presetVersionId ? await loadPresetAttributes(service, presetVersionId) : [];
   const attrById = new Map(attributes.map((a) => [a.id, a]));
 
+  // Mappa nome-categoria -> id, per collegare i prodotti alle categorie
+  // merceologiche dell'organizzazione (settore del preset). I nomi non
+  // riconosciuti vengono segnalati (l'utente potrà crearli dalla lista).
+  const categoryIdByName = new Map<string, string>();
+  if (presetVersionId) {
+    const { data: pv } = await service
+      .from('preset_versions')
+      .select('preset_id')
+      .eq('id', presetVersionId)
+      .maybeSingle();
+    let sectorId: string | null = null;
+    if (pv?.preset_id) {
+      const { data: preset } = await service
+        .from('presets')
+        .select('sector_id')
+        .eq('id', pv.preset_id)
+        .maybeSingle();
+      sectorId = preset?.sector_id ?? null;
+    }
+    if (sectorId) {
+      const { data: cats } = await service
+        .from('categories')
+        .select('id, name, owner_organization_id')
+        .eq('sector_id', sectorId)
+        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`);
+      for (const c of cats ?? []) {
+        const key = normalizeCategoryName(c.name);
+        // Preferisci la categoria dell'org rispetto a quella di sistema con lo
+        // stesso nome (owner non nullo vince).
+        if (!categoryIdByName.has(key) || c.owner_organization_id !== null) {
+          categoryIdByName.set(key, c.id);
+        }
+      }
+    }
+  }
+  let categoriesMatched = 0;
+  const unmatchedCategories = new Set<string>();
+
   const spreadsheet = await loadBatchSpreadsheet(service, input.batchId);
   const imageItems = await loadImageItems(service, input.batchId);
 
@@ -788,6 +854,49 @@ export async function confirmImportV2(input: {
     else imageBySku.set(item.detected_sku, [item.id]);
   }
 
+  // Prima di ripulire, salva i fatti che l'utente ha confermato o rifiutato a
+  // mano (es. attributi visivi inferiti dalle immagini). Il re-import non deve
+  // cancellare questo lavoro: verranno ripristinati sul prodotto ricreato con
+  // lo stesso SKU. Chiave logica: (sku, attribute_id).
+  interface PavSnapshot {
+    sku: string;
+    attribute_id: string;
+    value_json: Json;
+    status: string;
+    source_type: string | null;
+    source_item_id: string | null;
+  }
+  const confirmedSnapshots: PavSnapshot[] = [];
+  {
+    const { data: existingProducts } = await service
+      .from('products')
+      .select('id, sku')
+      .eq('batch_id', input.batchId);
+    const skuByProductId = new Map(
+      (existingProducts ?? []).map((p) => [p.id, p.sku] as const),
+    );
+    const existingProductIds = (existingProducts ?? []).map((p) => p.id);
+    if (existingProductIds.length > 0) {
+      const { data: existingPavs } = await service
+        .from('product_attribute_values')
+        .select('product_id, attribute_id, value_json, status, source_type, source_item_id')
+        .in('product_id', existingProductIds)
+        .in('status', ['confirmed', 'rejected']);
+      for (const pav of existingPavs ?? []) {
+        const sku = skuByProductId.get(pav.product_id);
+        if (!sku) continue;
+        confirmedSnapshots.push({
+          sku,
+          attribute_id: pav.attribute_id,
+          value_json: pav.value_json,
+          status: pav.status,
+          source_type: pav.source_type,
+          source_item_id: pav.source_item_id,
+        });
+      }
+    }
+  }
+
   // Pulisci import precedenti dello stesso batch (re-import).
   await service.from('products').delete().eq('batch_id', input.batchId);
 
@@ -796,6 +905,8 @@ export async function confirmImportV2(input: {
   let invalid = 0;
   let imageOnly = 0;
   const importedSkus = new Set<string>();
+  // sku -> id del prodotto ricreato (per ripristinare i fatti confermati).
+  const newProductIdBySku = new Map<string, string>();
 
   if (spreadsheet && input.skuHeader) {
     for (const row of spreadsheet.parsed.rows) {
@@ -844,9 +955,30 @@ export async function confirmImportV2(input: {
       };
       const quality = computeQuality(built, { hasImages });
 
-      if (input.options.excludeIncomplete && !quality.eligible) {
+      // Eleggibilità SECTOR-AGNOSTICA: SKU presente + almeno 2 fatti aggiuntivi
+      // (attributi mappati non-identificativi). Allineata al guard della pipeline,
+      // così Food/Pharma (chiavi diverse da Moda) vengono correttamente accodati.
+      const additionalFacts = pavRows.filter((p) => {
+        const a = attrById.get(p.attribute_id);
+        return a && a.key && !NON_ADDITIONAL_FIELDS.has(a.key);
+      }).length;
+      const eligible = Boolean(sku) && additionalFacts >= 2;
+
+      if (input.options.excludeIncomplete && !eligible) {
         invalid++;
         continue;
+      }
+
+      // Collega il prodotto alla categoria merceologica dell'org (match per nome).
+      let categoryId: string | null = null;
+      if (category) {
+        const matched = categoryIdByName.get(normalizeCategoryName(category));
+        if (matched) {
+          categoryId = matched;
+          categoriesMatched++;
+        } else {
+          unmatchedCategories.add(category.trim());
+        }
       }
 
       const { data: productRow, error: pErr } = await service
@@ -857,12 +989,13 @@ export async function confirmImportV2(input: {
           sku,
           name,
           category,
+          category_id: categoryId,
           preset_version_id: presetVersionId,
           external_id: sku,
           raw_input_json: row as unknown as Json,
           canonical_attributes_json: canonical as unknown as Json,
           data_quality_score: quality.score,
-          verification_status: quality.eligible ? 'eligible' : 'excluded',
+          verification_status: eligible ? 'eligible' : 'excluded',
         })
         .select('id')
         .single();
@@ -872,6 +1005,7 @@ export async function confirmImportV2(input: {
       }
       imported++;
       importedSkus.add(sku);
+      newProductIdBySku.set(sku, productRow.id);
       if (quality.eligible) valid++;
       else invalid++;
 
@@ -944,6 +1078,7 @@ export async function confirmImportV2(input: {
       imageOnly++;
       invalid++;
       importedSkus.add(sku);
+      newProductIdBySku.set(sku, productRow.id);
 
       await service.from('product_source_links').insert(
         imgIds.map((id) => ({
@@ -953,6 +1088,37 @@ export async function confirmImportV2(input: {
           link_type: 'sku_exact',
         })),
       );
+    }
+  }
+
+  // Ripristina i fatti confermati/rifiutati a mano sul prodotto ricreato con lo
+  // stesso SKU. Se il re-import ha già inserito una PAV per quello stesso
+  // attributo (da spreadsheet, status 'provided'), la sovrascrive con lo stato
+  // più forte confermato dall'utente; altrimenti la reinserisce.
+  for (const snap of confirmedSnapshots) {
+    const newProductId = newProductIdBySku.get(snap.sku);
+    if (!newProductId) continue;
+    const { data: existing } = await service
+      .from('product_attribute_values')
+      .select('id')
+      .eq('product_id', newProductId)
+      .eq('attribute_id', snap.attribute_id)
+      .maybeSingle();
+    if (existing) {
+      await service
+        .from('product_attribute_values')
+        .update({ status: snap.status, value_json: snap.value_json })
+        .eq('id', existing.id);
+    } else {
+      await service.from('product_attribute_values').insert({
+        organization_id: orgId,
+        product_id: newProductId,
+        attribute_id: snap.attribute_id,
+        value_json: snap.value_json,
+        status: snap.status,
+        source_type: snap.source_type ?? 'image',
+        source_item_id: snap.source_item_id,
+      });
     }
   }
 
@@ -966,15 +1132,30 @@ export async function confirmImportV2(input: {
     })
     .eq('id', input.batchId);
 
+  const unmatched = [...unmatchedCategories];
   await service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'mapping_confirmed',
     batch_id: input.batchId,
-    metadata_json: { imported, valid, invalid, imageOnly },
+    metadata_json: {
+      imported,
+      valid,
+      invalid,
+      imageOnly,
+      categoriesMatched,
+      unmatchedCategories: unmatched.length,
+    },
   });
 
-  return ok({ imported, valid, invalid, imageOnly });
+  return ok({
+    imported,
+    valid,
+    invalid,
+    imageOnly,
+    categoriesMatched,
+    unmatchedCategories: unmatched.slice(0, 50),
+  });
 }
 
 // ---------------------------------------------------------------------------

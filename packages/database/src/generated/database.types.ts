@@ -117,6 +117,7 @@ export interface Database {
           name: string | null;
           product_type: string | null;
           category: string | null;
+          category_id: string | null;
           sku: string | null;
           preset_version_id: string | null;
           raw_input_json: Json;
@@ -309,6 +310,35 @@ export interface Database {
         metadata_json: Json;
         created_at: string;
       }>;
+      organization_invitations: T<{
+        id: string;
+        organization_id: string;
+        email: string;
+        role: string;
+        token: string;
+        status: string;
+        invited_by: string | null;
+        created_at: string;
+        accepted_at: string | null;
+      }>;
+      output_corrections: T<{
+        id: string;
+        organization_id: string;
+        batch_id: string | null;
+        product_id: string | null;
+        generation_id: string | null;
+        preset_id: string | null;
+        preset_version_id: string | null;
+        field_key: string;
+        original_value: string | null;
+        corrected_value: string | null;
+        reason: string | null;
+        applied_to_prompt: boolean;
+        applied_at: string | null;
+        improvement_version_id: string | null;
+        created_by: string | null;
+        created_at: string;
+      }>;
       // --- Modello configurazione v2 ---
       sectors: T<
         { id: string; key: string; name: string; description: string | null; icon: string | null; is_system: boolean; status: string } & Timestamps
@@ -488,6 +518,10 @@ export interface Database {
       create_organization_for_user: {
         Args: { user_id: string; org_name: string; org_slug: string; welcome_amt?: number };
         Returns: string;
+      };
+      consume_rate_limit: {
+        Args: { org: string; act: string; max_per_window: number; window_seconds: number };
+        Returns: boolean;
       };
       queue_send: { Args: { msg: Json }; Returns: number };
       queue_read: { Args: { vt: number; qty: number }; Returns: Json };

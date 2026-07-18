@@ -158,9 +158,12 @@ export default async function DashboardPage() {
     { label: 'Almeno una categoria', done: categoryCount > 0 },
     { label: 'Preset pubblicato', done: presetPublished },
     { label: 'Preset con attributi', done: presetHasAttributes },
-    { label: 'Profilo del brand approvato', done: brandApproved },
+    { label: 'Profilo del brand approvato (consigliato)', done: brandApproved },
   ];
-  const allGreen = checklist.every((c) => c.done);
+  // Per creare un batch NON serve il profilo brand (la generazione usa un tono
+  // di default se assente): richiediamo solo la configurazione del catalogo.
+  const canCreateBatch =
+    !!sectorRow.data && categoryCount > 0 && presetPublished && presetHasAttributes;
 
   const batches = (batchesRes.data ?? []) as BatchRow[];
 
@@ -183,7 +186,7 @@ export default async function DashboardPage() {
             <span>{credits} crediti</span>
           </div>
         </div>
-        {allGreen && (
+        {canCreateBatch && (
           <Link href="/app/batches/new">
             <Button size="lg">
               <Plus className="h-4 w-4" />
@@ -227,7 +230,7 @@ export default async function DashboardPage() {
       </Card>
 
       {/* Azione principale in base allo stato */}
-      {!allGreen && (
+      {!canCreateBatch && (
         <Card className="border-brand-accent/40 bg-blue-50/40">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
@@ -248,7 +251,7 @@ export default async function DashboardPage() {
               <Link href="/app/settings/presets">
                 <Button variant="outline">Gestisci preset</Button>
               </Link>
-              <Link href="/app/onboarding">
+              <Link href="/app/settings/presets">
                 <Button>
                   Completa
                   <ArrowRight className="h-4 w-4" />
@@ -275,12 +278,12 @@ export default async function DashboardPage() {
                   Nessun batch ancora
                 </h2>
                 <p className="mt-1 max-w-sm text-sm text-gray-500">
-                  {allGreen
+                  {canCreateBatch
                     ? 'Crea il tuo primo batch caricando un file CSV o Excel con il tuo catalogo.'
                     : 'Completa la configurazione del catalogo per creare il primo batch.'}
                 </p>
               </div>
-              {allGreen && (
+              {canCreateBatch && (
                 <Link href="/app/batches/new">
                   <Button>
                     <Plus className="h-4 w-4" />

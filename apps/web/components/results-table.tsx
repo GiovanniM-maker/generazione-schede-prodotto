@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   Search,
   Download,
@@ -12,13 +12,24 @@ import {
   AlertCircle,
   PanelRightClose,
   PackageOpen,
+  Sparkles,
+  Wand2,
+  ArrowRight,
 } from 'lucide-react';
 import {
-  saveEditAction,
   acceptGenerationAction,
   rejectGenerationAction,
   regenerateProductAction,
 } from '@/lib/actions/results';
+import {
+  saveOutputEdit,
+  getCorrectionsStatus,
+  improvePromptFromCorrections,
+  publishImprovement,
+  type CorrectionsStatus,
+  type OutputChange,
+  type FieldDiff,
+} from '@/lib/actions/corrections';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -91,11 +102,27 @@ function effective(row: ResultRow): GenContent | null {
   return row.generated;
 }
 
+// Campi di output modificabili (per la cattura delle correzioni). copyKey deve
+// combaciare con OUTPUT_COPY_FIELDS in @app/core.
+const EDIT_FIELDS: { copyKey: keyof GenContent; label: string }[] = [
+  { copyKey: 'title', label: 'Titolo' },
+  { copyKey: 'shortDescription', label: 'Descrizione breve' },
+  { copyKey: 'longDescription', label: 'Descrizione lunga' },
+  { copyKey: 'bullets', label: 'Punti elenco' },
+  { copyKey: 'metaDescription', label: 'Meta description' },
+];
+
+function asText(v: string | string[]): string {
+  return Array.isArray(v) ? v.join('\n') : v;
+}
+
 export function ResultsTable({
   batchId,
+  presetId = null,
   rows: initialRows,
 }: {
   batchId: string;
+  presetId?: string | null;
   rows: ResultRow[];
 }) {
   const [rows, setRows] = useState<ResultRow[]>(initialRows);
@@ -106,6 +133,78 @@ export function ResultsTable({
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // --- Apprendimento del prompt dalle correzioni ---
+  const [corrStatus, setCorrStatus] = useState<CorrectionsStatus | null>(null);
+  const [improving, setImproving] = useState(false);
+  const [improveErr, setImproveErr] = useState<string | null>(null);
+  const [improvement, setImprovement] = useState<{
+    summary: string;
+    changes: FieldDiff[];
+    correctionsUsed: number;
+    draftVersionId: string;
+  } | null>(null);
+
+  const refreshCorrections = useCallback(() => {
+    if (!presetId) return;
+    getCorrectionsStatus({ presetId })
+      .then((res) => {
+        if (res.ok) setCorrStatus(res.data);
+      })
+      .catch(() => {});
+  }, [presetId]);
+
+  useEffect(() => {
+    refreshCorrections();
+  }, [refreshCorrections]);
+
+  function runImprovement() {
+    if (!presetId) return;
+    setImproving(true);
+    setImproveErr(null);
+    setImprovement(null);
+    startTransition(async () => {
+      try {
+        const res = await improvePromptFromCorrections({ presetId });
+        if (!res.ok) {
+          setImproveErr(res.error);
+          return;
+        }
+        setImprovement({
+          summary: res.data.summary,
+          changes: res.data.changes,
+          correctionsUsed: res.data.correctionsUsed,
+          draftVersionId: res.data.draftVersionId,
+        });
+      } catch (e) {
+        setImproveErr(e instanceof Error ? e.message : 'Errore');
+      } finally {
+        setImproving(false);
+      }
+    });
+  }
+
+  function applyImprovement() {
+    if (!presetId || !improvement) return;
+    const draftVersionId = improvement.draftVersionId;
+    setImproving(true);
+    setImproveErr(null);
+    startTransition(async () => {
+      try {
+        const res = await publishImprovement({ presetId, draftVersionId });
+        if (!res.ok) {
+          setImproveErr(res.error);
+          return;
+        }
+        setImprovement(null);
+        refreshCorrections();
+      } catch (e) {
+        setImproveErr(e instanceof Error ? e.message : 'Errore');
+      } finally {
+        setImproving(false);
+      }
+    });
+  }
 
   const openRow = rows.find((r) => r.id === openId) ?? null;
 
@@ -256,11 +355,11 @@ export function ResultsTable({
     }
   }
 
-  function saveEdit(id: string, content: GenContent) {
+  function saveEdit(id: string, content: GenContent, changes: OutputChange[]) {
     startTransition(async () => {
       setError(null);
       try {
-        await saveEditAction({
+        const res = await saveOutputEdit({
           productId: id,
           edited: {
             title: content.title,
@@ -269,8 +368,16 @@ export function ResultsTable({
             bullets: content.bullets,
             metaDescription: content.metaDescription,
           },
+          changes,
         });
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
         patchRow(id, { edited: content, hasEdited: true });
+        setOpenId(null);
+        // Le correzioni con motivazione alimentano il miglioramento del prompt.
+        if (changes.some((c) => c.corrected !== c.original)) refreshCorrections();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Errore');
       }
@@ -291,6 +398,7 @@ export function ResultsTable({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cerca per nome, ID o titolo…"
             className="pl-9"
+            aria-label="Cerca"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -367,6 +475,54 @@ export function ResultsTable({
         </div>
       )}
 
+      {/* Banner: impara dalle correzioni -> migliora il prompt */}
+      {presetId && corrStatus && corrStatus.pending > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-violet-200 bg-violet-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-violet-600">
+              <Wand2 className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-violet-900">
+                {corrStatus.pending} correzion{corrStatus.pending === 1 ? 'e' : 'i'} da cui imparare
+                {corrStatus.pending >= 5 && ' — consigliato migliorare il prompt'}
+              </p>
+              <p className="mt-0.5 text-xs text-violet-700">
+                Trasforma le tue modifiche in istruzioni migliori per la prossima generazione.
+                {corrStatus.estimate && (
+                  <>
+                    {' '}Costo AI stimato ~
+                    {corrStatus.estimate.usdLow < 0.01
+                      ? '<0,01'
+                      : corrStatus.estimate.usdLow.toFixed(2)}
+                    –{corrStatus.estimate.usdHigh.toFixed(2)} $ (nessun credito addebitato).
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={runImprovement}
+            disabled={improving || pending}
+            className="shrink-0"
+          >
+            {improving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Migliora il prompt
+          </Button>
+        </div>
+      )}
+
+      {improveErr && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{improveErr}</span>
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 px-6 py-14 text-center">
@@ -388,7 +544,7 @@ export function ResultsTable({
                       checked={allSelected}
                       onChange={toggleSelectAll}
                       aria-label="Seleziona tutti"
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="h-5 w-5 rounded border-gray-300"
                     />
                   </TH>
                   <TH>ID</TH>
@@ -411,7 +567,7 @@ export function ResultsTable({
                           checked={selected.has(r.id)}
                           onChange={() => toggleSelect(r.id)}
                           aria-label={`Seleziona ${r.name}`}
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="h-5 w-5 rounded border-gray-300"
                         />
                       </TD>
                       <TD className="font-mono text-xs text-gray-600">
@@ -507,11 +663,117 @@ export function ResultsTable({
           row={openRow}
           pending={pending}
           onClose={() => setOpenId(null)}
-          onSave={(content) => saveEdit(openRow.id, content)}
+          onSave={(content, changes) => saveEdit(openRow.id, content, changes)}
           onAccept={() => accept(openRow.id)}
           onReject={() => reject(openRow.id)}
         />
       )}
+
+      {/* Modale revisione miglioramento prompt (before/after) */}
+      {improvement && (
+        <ImprovementModal
+          summary={improvement.summary}
+          changes={improvement.changes}
+          correctionsUsed={improvement.correctionsUsed}
+          pending={improving || pending}
+          onApply={applyImprovement}
+          onClose={() => setImprovement(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImprovementModal({
+  summary,
+  changes,
+  correctionsUsed,
+  pending,
+  onApply,
+  onClose,
+}: {
+  summary: string;
+  changes: FieldDiff[];
+  correctionsUsed: number;
+  pending: boolean;
+  onApply: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
+      <div className="relative my-4 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+        <div className="sticky top-0 flex items-center justify-between rounded-t-xl border-b border-gray-200 bg-white px-5 py-4">
+          <div className="flex items-center gap-2">
+            <Wand2 className="h-5 w-5 text-violet-600" />
+            <h2 className="font-semibold text-gray-900">Miglioramento del prompt</h2>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Chiudi">
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
+          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
+            {summary}
+            <span className="mt-1 block text-xs text-violet-700">
+              Basato su {correctionsUsed} correzion{correctionsUsed === 1 ? 'e' : 'i'}. Rivedi le
+              modifiche: verranno applicate come BOZZA del preset, con effetto sulla prossima
+              generazione solo dopo la pubblicazione.
+            </span>
+          </div>
+
+          {changes.map((c) => (
+            <div key={c.fieldKey} className="rounded-lg border border-gray-200">
+              <div className="border-b border-gray-100 px-3 py-2 text-sm font-semibold text-gray-800">
+                {c.label}
+              </div>
+              <div className="grid gap-0 sm:grid-cols-2">
+                <div className="border-b border-gray-100 p-3 sm:border-b-0 sm:border-r">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">
+                    Prima
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-gray-500">
+                    {c.before || <span className="italic text-gray-300">(nessuna istruzione)</span>}
+                  </p>
+                </div>
+                <div className="bg-emerald-50/40 p-3">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-emerald-600">
+                    Dopo
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-gray-800">{c.after}</p>
+                </div>
+              </div>
+              {c.rationale && (
+                <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-500">
+                  <span className="font-medium text-gray-600">Perché:</span> {c.rationale}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="sticky bottom-0 flex flex-col gap-2 rounded-b-xl border-t border-gray-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Scarta
+          </Button>
+          <Button onClick={onApply} disabled={pending}>
+            {pending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowRight className="h-4 w-4" />
+            )}
+            Pubblica e applica
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -527,7 +789,7 @@ function DetailDrawer({
   row: ResultRow;
   pending: boolean;
   onClose: () => void;
-  onSave: (content: GenContent) => void;
+  onSave: (content: GenContent, changes: OutputChange[]) => void;
   onAccept: () => void;
   onReject: () => void;
 }) {
@@ -537,8 +799,41 @@ function DetailDrawer({
   const [longDescription, setLong] = useState(base?.longDescription ?? '');
   const [bullets, setBullets] = useState((base?.bullets ?? []).join('\n'));
   const [metaDescription, setMeta] = useState(base?.metaDescription ?? '');
+  const [reason, setReason] = useState('');
 
   const original = row.generated;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  function buildContentAndChanges(): { content: GenContent; changes: OutputChange[] } {
+    const content: GenContent = {
+      title,
+      shortDescription,
+      longDescription,
+      bullets: bullets
+        .split('\n')
+        .map((b) => b.trim())
+        .filter(Boolean),
+      metaDescription,
+      warnings: base?.warnings ?? [],
+    };
+    // Confronta con l'ULTIMO testo salvato (edited se presente, altrimenti
+    // generato): così un ri-salvataggio senza modifiche non registra nulla e
+    // non si accumulano correzioni duplicate (BUG audit #1).
+    const baseline = row.edited ?? row.generated;
+    const changes: OutputChange[] = EDIT_FIELDS.map((f) => {
+      const before = baseline ? asText(baseline[f.copyKey]) : '';
+      const after = asText(content[f.copyKey]);
+      return { copyKey: f.copyKey as string, original: before, corrected: after, reason: reason.trim() };
+    }).filter((c) => c.corrected !== c.original);
+    return { content, changes };
+  }
 
   return (
     <div className="fixed inset-0 z-30 flex justify-end">
@@ -672,23 +967,33 @@ function DetailDrawer({
               onChange={(e) => setMeta(e.target.value)}
             />
           </div>
+
+          {/* Perché della modifica: alimenta il miglioramento del prompt */}
+          <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+            <Label htmlFor="d-reason" className="flex items-center gap-1.5 text-violet-900">
+              <Wand2 className="h-4 w-4" />
+              Perché questa modifica? (facoltativo, ma migliora il prompt)
+            </Label>
+            <Textarea
+              id="d-reason"
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Es: il titolo era troppo lungo; tono troppo enfatico; mancava il colore…"
+              className="mt-1 bg-white"
+            />
+            <p className="mt-1 text-xs text-violet-700">
+              Le tue correzioni insegnano al sistema a scrivere meglio la prossima volta.
+            </p>
+          </div>
         </div>
 
         <div className="sticky bottom-0 flex items-center gap-2 border-t border-gray-200 bg-white px-6 py-4">
           <Button
-            onClick={() =>
-              onSave({
-                title,
-                shortDescription,
-                longDescription,
-                bullets: bullets
-                  .split('\n')
-                  .map((b) => b.trim())
-                  .filter(Boolean),
-                metaDescription,
-                warnings: base?.warnings ?? [],
-              })
-            }
+            onClick={() => {
+              const { content, changes } = buildContentAndChanges();
+              onSave(content, changes);
+            }}
             disabled={pending}
           >
             {pending ? (

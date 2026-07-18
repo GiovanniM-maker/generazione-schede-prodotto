@@ -34,7 +34,12 @@ export async function POST(request: Request) {
 
   const service = getServiceClient();
 
-  // Idempotenza: registra l'evento; se già presente, esci.
+  // Idempotenza: registra l'evento. Se esiste già, distingui i casi:
+  //  - status 'processed' → davvero duplicato, esci senza riprocessare;
+  //  - status 'pending'/'failed' → un tentativo precedente NON è andato a buon
+  //    fine (es. errore transitorio): riprocessa (apply_credit_purchase è
+  //    idempotente sull'uuid evento, quindi non accredita due volte).
+  let eventUuid: string;
   const { data: eventRow, error: insertErr } = await service
     .from('stripe_events')
     .insert({
@@ -45,11 +50,22 @@ export async function POST(request: Request) {
     .select('id')
     .single();
   if (insertErr || !eventRow) {
-    // Violazione unique → evento già ricevuto: idempotente, nessuna doppia azione.
-    return NextResponse.json({ received: true, duplicate: true });
+    const { data: existing } = await service
+      .from('stripe_events')
+      .select('id, status')
+      .eq('stripe_event_id', event.id)
+      .maybeSingle();
+    if (!existing) {
+      // Non era un duplicato ma un errore d'inserimento: chiedi retry a Stripe.
+      return NextResponse.json({ error: 'Registrazione evento fallita' }, { status: 500 });
+    }
+    if (existing.status === 'processed') {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    eventUuid = existing.id; // pending/failed → riprocessa
+  } else {
+    eventUuid = eventRow.id;
   }
-  // Riferimento UUID stabile per il ledger (gli id Stripe non sono UUID).
-  const eventUuid = eventRow.id;
 
   try {
     if (event.type === 'checkout.session.completed') {

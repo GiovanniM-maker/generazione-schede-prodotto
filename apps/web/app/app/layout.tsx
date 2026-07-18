@@ -32,15 +32,15 @@ export default async function AppLayout({
           <div className="flex items-center gap-2 sm:gap-3">
             <Link href="/app">
               <Button variant="ghost" size="sm">
-                <LayoutDashboard className="h-4 w-4" />
-                <span className="hidden sm:inline">Dashboard</span>
+                <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">Dashboard</span>
               </Button>
             </Link>
 
             <Link href="/app/settings/presets">
               <Button variant="ghost" size="sm">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Configurazione</span>
+                <Settings className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">Configurazione</span>
               </Button>
             </Link>
 
@@ -55,15 +55,15 @@ export default async function AppLayout({
 
             <Link href="/app/billing">
               <Button variant="ghost" size="sm">
-                <CreditCard className="h-4 w-4" />
-                <span className="hidden sm:inline">Fatturazione</span>
+                <CreditCard className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">Fatturazione</span>
               </Button>
             </Link>
 
             <form action={signOut}>
               <Button variant="outline" size="sm" type="submit">
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Esci</span>
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">Esci</span>
               </Button>
             </form>
           </div>

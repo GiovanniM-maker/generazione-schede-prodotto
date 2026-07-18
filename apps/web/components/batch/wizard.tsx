@@ -146,7 +146,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
-  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number } | null>(null);
+  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
 
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
@@ -1242,7 +1242,7 @@ function Step9({
   hasImages,
 }: {
   products: BatchProductRow[] | null;
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number } | null;
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   batchId: string;
   hasImages: boolean;
 }) {
@@ -1260,8 +1260,20 @@ function Step9({
         setVisualErr(res.error);
         return;
       }
+      const warnings: string[] = [];
+      if (res.data.productsSkipped > 0) {
+        warnings.push(
+          `${res.data.productsSkipped} prodotti non sono stati analizzati (max ${res.data.maxProducts} per esecuzione): rilancia l'analisi per completarli.`,
+        );
+      }
+      if (res.data.productsWithTruncatedImages > 0) {
+        warnings.push(
+          `Per ${res.data.productsWithTruncatedImages} prodotti sono state usate solo le prime ${res.data.maxImagesPerProduct} immagini.`,
+        );
+      }
       setVisualMsg(
-        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti nella revisione dei dati.`,
+        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti nella revisione dei dati.` +
+          (warnings.length ? ` ${warnings.join(' ')}` : ''),
       );
     } catch {
       setVisualErr('Analisi immagini non riuscita. Riprova.');
@@ -1310,7 +1322,23 @@ function Step9({
           <Badge tone="green">{importSummary.valid} validi</Badge>
           <Badge tone="amber">{importSummary.invalid} da rivedere</Badge>
           {importSummary.imageOnly > 0 && <Badge tone="violet">{importSummary.imageOnly} solo-immagini</Badge>}
+          {importSummary.categoriesMatched > 0 && (
+            <Badge tone="green">{importSummary.categoriesMatched} collegati a categoria</Badge>
+          )}
+          {importSummary.unmatchedCategories.length > 0 && (
+            <Badge tone="amber">
+              {importSummary.unmatchedCategories.length} categorie non riconosciute
+            </Badge>
+          )}
         </div>
+      )}
+      {importSummary && importSummary.unmatchedCategories.length > 0 && (
+        <p className="text-xs text-amber-700">
+          Categorie nel file non presenti nel catalogo:{' '}
+          {importSummary.unmatchedCategories.slice(0, 8).join(', ')}
+          {importSummary.unmatchedCategories.length > 8 ? '…' : ''}. Puoi crearle da
+          Impostazioni → Categorie (Importa lista) e reimportare.
+        </p>
       )}
       {products.length === 0 ? (
         <p className="text-sm text-gray-500">Nessun prodotto importato. Torna indietro e controlla la colonna SKU o le sorgenti.</p>
@@ -1418,7 +1446,7 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
 // Step 11 — Conferma e avvio.
 // ---------------------------------------------------------------------------
 
-function Step11({ importSummary }: { importSummary: { imported: number; valid: number; invalid: number; imageOnly: number } | null }) {
+function Step11({ importSummary }: { importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null }) {
   return (
     <div className="space-y-4">
       <Card>

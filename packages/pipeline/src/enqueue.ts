@@ -32,13 +32,22 @@ export async function enqueueBatch(
     .single();
   if (batchErr || !batch) throw new Error('DATABASE_ERROR: batch non trovato');
 
-  // Prodotti eleggibili: quelli con score sufficiente (>= 60 → identificativo,
-  // nome/tipo e almeno due fatti). La UI marca gli esclusi.
+  // Guardia anti doppio-enqueue: se il batch è già in coda/elaborazione, o è
+  // già stato elaborato (terminale), non riservare di nuovo i crediti. Evita
+  // sia il leak di crediti riservati sia la ri-generazione dell'intero batch
+  // (con ri-addebito) a una seconda chiamata dopo il completamento.
+  const NON_ENQUEUABLE = new Set(['queued', 'processing', 'completed', 'partial_failed']);
+  if (NON_ENQUEUABLE.has(batch.status)) {
+    return { enqueued: 0, reserved: 0, skipped: 0 };
+  }
+
+  // Prodotti eleggibili: sector-agnostico. L'eleggibilità (SKU + ≥2 fatti) è
+  // calcolata all'import e salvata in verification_status='eligible'.
   const { data: products } = await client
     .from('products')
-    .select('id, data_quality_score')
+    .select('id')
     .eq('batch_id', batchId)
-    .gte('data_quality_score', 60);
+    .eq('verification_status', 'eligible');
 
   const eligible = products ?? [];
   if (eligible.length === 0) {
@@ -84,7 +93,21 @@ export async function enqueueBatch(
     enqueued++;
   }
 
-  await client.from('batches').update({ status: 'processing' }).eq('id', batchId);
+  // Rilascia i crediti riservati ma non usati (item saltati per doppioni/errore),
+  // così nessun credito resta bloccato.
+  if (skipped > 0) {
+    await client.rpc('release_credits', {
+      org: batch.organization_id,
+      amt: skipped,
+      ref_type: 'enqueue_skip',
+      ref_id: batchId,
+    });
+  }
+
+  await client
+    .from('batches')
+    .update({ status: 'processing', credits_reserved: enqueued })
+    .eq('id', batchId);
   await updateBatchProgress(client, batchId);
   return { enqueued, reserved: eligible.length, skipped };
 }
@@ -132,10 +155,16 @@ export async function handleJobFailure(
 
   const { data: job } = await client
     .from('job_items')
-    .select('id, organization_id, batch_id, attempts')
+    .select('id, organization_id, batch_id, attempts, status')
     .eq('id', jobItemId)
     .single();
   if (!job) return { retry: false, code };
+
+  // Se il job è già in stato terminale di successo, NON marcare failed né
+  // rimborsare: l'errore proviene da un'operazione post-successo (es. delete coda).
+  if (job.status === 'completed' || job.status === 'needs_review') {
+    return { retry: false, code };
+  }
 
   const attempts = (job.attempts ?? 0) + 1;
   const retry = isRetryable(code) && attempts < maxAttempts;

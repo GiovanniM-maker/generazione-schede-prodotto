@@ -11,6 +11,7 @@ import type { Json } from '@app/database';
 import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
+import { checkAiRateLimit } from '@/lib/rate-limit';
 
 // =====================================================================
 // Server actions per il "Copilot di Configurazione".
@@ -181,6 +182,8 @@ async function sectorName(service: ServiceClient, sectorId: string | null): Prom
 export async function startCopilotConversation(input: {
   entityType: CopilotEntityType;
   sectorId?: string;
+  /** Se presente, si MODIFICA l'entità esistente invece di crearne una nuova. */
+  entityId?: string;
 }): Promise<Ok<{ conversationId: string; draftId: string }> | Fail> {
   try {
     const auth = await requireOrg();
@@ -203,13 +206,60 @@ export async function startCopilotConversation(input: {
       sectorId = sector?.id ?? null;
     }
 
+    // Modalità MODIFICA: precarica lo stato dell'entità esistente nella bozza.
+    // Solo entità dell'org sono modificabili (quelle di sistema vanno duplicate).
+    let draftData = emptyDraftData(sectorId);
+    let editEntityId: string | null = null;
+    if (input.entityId) {
+      if (entityType === 'category') {
+        const { data: cat } = await service
+          .from('categories')
+          .select('id, name, description, sector_id, owner_organization_id')
+          .eq('id', input.entityId)
+          .maybeSingle();
+        if (!cat) return { ok: false, error: 'Categoria non trovata' };
+        if (cat.owner_organization_id !== organizationId) {
+          return { ok: false, error: 'Solo le categorie personalizzate sono modificabili (duplica quelle di sistema).' };
+        }
+        draftData = { ...draftData, sectorId: cat.sector_id, name: cat.name, description: cat.description };
+        editEntityId = cat.id;
+      } else {
+        const { data: attr } = await service
+          .from('attributes')
+          .select('id, name, description, sector_id, attribute_kind, data_type, unit, enum_values_json, default_extraction_instruction, default_generation_instruction, owner_organization_id')
+          .eq('id', input.entityId)
+          .maybeSingle();
+        if (!attr) return { ok: false, error: 'Attributo non trovato' };
+        if (attr.owner_organization_id !== organizationId) {
+          return { ok: false, error: 'Solo gli attributi personalizzati sono modificabili (duplica quelli di sistema).' };
+        }
+        const enumValues = Array.isArray(attr.enum_values_json)
+          ? (attr.enum_values_json as unknown[]).filter((v): v is string => typeof v === 'string')
+          : null;
+        draftData = {
+          ...draftData,
+          sectorId: attr.sector_id,
+          name: attr.name,
+          description: attr.description,
+          attributeKind: attr.attribute_kind,
+          dataType: attr.data_type,
+          unit: attr.unit,
+          enumValues,
+          extractionInstruction: attr.default_extraction_instruction,
+          generationInstruction: attr.default_generation_instruction,
+        };
+        editEntityId = attr.id;
+      }
+    }
+
     const { data: draft, error: dErr } = await service
       .from('configuration_drafts')
       .insert({
         organization_id: organizationId,
         entity_type: entityType,
-        draft_data_json: emptyDraftData(sectorId) as unknown as Json,
-        status: 'draft',
+        entity_id: editEntityId,
+        draft_data_json: draftData as unknown as Json,
+        status: editEntityId ? 'awaiting_information' : 'draft',
         created_by: userId,
       })
       .select('id')
@@ -287,6 +337,10 @@ export async function sendCopilotMessage(input: {
 
     const message = input.message?.trim();
     if (!message) return { ok: false, error: 'Il messaggio è vuoto' };
+    // Limite anti-abuso (prompt gigante = costo/latenza). 4000 caratteri ~ 1k token.
+    if (message.length > 4000) {
+      return { ok: false, error: 'Messaggio troppo lungo (massimo 4000 caratteri).' };
+    }
 
     // Carica conversazione + bozza + cronologia, verificando l'appartenenza.
     const { data: conversation } = await service
@@ -324,6 +378,10 @@ export async function sendCopilotMessage(input: {
         role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content,
       }));
+
+    // Rate limit per org sulle chiamate AI del copilot.
+    const rl = await checkAiRateLimit(organizationId, 'copilot');
+    if (!rl.allowed) return { ok: false, error: rl.message };
 
     const existingSimilar = await suggestSimilar(
       service,
@@ -453,68 +511,121 @@ export async function confirmDraft(input: {
     if (!name) return { ok: false, error: 'La bozza non ha un nome' };
     if (!data.sectorId) return { ok: false, error: 'Settore mancante nella bozza' };
 
+    // Claim atomico: transiziona lo stato a 'published' SOLO se è ancora
+    // confermabile. Un doppio click concorrente troverà 0 righe aggiornate e
+    // uscirà, evitando la creazione di entità duplicate. Manca una transazione
+    // DB: in caso di errore nell'inserimento ripristiniamo lo stato originale.
+    const { data: claimed } = await service
+      .from('configuration_drafts')
+      .update({ status: 'published' })
+      .eq('id', draftRow.id)
+      .in('status', ['ready_for_confirmation', 'confirmed'])
+      .select('id');
+    if (!claimed || claimed.length === 0) {
+      return {
+        ok: false,
+        error: 'La bozza è già stata confermata o è in fase di conferma',
+      };
+    }
+    const rollbackClaim = async () => {
+      await service
+        .from('configuration_drafts')
+        .update({ status: draftRow.status })
+        .eq('id', draftRow.id);
+    };
+
     let entityId: string;
+    // Modalità MODIFICA se la bozza ha un entity_id precaricato all'avvio.
+    const isEdit = Boolean(draftRow.entity_id);
 
     if (entityType === 'attribute') {
       const enumJson =
         data.enumValues && data.enumValues.length > 0
           ? (data.enumValues as unknown as Json)
           : null;
-      const { data: attr, error } = await service
-        .from('attributes')
-        .insert({
-          sector_id: data.sectorId,
-          owner_organization_id: organizationId,
-          name,
-          description: data.description?.trim() || null,
-          attribute_kind: data.attributeKind || 'factual',
-          data_type: data.dataType || 'text',
-          unit: data.unit?.trim() || null,
-          enum_values_json: enumJson,
-          default_extraction_instruction: data.extractionInstruction?.trim() || null,
-          default_generation_instruction: data.generationInstruction?.trim() || null,
-          is_system: false,
-          status: 'active',
-          version: 1,
-        })
-        .select('id')
-        .single();
-      if (error || !attr) {
-        return { ok: false, error: `Creazione attributo fallita: ${error?.message}` };
-      }
-      entityId = attr.id;
+      const payload = {
+        sector_id: data.sectorId,
+        name,
+        description: data.description?.trim() || null,
+        attribute_kind: data.attributeKind || 'factual',
+        data_type: data.dataType || 'text',
+        unit: data.unit?.trim() || null,
+        enum_values_json: enumJson,
+        default_extraction_instruction: data.extractionInstruction?.trim() || null,
+        default_generation_instruction: data.generationInstruction?.trim() || null,
+      };
+      if (isEdit) {
+        // Aggiorna solo se l'attributo è dell'org (difesa in profondità).
+        const { data: updated, error } = await service
+          .from('attributes')
+          .update(payload)
+          .eq('id', draftRow.entity_id as string)
+          .eq('owner_organization_id', organizationId)
+          .select('id')
+          .maybeSingle();
+        if (error || !updated) {
+          await rollbackClaim();
+          return { ok: false, error: `Modifica attributo fallita: ${error?.message ?? 'non accessibile'}` };
+        }
+        entityId = updated.id;
+      } else {
+        const { data: attr, error } = await service
+          .from('attributes')
+          .insert({ ...payload, owner_organization_id: organizationId, is_system: false, status: 'active', version: 1 })
+          .select('id')
+          .single();
+        if (error || !attr) {
+          await rollbackClaim();
+          return { ok: false, error: `Creazione attributo fallita: ${error?.message}` };
+        }
+        entityId = attr.id;
 
-      // Collegamento facoltativo alle categorie indicate.
-      const catIds = data.categoryKeys
-        ? await resolveCategoryIds(service, organizationId, data.sectorId, data.categoryKeys)
-        : [];
-      if (catIds.length > 0) {
-        await service.from('category_attributes').insert(
-          catIds.map((category_id, i) => ({
-            category_id,
-            attribute_id: entityId,
-            is_required: data.isRequired ?? false,
-            display_order: i + 1,
-          })),
-        );
+        // Collegamento facoltativo alle categorie indicate (solo in creazione).
+        const catIds = data.categoryKeys
+          ? await resolveCategoryIds(service, organizationId, data.sectorId, data.categoryKeys)
+          : [];
+        if (catIds.length > 0) {
+          await service.from('category_attributes').insert(
+            catIds.map((category_id, i) => ({
+              category_id,
+              attribute_id: entityId,
+              is_required: data.isRequired ?? false,
+              display_order: i + 1,
+            })),
+          );
+        }
       }
     } else {
-      const { data: cat, error } = await service
-        .from('categories')
-        .insert({
-          sector_id: data.sectorId,
-          owner_organization_id: organizationId,
-          name,
-          description: data.description?.trim() || null,
-          is_system: false,
-          status: 'active',
-        })
-        .select('id')
-        .single();
-      if (error || !cat) {
-        return { ok: false, error: `Creazione categoria fallita: ${error?.message}` };
+      const payload = {
+        sector_id: data.sectorId,
+        name,
+        description: data.description?.trim() || null,
+      };
+      if (isEdit) {
+        const { data: updated, error } = await service
+          .from('categories')
+          .update(payload)
+          .eq('id', draftRow.entity_id as string)
+          .eq('owner_organization_id', organizationId)
+          .select('id')
+          .maybeSingle();
+        if (error || !updated) {
+          await rollbackClaim();
+          return { ok: false, error: `Modifica categoria fallita: ${error?.message ?? 'non accessibile'}` };
+        }
+        entityId = updated.id;
+      } else {
+        const { data: cat, error } = await service
+          .from('categories')
+          .insert({ ...payload, owner_organization_id: organizationId, is_system: false, status: 'active' })
+          .select('id')
+          .single();
+        if (error || !cat) {
+          await rollbackClaim();
+          return { ok: false, error: `Creazione categoria fallita: ${error?.message}` };
+        }
+        entityId = cat.id;
       }
-      entityId = cat.id;
     }
 
     const now = new Date().toISOString();

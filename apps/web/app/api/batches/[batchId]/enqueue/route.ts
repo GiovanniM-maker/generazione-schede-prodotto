@@ -21,15 +21,50 @@ export async function POST(
   const service = getServiceClient();
 
   try {
-    await service.from('batches').update({ status: 'approved' }).eq('id', batchId);
+    // NON pre-impostare lo stato: la guardia di enqueueBatch deve restare
+    // autoritativa (evita ri-addebito su chiamate ripetute dopo il completamento).
     const result = await enqueueBatch(service, env, batchId);
-    await service.from('app_events').insert({
-      organization_id: orgId,
-      user_id: user.id,
-      event_name: 'generation_started',
-      batch_id: batchId,
-      metadata_json: { enqueued: result.enqueued },
-    });
+
+    if (result.enqueued === 0) {
+      // Distingui "già in coda/elaborato" (guardia) da "nessun eleggibile".
+      const { data: b } = await service
+        .from('batches')
+        .select('status')
+        .eq('id', batchId)
+        .maybeSingle();
+      const alreadyRunning = ['queued', 'processing', 'completed', 'partial_failed'].includes(
+        b?.status ?? '',
+      );
+      if (alreadyRunning) {
+        return NextResponse.json(
+          { error: 'Il batch è già stato avviato o completato.', code: 'ALREADY_STARTED' },
+          { status: 409 },
+        );
+      }
+      // Genuinamente 0 eleggibili pre-elaborazione: torna alla verifica dati.
+      await service.from('batches').update({ status: 'input_review' }).eq('id', batchId);
+      return NextResponse.json(
+        {
+          error:
+            'Nessun prodotto è eleggibile per la generazione. Servono uno SKU e almeno 2 attributi valorizzati per prodotto. Controlla la mappatura e i dati.',
+          code: 'NO_ELIGIBLE_PRODUCTS',
+        },
+        { status: 422 },
+      );
+    }
+
+    // Evento storico best-effort: non deve far scattare il rollback del catch.
+    try {
+      await service.from('app_events').insert({
+        organization_id: orgId,
+        user_id: user.id,
+        event_name: 'generation_started',
+        batch_id: batchId,
+        metadata_json: { enqueued: result.enqueued },
+      });
+    } catch {
+      /* storico accessorio */
+    }
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Errore';

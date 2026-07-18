@@ -1,19 +1,9 @@
 'use server';
 
-import { ensureOrg, getSessionUser } from '@/lib/auth';
+import { getSessionUser } from '@/lib/auth';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 // Azioni UI aggiuntive, minimali, non coperte dalle action stabili.
-
-/** Garantisce l'esistenza dell'organizzazione dell'utente (onboarding). */
-export async function ensureOrgAction(
-  name: string,
-): Promise<{ organizationId: string }> {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Non autenticato');
-  const org = await ensureOrg(user.id, name?.trim() || 'La mia azienda');
-  return { organizationId: org.organizationId };
-}
 
 export interface BatchProgress {
   total: number;
@@ -23,12 +13,20 @@ export interface BatchProgress {
   status: string;
 }
 
-/** Legge l'avanzamento di un batch (per il polling in elaborazione). */
+export type BatchProgressResult =
+  | { ok: true; progress: BatchProgress }
+  | { ok: false; error: string };
+
+/**
+ * Legge l'avanzamento di un batch (per il polling in elaborazione).
+ * Non lancia mai eccezioni oltre il confine server (in produzione Next.js
+ * oscura i messaggi delle eccezioni): restituisce sempre un'unione discriminata.
+ */
 export async function getBatchProgressAction(
   batchId: string,
-): Promise<BatchProgress> {
+): Promise<BatchProgressResult> {
   const user = await getSessionUser();
-  if (!user) throw new Error('Non autenticato');
+  if (!user) return { ok: false, error: 'Non autenticato' };
   const supabase = await createSupabaseServerClient();
 
   const { data: batch } = await supabase
@@ -37,7 +35,7 @@ export async function getBatchProgressAction(
     .eq('id', batchId)
     .maybeSingle();
 
-  if (!batch) throw new Error('Batch non accessibile');
+  if (!batch) return { ok: false, error: 'Batch non accessibile' };
 
   const { count: needsReview } = await supabase
     .from('product_generations')
@@ -46,10 +44,13 @@ export async function getBatchProgressAction(
     .eq('status', 'needs_review');
 
   return {
-    total: batch.total_products ?? 0,
-    processed: batch.processed_products ?? 0,
-    needsReview: needsReview ?? 0,
-    failed: batch.failed_products ?? 0,
-    status: batch.status ?? 'processing',
+    ok: true,
+    progress: {
+      total: batch.total_products ?? 0,
+      processed: batch.processed_products ?? 0,
+      needsReview: needsReview ?? 0,
+      failed: batch.failed_products ?? 0,
+      status: batch.status ?? 'processing',
+    },
   };
 }

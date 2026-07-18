@@ -49,8 +49,20 @@ export function InferredAttributesSection({
         setError(res.error);
         return;
       }
+      const warnings: string[] = [];
+      if (res.data.productsSkipped > 0) {
+        warnings.push(
+          `${res.data.productsSkipped} prodotti non analizzati (max ${res.data.maxProducts} per esecuzione): rilancia per completarli.`,
+        );
+      }
+      if (res.data.productsWithTruncatedImages > 0) {
+        warnings.push(
+          `Per ${res.data.productsWithTruncatedImages} prodotti usate solo le prime ${res.data.maxImagesPerProduct} immagini.`,
+        );
+      }
       setMessage(
-        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti per usarli come fatti.`,
+        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti per usarli come fatti.` +
+          (warnings.length ? ` ${warnings.join(' ')}` : ''),
       );
       router.refresh();
     } catch {

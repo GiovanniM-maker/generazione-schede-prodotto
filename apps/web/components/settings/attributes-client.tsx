@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Loader2, Eye, Sparkles } from 'lucide-react';
+import { Plus, Loader2, Eye, Sparkles, ClipboardList } from 'lucide-react';
 import {
   listAttributes,
   createAttribute,
+  createAttributesFromList,
   type AttributeListItem,
   type CategoryListItem,
   type SectorRow,
@@ -66,6 +67,10 @@ export function AttributesClient({
 
   const [createOpen, setCreateOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importSector, setImportSector] = useState(initialSectorId ?? sectors[0]?.id ?? '');
+  const [importMsg, setImportMsg] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -103,6 +108,33 @@ export function AttributesClient({
     return attributes.filter((a) => a.name.toLowerCase().includes(q));
   }, [attributes, search]);
 
+  function handleImport() {
+    setError(null);
+    setImportMsg(null);
+    startTransition(async () => {
+      const res = await createAttributesFromList({
+        sectorId: importSector,
+        text: importText,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setImportText('');
+      setImportMsg(
+        `${res.created} attributi creati${res.skipped > 0 ? `, ${res.skipped} già esistenti saltati` : ''}.`,
+      );
+      // Allinea la vista al settore in cui si è importato e ricarica da lì,
+      // così i nuovi attributi sono sempre visibili (anche se il filtro era su
+      // un altro settore).
+      setCategoryFilter('');
+      setKindFilter('');
+      setSectorFilter(importSector);
+      const list = await listAttributes({ sectorId: importSector || undefined });
+      if (list.ok) setAttributes(list.attributes);
+    });
+  }
+
   function handleCreate() {
     setError(null);
     startTransition(async () => {
@@ -133,7 +165,7 @@ export function AttributesClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Attributi</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -152,6 +184,19 @@ export function AttributesClient({
           >
             <Sparkles className="h-4 w-4" />
             Crea con AI
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setImportMsg(null);
+              setImportSector(sectorFilter || sectors[0]?.id || '');
+              setImportOpen(true);
+            }}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Importa lista
           </Button>
           <Button
             size="sm"
@@ -184,6 +229,7 @@ export function AttributesClient({
             setCategoryFilter('');
           }}
           className="w-44"
+          aria-label="Filtra per settore"
         >
           <option value="">Tutti i settori</option>
           {sectors.map((s) => (
@@ -196,6 +242,7 @@ export function AttributesClient({
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="w-44"
+          aria-label="Filtra per categoria"
         >
           <option value="">Tutte le categorie</option>
           {categoriesForSector.map((c) => (
@@ -208,6 +255,7 @@ export function AttributesClient({
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value)}
           className="w-40"
+          aria-label="Filtra per tipo"
         >
           <option value="">Tutti i tipi</option>
           {KINDS.map((k) => (
@@ -221,6 +269,7 @@ export function AttributesClient({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cerca attributo…"
           className="w-56"
+          aria-label="Cerca attributo"
         />
         {pending && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
       </div>
@@ -285,6 +334,57 @@ export function AttributesClient({
           </Table>
         )}
       </Card>
+
+      <Modal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Importa attributi da lista"
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="imp-attr-sector">Settore</Label>
+            <Select
+              id="imp-attr-sector"
+              value={importSector}
+              onChange={(e) => setImportSector(e.target.value)}
+            >
+              {sectors.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="imp-attr-text">Un attributo per riga</Label>
+            <Textarea
+              id="imp-attr-text"
+              rows={8}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={'Materiale\nColore\nVestibilità\nStagione'}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Creati come attributi fattuali (testo). Potrai raffinarne tipo e istruzioni
+              dopo. I nomi già esistenti vengono saltati. Max 300 per volta.
+            </p>
+          </div>
+          {importMsg && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {importMsg}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>
+              Chiudi
+            </Button>
+            <Button size="sm" onClick={handleImport} disabled={pending || !importText.trim()}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Importa
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}

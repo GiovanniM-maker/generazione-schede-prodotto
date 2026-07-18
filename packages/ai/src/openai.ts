@@ -8,16 +8,20 @@ import {
   buildVisualUserPrompt,
   buildCopilotSystemPrompt,
   buildCopilotUserPrompt,
+  buildPromptImproveSystemPrompt,
+  buildPromptImproveUserPrompt,
   brandProfileSchema,
   productCopySchema,
   factAuditSchema,
   visualExtractionSchema,
   copilotOutputSchema,
+  promptImproveOutputSchema,
   BRAND_PROFILE_JSON_SCHEMA,
   PRODUCT_COPY_JSON_SCHEMA,
   FACT_AUDIT_JSON_SCHEMA,
   VISUAL_EXTRACTION_JSON_SCHEMA,
   COPILOT_JSON_SCHEMA,
+  PROMPT_IMPROVE_JSON_SCHEMA,
   type BrandProfile,
   type BrandProfileInput,
   type CopilotInput,
@@ -26,6 +30,8 @@ import {
   type FactAuditResult,
   type ProductCopy,
   type ProductCopyInput,
+  type PromptImproveInput,
+  type PromptImproveOutput,
   type VisualExtraction,
   type VisualExtractionInput,
 } from '@app/core';
@@ -36,6 +42,7 @@ import type {
   CopilotProvider,
   FactAuditProvider,
   ProductCopyProvider,
+  PromptImproveProvider,
   UsageInfo,
   VisualExtractionProvider,
 } from './interfaces.js';
@@ -72,7 +79,8 @@ export class OpenAiProviders
     ProductCopyProvider,
     VisualExtractionProvider,
     FactAuditProvider,
-    CopilotProvider
+    CopilotProvider,
+    PromptImproveProvider
 {
   private client: OpenAI;
 
@@ -212,5 +220,17 @@ export class OpenAiProviders
       COPILOT_JSON_SCHEMA,
       copilotOutputSchema,
     ) as Promise<AiResult<CopilotOutput>>;
+  }
+
+  async improvePrompt(input: PromptImproveInput): Promise<AiResult<PromptImproveOutput>> {
+    // Riusa il modello del copilot: task testuale strutturato dello stesso tipo.
+    return this.structured(
+      this.config.models.copilot,
+      buildPromptImproveSystemPrompt(),
+      buildPromptImproveUserPrompt(input),
+      'prompt_improvement',
+      PROMPT_IMPROVE_JSON_SCHEMA,
+      promptImproveOutputSchema,
+    ) as Promise<AiResult<PromptImproveOutput>>;
   }
 }
