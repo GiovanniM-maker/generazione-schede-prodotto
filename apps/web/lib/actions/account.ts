@@ -89,6 +89,19 @@ export async function deleteAccount(input: {
   }
   const service = getServiceClient();
 
+  // Protezione dati condivisi: non distruggere un'organizzazione con altri
+  // membri (potrebbe essere il workspace di un team). L'owner deve prima
+  // rimuovere gli altri membri (o trasferire la titolarità).
+  const { count: memberCount } = await service
+    .from('organization_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', org.organizationId);
+  if ((memberCount ?? 0) > 1) {
+    return fail(
+      'L’organizzazione ha altri membri: rimuovili dalla sezione Team prima di eliminarla, per non cancellare i dati del team.',
+    );
+  }
+
   // Elimina l'organizzazione: FK on delete cascade rimuovono tutti i dati
   // collegati (batch, prodotti, generazioni, preset, categorie, attributi,
   // correzioni, eventi, ledger, membership...).

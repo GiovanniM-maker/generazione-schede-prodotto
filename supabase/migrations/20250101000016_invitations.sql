@@ -24,24 +24,27 @@ create index if not exists org_invitations_email_idx on organization_invitations
 
 alter table organization_invitations enable row level security;
 
--- I membri dell'org gestiscono i propri inviti.
+-- SOLO il proprietario gestisce gli inviti. La gestione applicativa passa
+-- comunque dal service client (bypassa RLS); queste policy chiudono la porta
+-- alle chiamate PostgREST dirette con la anon key (un membro semplice NON deve
+-- poter creare un invito 'owner' e scalare i privilegi, né leggere i token).
 drop policy if exists org_invitations_select on organization_invitations;
 create policy org_invitations_select on organization_invitations
   for select to authenticated
-  using (is_organization_member(organization_id));
+  using (is_organization_owner(organization_id));
 
 drop policy if exists org_invitations_insert on organization_invitations;
 create policy org_invitations_insert on organization_invitations
   for insert to authenticated
-  with check (is_organization_member(organization_id));
+  with check (is_organization_owner(organization_id));
 
 drop policy if exists org_invitations_update on organization_invitations;
 create policy org_invitations_update on organization_invitations
   for update to authenticated
-  using (is_organization_member(organization_id))
-  with check (is_organization_member(organization_id));
+  using (is_organization_owner(organization_id))
+  with check (is_organization_owner(organization_id));
 
 drop policy if exists org_invitations_delete on organization_invitations;
 create policy org_invitations_delete on organization_invitations
   for delete to authenticated
-  using (is_organization_member(organization_id));
+  using (is_organization_owner(organization_id));

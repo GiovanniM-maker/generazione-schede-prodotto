@@ -57,3 +57,11 @@ as $$
   delete from rate_limit_counters
   where window_start < now() - make_interval(secs => older_than_seconds);
 $$;
+
+-- Queste funzioni devono essere invocabili SOLO dal service client (mai da
+-- anon/authenticated via PostgREST): altrimenti un utente potrebbe azzerare i
+-- contatori (purge) o saturare quelli di un'altra org (DoS cross-tenant).
+revoke all on function consume_rate_limit(uuid, text, int, int) from public, anon, authenticated;
+revoke all on function purge_rate_limit_counters(int) from public, anon, authenticated;
+grant execute on function consume_rate_limit(uuid, text, int, int) to service_role;
+grant execute on function purge_rate_limit_counters(int) to service_role;
