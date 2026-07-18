@@ -117,6 +117,7 @@ export interface Database {
           name: string | null;
           product_type: string | null;
           category: string | null;
+          category_id: string | null;
           sku: string | null;
           preset_version_id: string | null;
           raw_input_json: Json;

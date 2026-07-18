@@ -753,6 +753,20 @@ export interface ImportResultV2 {
   valid: number;
   invalid: number;
   imageOnly: number;
+  /** Prodotti collegati a una categoria merceologica dell'organizzazione. */
+  categoriesMatched: number;
+  /** Nomi di categoria presenti nel file ma non riconosciuti (da creare). */
+  unmatchedCategories: string[];
+}
+
+/** Normalizza un nome di categoria per il match (case/accenti/spazi). */
+function normalizeCategoryName(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 export async function confirmImportV2(input: {
@@ -776,6 +790,44 @@ export async function confirmImportV2(input: {
 
   const attributes = presetVersionId ? await loadPresetAttributes(service, presetVersionId) : [];
   const attrById = new Map(attributes.map((a) => [a.id, a]));
+
+  // Mappa nome-categoria -> id, per collegare i prodotti alle categorie
+  // merceologiche dell'organizzazione (settore del preset). I nomi non
+  // riconosciuti vengono segnalati (l'utente potrà crearli dalla lista).
+  const categoryIdByName = new Map<string, string>();
+  if (presetVersionId) {
+    const { data: pv } = await service
+      .from('preset_versions')
+      .select('preset_id')
+      .eq('id', presetVersionId)
+      .maybeSingle();
+    let sectorId: string | null = null;
+    if (pv?.preset_id) {
+      const { data: preset } = await service
+        .from('presets')
+        .select('sector_id')
+        .eq('id', pv.preset_id)
+        .maybeSingle();
+      sectorId = preset?.sector_id ?? null;
+    }
+    if (sectorId) {
+      const { data: cats } = await service
+        .from('categories')
+        .select('id, name, owner_organization_id')
+        .eq('sector_id', sectorId)
+        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`);
+      for (const c of cats ?? []) {
+        const key = normalizeCategoryName(c.name);
+        // Preferisci la categoria dell'org rispetto a quella di sistema con lo
+        // stesso nome (owner non nullo vince).
+        if (!categoryIdByName.has(key) || c.owner_organization_id !== null) {
+          categoryIdByName.set(key, c.id);
+        }
+      }
+    }
+  }
+  let categoriesMatched = 0;
+  const unmatchedCategories = new Set<string>();
 
   const spreadsheet = await loadBatchSpreadsheet(service, input.batchId);
   const imageItems = await loadImageItems(service, input.batchId);
@@ -904,6 +956,18 @@ export async function confirmImportV2(input: {
         continue;
       }
 
+      // Collega il prodotto alla categoria merceologica dell'org (match per nome).
+      let categoryId: string | null = null;
+      if (category) {
+        const matched = categoryIdByName.get(normalizeCategoryName(category));
+        if (matched) {
+          categoryId = matched;
+          categoriesMatched++;
+        } else {
+          unmatchedCategories.add(category.trim());
+        }
+      }
+
       const { data: productRow, error: pErr } = await service
         .from('products')
         .insert({
@@ -912,6 +976,7 @@ export async function confirmImportV2(input: {
           sku,
           name,
           category,
+          category_id: categoryId,
           preset_version_id: presetVersionId,
           external_id: sku,
           raw_input_json: row as unknown as Json,
@@ -1054,15 +1119,30 @@ export async function confirmImportV2(input: {
     })
     .eq('id', input.batchId);
 
+  const unmatched = [...unmatchedCategories];
   await service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'mapping_confirmed',
     batch_id: input.batchId,
-    metadata_json: { imported, valid, invalid, imageOnly },
+    metadata_json: {
+      imported,
+      valid,
+      invalid,
+      imageOnly,
+      categoriesMatched,
+      unmatchedCategories: unmatched.length,
+    },
   });
 
-  return ok({ imported, valid, invalid, imageOnly });
+  return ok({
+    imported,
+    valid,
+    invalid,
+    imageOnly,
+    categoriesMatched,
+    unmatchedCategories: unmatched.slice(0, 50),
+  });
 }
 
 // ---------------------------------------------------------------------------

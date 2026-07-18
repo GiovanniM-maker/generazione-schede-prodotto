@@ -173,6 +173,16 @@ export async function saveOutputEdit(input: {
     });
 
   if (rows.length > 0) {
+    // Sostituisci eventuali correzioni ANCORA IN SOSPESO sullo stesso
+    // (prodotto, campo): teniamo solo l'ultima, così ri-modifiche successive
+    // non accumulano duplicati (BUG audit #1, difesa lato server).
+    const fieldKeys = [...new Set(rows.map((r) => r.field_key))];
+    await service
+      .from('output_corrections')
+      .delete()
+      .eq('product_id', input.productId)
+      .eq('applied_to_prompt', false)
+      .in('field_key', fieldKeys);
     await service.from('output_corrections').insert(rows);
   }
   return ok({ recorded: rows.length });
@@ -200,15 +210,25 @@ export async function getCorrectionsStatus(input: {
   if (!ctx) return fail('Preset non accessibile');
   const service = getServiceClient();
 
+  // Conteggio ESATTO delle correzioni in sospeso (non troncato a 100).
+  const { count: pendingCount } = await service
+    .from('output_corrections')
+    .select('id', { count: 'exact', head: true })
+    .eq('preset_id', input.presetId)
+    .eq('applied_to_prompt', false);
+
+  // Campione per la stima (fino al tetto per esecuzione).
   const { data: pending } = await service
     .from('output_corrections')
     .select('field_key, original_value, corrected_value, reason')
     .eq('preset_id', input.presetId)
     .eq('applied_to_prompt', false)
+    .order('created_at', { ascending: true })
     .limit(MAX_CORRECTIONS_PER_RUN);
 
   const list = pending ?? [];
-  if (list.length === 0) {
+  const total = pendingCount ?? list.length;
+  if (total === 0) {
     return ok({ pending: 0, fieldsAffected: 0, withReason: 0, estimate: null });
   }
 
@@ -228,7 +248,7 @@ export async function getCorrectionsStatus(input: {
     (outputTokens / 1_000_000) * PRICE_OUTPUT_PER_1M_USD;
 
   return ok({
-    pending: list.length,
+    pending: total,
     fieldsAffected: fields.size,
     withReason,
     estimate: {
@@ -301,8 +321,9 @@ export async function improvePromptFromCorrections(input: {
 
   const list = pending ?? [];
   if (list.length === 0) return fail('Nessuna correzione in sospeso da apprendere');
+  const usedIds = list.map((c) => c.id);
 
-  // Contesto: settore, istruzioni attuali, tono del brand.
+  // Contesto: settore.
   let sectorName = '';
   if (ctx.sectorId) {
     const { data: sector } = await service
@@ -312,8 +333,17 @@ export async function improvePromptFromCorrections(input: {
       .maybeSingle();
     sectorName = sector?.name ?? '';
   }
-  const currentInstr = await currentFieldInstructions(ctx.activeVersionId);
-  const currentInstructions: FieldInstruction[] = [...currentInstr.entries()].map(([fieldKey, v]) => ({
+
+  // Crea/riusa la BOZZA del preset PRIMA di chiamare l'AI: la baseline delle
+  // istruzioni (e il diff "prima") deve venire dalla bozza, non dalla versione
+  // attiva — così ri-eseguire "Migliora" parte dallo stato già staged (BUG #4).
+  const { ensureDraftVersion } = await import('./catalog');
+  const draftRes = await ensureDraftVersion({ presetId: input.presetId });
+  if (!draftRes.ok) return fail(draftRes.error);
+  const draftVersionId = draftRes.versionId;
+
+  const draftInstr = await currentFieldInstructions(draftVersionId);
+  const currentInstructions: FieldInstruction[] = [...draftInstr.entries()].map(([fieldKey, v]) => ({
     fieldKey,
     fieldLabel: v.label,
     instruction: v.instruction,
@@ -348,12 +378,6 @@ export async function improvePromptFromCorrections(input: {
     return fail('Il modello non ha proposto miglioramenti applicabili');
   }
 
-  // Crea/riusa una bozza del preset (clona la versione attiva).
-  const { ensureDraftVersion } = await import('./catalog');
-  const draftRes = await ensureDraftVersion({ presetId: input.presetId });
-  if (!draftRes.ok) return fail(draftRes.error);
-  const draftVersionId = draftRes.versionId;
-
   // Applica le istruzioni migliorate ai preset_generated_fields della bozza.
   const { data: draftFields } = await service
     .from('preset_generated_fields')
@@ -363,7 +387,7 @@ export async function improvePromptFromCorrections(input: {
 
   const changes: FieldDiff[] = [];
   for (const f of improved) {
-    const before = currentInstr.get(f.fieldKey)?.instruction ?? '';
+    const before = draftInstr.get(f.fieldKey)?.instruction ?? '';
     const label = labelByFieldKey.get(f.fieldKey) ?? f.fieldKey;
     const existing = draftByKey.get(f.fieldKey);
     if (existing) {
@@ -389,9 +413,13 @@ export async function improvePromptFromCorrections(input: {
     });
   }
 
-  // NB: le correzioni NON vengono marcate qui. Restano "in sospeso" finché la
-  // bozza non viene PUBBLICATA (publishImprovement): così, se l'utente scarta il
-  // miglioramento, le correzioni sono ancora disponibili per un nuovo tentativo.
+  // "Prenota" le correzioni usate collegandole a questa bozza (SENZA marcarle
+  // applied): solo QUESTE verranno assorbite alla pubblicazione, non quelle
+  // create nel frattempo (BUG #2/#6). Se l'utente scarta, restano in sospeso.
+  await service
+    .from('output_corrections')
+    .update({ improvement_version_id: draftVersionId })
+    .in('id', usedIds);
 
   return ok({
     presetId: input.presetId,
@@ -414,32 +442,40 @@ export async function improvePromptFromCorrections(input: {
  */
 export async function publishImprovement(input: {
   presetId: string;
+  draftVersionId: string;
 }): Promise<ActionResult<{ published: boolean; correctionsApplied: number }>> {
   const ctx = await assertPresetAccess(input.presetId);
   if (!ctx) return fail('Preset non accessibile');
   const service = getServiceClient();
 
+  // Verifica che la bozza da pubblicare sia effettivamente quella del
+  // miglioramento e appartenga al preset (evita di pubblicare bozze estranee).
+  const { data: draftVer } = await service
+    .from('preset_versions')
+    .select('id, preset_id, published_at')
+    .eq('id', input.draftVersionId)
+    .maybeSingle();
+  if (!draftVer || draftVer.preset_id !== input.presetId) {
+    return fail('Bozza del miglioramento non trovata');
+  }
+
   const { publishPresetVersion } = await import('./catalog');
   const pubRes = await publishPresetVersion({ presetId: input.presetId });
   if (!pubRes.ok) return fail(pubRes.error);
 
-  // La versione appena pubblicata è ora l'attiva: collega le correzioni a essa.
-  const { data: preset } = await service
-    .from('presets')
-    .select('active_version_id')
-    .eq('id', input.presetId)
-    .maybeSingle();
-
+  // Marca applied SOLO le correzioni prenotate da QUESTO miglioramento
+  // (improvement_version_id = bozza pubblicata). Le altre restano in sospeso.
   const { data: applied } = await service
     .from('output_corrections')
     .update({
       applied_to_prompt: true,
       applied_at: new Date().toISOString(),
-      improvement_version_id: preset?.active_version_id ?? null,
     })
     .eq('preset_id', input.presetId)
+    .eq('improvement_version_id', input.draftVersionId)
     .eq('applied_to_prompt', false)
     .select('id');
+  const preset = { active_version_id: input.draftVersionId };
 
   // Storico: registra il miglioramento del prompt pubblicato.
   const user = await getSessionUser();

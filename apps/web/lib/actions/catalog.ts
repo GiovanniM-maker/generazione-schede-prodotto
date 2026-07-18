@@ -2083,6 +2083,7 @@ export async function createCategoriesFromList(input: {
       .from('categories')
       .select('name')
       .eq('sector_id', input.sectorId)
+      .eq('status', 'active')
       .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`);
     const existingSet = new Set((existing ?? []).map((c) => c.name.trim().toLowerCase()));
     const toCreate = names.filter((n) => !existingSet.has(n.toLowerCase()));
@@ -2135,6 +2136,7 @@ export async function createAttributesFromList(input: {
       .from('attributes')
       .select('name')
       .eq('sector_id', input.sectorId)
+      .eq('status', 'active')
       .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`);
     const existingSet = new Set((existing ?? []).map((a) => a.name.trim().toLowerCase()));
     const toCreate = names.filter((n) => !existingSet.has(n.toLowerCase()));

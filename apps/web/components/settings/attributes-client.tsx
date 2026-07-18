@@ -124,12 +124,13 @@ export function AttributesClient({
       setImportMsg(
         `${res.created} attributi creati${res.skipped > 0 ? `, ${res.skipped} già esistenti saltati` : ''}.`,
       );
-      // Ricarica la lista con i filtri correnti.
-      const list = await listAttributes({
-        sectorId: sectorFilter || undefined,
-        categoryId: categoryFilter || undefined,
-        kind: kindFilter || undefined,
-      });
+      // Allinea la vista al settore in cui si è importato e ricarica da lì,
+      // così i nuovi attributi sono sempre visibili (anche se il filtro era su
+      // un altro settore).
+      setCategoryFilter('');
+      setKindFilter('');
+      setSectorFilter(importSector);
+      const list = await listAttributes({ sectorId: importSector || undefined });
       if (list.ok) setAttributes(list.attributes);
     });
   }

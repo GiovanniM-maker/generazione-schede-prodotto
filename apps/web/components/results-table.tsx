@@ -142,6 +142,7 @@ export function ResultsTable({
     summary: string;
     changes: FieldDiff[];
     correctionsUsed: number;
+    draftVersionId: string;
   } | null>(null);
 
   const refreshCorrections = useCallback(() => {
@@ -173,6 +174,7 @@ export function ResultsTable({
           summary: res.data.summary,
           changes: res.data.changes,
           correctionsUsed: res.data.correctionsUsed,
+          draftVersionId: res.data.draftVersionId,
         });
       } catch (e) {
         setImproveErr(e instanceof Error ? e.message : 'Errore');
@@ -183,12 +185,13 @@ export function ResultsTable({
   }
 
   function applyImprovement() {
-    if (!presetId) return;
+    if (!presetId || !improvement) return;
+    const draftVersionId = improvement.draftVersionId;
     setImproving(true);
     setImproveErr(null);
     startTransition(async () => {
       try {
-        const res = await publishImprovement({ presetId });
+        const res = await publishImprovement({ presetId, draftVersionId });
         if (!res.ok) {
           setImproveErr(res.error);
           return;
@@ -820,11 +823,12 @@ function DetailDrawer({
       metaDescription,
       warnings: base?.warnings ?? [],
     };
-    // Confronta col testo ORIGINALE generato (non con l'edit precedente): è la
-    // correzione netta che insegna al prompt.
-    const orig = row.generated;
+    // Confronta con l'ULTIMO testo salvato (edited se presente, altrimenti
+    // generato): così un ri-salvataggio senza modifiche non registra nulla e
+    // non si accumulano correzioni duplicate (BUG audit #1).
+    const baseline = row.edited ?? row.generated;
     const changes: OutputChange[] = EDIT_FIELDS.map((f) => {
-      const before = orig ? asText(orig[f.copyKey]) : '';
+      const before = baseline ? asText(baseline[f.copyKey]) : '';
       const after = asText(content[f.copyKey]);
       return { copyKey: f.copyKey as string, original: before, corrected: after, reason: reason.trim() };
     }).filter((c) => c.corrected !== c.original);
