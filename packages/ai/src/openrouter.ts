@@ -197,7 +197,7 @@ export class OpenRouterProviders
     // dell'SDK OpenAI accetta image_url per i modelli vision (OpenRouter lo supporta):
     // cast esplicito e documentato al tipo dei content part.
     const content = [
-      { type: 'text', text: buildVisualUserPrompt(input.allowedFields, input.sectorName) },
+      { type: 'text', text: buildVisualUserPrompt(input.allowedFields, input.sectorName, input.fieldSpecs) },
       ...input.images.map((img) => ({ type: 'image_url', image_url: { url: img.dataUrl } })),
     ] as unknown as OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
@@ -206,7 +206,7 @@ export class OpenRouterProviders
         {
           role: 'system',
           content:
-            'Analizzi immagini di prodotto e suggerisci SOLO attributi visuali evidenti (da confermare). Rispondi in italiano.',
+            'Leggi le etichette dei prodotti (OCR + comprensione) ed estrai i dati richiesti. Non inventare: solo ciò che è leggibile sul pack. Classifica ogni valore (dato di fatto / brand / marketing). Rispondi in italiano.',
         },
         { role: 'user', content },
       ],

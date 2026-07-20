@@ -6,6 +6,7 @@ import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
 import { checkAiRateLimit } from '@/lib/rate-limit';
+import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 
 // POST /api/batches/[batchId]/sample — genera un campione sincrono (gratuito).
 export async function POST(
@@ -28,6 +29,26 @@ export async function POST(
 
   try {
     await service.from('batches').update({ status: 'sample_pending' }).eq('id', batchId);
+
+    // Estrazione visiva automatica sul prodotto campione: se ha immagini e non è
+    // ancora stato letto, l'AI legge le etichette così il campione ha dei fatti
+    // da cui scrivere (anche per batch di sole foto). Best-effort e limitato al
+    // solo candidato (veloce, niente timeout).
+    const { data: candidate } = await service
+      .from('products')
+      .select('id')
+      .eq('batch_id', batchId)
+      .order('data_quality_score', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (candidate) {
+      try {
+        await runVisualExtractionForBatch({ batchId, productIds: [candidate.id] });
+      } catch (e) {
+        console.warn('[sample] estrazione visiva campione non riuscita:', e);
+      }
+    }
+
     const sample = await generateSample({ client: service, providers, env }, batchId);
     await service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId);
     await service.from('app_events').insert({

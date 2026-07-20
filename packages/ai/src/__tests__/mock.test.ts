@@ -102,8 +102,8 @@ describe('MockVisualExtractionProvider', () => {
     });
     expect(a.data).toEqual(b.data); // deterministico
     expect(a.data.attributes).toEqual([
-      { fieldKey: 'apparent_color', value: 'colore da confermare', confidence: 0.4 },
-      { fieldKey: 'product_type', value: 'capo', confidence: 0.4 },
+      { fieldKey: 'apparent_color', value: 'colore da confermare', confidence: 0.4, kind: 'onpack_factual' },
+      { fieldKey: 'product_type', value: 'capo', confidence: 0.4, kind: 'onpack_factual' },
     ]);
   });
 

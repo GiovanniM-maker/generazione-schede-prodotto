@@ -89,12 +89,34 @@ export interface FactAuditInput {
   content: ProductCopy;
 }
 
-/** Attributi visuali inferiti (sempre da confermare). */
+/**
+ * Categoria del dato letto dall'immagine, per aiutare le generazioni successive:
+ * - onpack_factual: dato oggettivo stampato sul pack (peso, ingredienti, valori
+ *   nutrizionali, allergeni, gradazione, produttore…). Verificabile → può essere fatto.
+ * - brand: marchio / nome commerciale / logo.
+ * - marketing: claim promozionale non verificabile ("gusto unico", "il migliore").
+ *   NON deve mai diventare un fatto.
+ */
+export type VisualValueKind = 'onpack_factual' | 'brand' | 'marketing';
+
+/** Descrittore tipizzato di un campo da estrarre (guida l'estrazione). */
+export interface VisualFieldSpec {
+  key: string;
+  name: string;
+  /** text, long_text, boolean, integer, decimal, percentage, enum, multi_enum, ... */
+  dataType?: string;
+  /** valori ammessi per enum/multi_enum. */
+  enumValues?: string[];
+  unit?: string;
+}
+
+/** Attributi visuali estratti dalle immagini, con categoria e confidenza. */
 export interface VisualExtraction {
   attributes: Array<{
     fieldKey: string;
     value: string;
     confidence: number;
+    kind: VisualValueKind;
   }>;
 }
 
@@ -108,7 +130,10 @@ export interface VisualExtractionImage {
 
 export interface VisualExtractionInput {
   images: VisualExtractionImage[];
+  /** Chiavi consentite come fieldKey (vincolo di output). */
   allowedFields: string[];
+  /** Descrittori tipizzati dei campi (guida enum/booleani/numeri). Opzionale. */
+  fieldSpecs?: VisualFieldSpec[];
   sectorName?: string;
 }
 

@@ -49,6 +49,7 @@ export const visualExtractionSchema = z.object({
       fieldKey: z.string(),
       value: z.string(),
       confidence: z.number(),
+      kind: z.enum(['onpack_factual', 'brand', 'marketing']),
     }),
   ),
 });
@@ -153,8 +154,9 @@ export const VISUAL_EXTRACTION_JSON_SCHEMA = {
           fieldKey: { type: 'string' },
           value: { type: 'string' },
           confidence: { type: 'number' },
+          kind: { type: 'string', enum: ['onpack_factual', 'brand', 'marketing'] },
         },
-        required: ['fieldKey', 'value', 'confidence'],
+        required: ['fieldKey', 'value', 'confidence', 'kind'],
       },
     },
   },
