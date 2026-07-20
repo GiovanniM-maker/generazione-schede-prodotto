@@ -101,7 +101,7 @@ export async function planPresetAction(input: {
   if (!ctx.sectorId) return fail('Il preset non ha un settore');
   const request = input.request?.trim();
   if (!request) return fail('Scrivi cosa vuoi creare');
-  if (request.length > 3000) return fail('Richiesta troppo lunga (max 3000 caratteri).');
+  if (request.length > 12000) return fail('Richiesta troppo lunga: accorciala un po’.');
 
   const rl = await checkAiRateLimit(ctx.orgId, 'preset_plan');
   if (!rl.allowed) return fail(rl.message);
@@ -128,7 +128,7 @@ export async function planPresetAction(input: {
     const res = await providers.presetPlan.planPreset({
       sectorName: ctx.sectorName,
       presetName: ctx.presetName,
-      userRequest: request.slice(0, 3000),
+      userRequest: request.slice(0, 12000),
       existingCategories: (cats ?? []).map((c) => c.name),
       existingAttributes: (attrs ?? []).map((a) => a.name),
       history: (input.history ?? []).slice(-8),
