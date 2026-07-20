@@ -237,14 +237,40 @@ export async function runVisualExtractionForBatch(input: {
   const globalKeys = [...globalKeysSet].slice(0, MAX_FIELDS_PER_PRODUCT);
   if (fieldToAttrId.size === 0) return ok(emptyVisualSummary());
 
-  // Campi da inviare per un prodotto in base alla sua categoria.
+  // Nomi delle categorie del preset: servono a INFERIRE la categoria dalle foto
+  // quando il prodotto non ne ha una (nessuna mappatura Excel). L'AI non "indovina"
+  // liberamente: sceglie fra le categorie del preset.
+  const CATEGORY_FIELD_KEY = '__product_category__';
+  const catIds = [...new Set(enabledPas.map((p) => p.category_id).filter((c): c is string => !!c))];
+  const { data: catRows } = catIds.length
+    ? await service.from('categories').select('id, name').in('id', catIds)
+    : { data: [] as Array<{ id: string; name: string }> };
+  const categoryNameById = new Map((catRows ?? []).map((c) => [c.id, c.name] as const));
+  const categoryIdByNorm = new Map((catRows ?? []).map((c) => [normalizeKey(c.name), c.id] as const));
+  const categoryNames = (catRows ?? []).map((c) => c.name);
+  const categorySpec: VisualFieldSpec | null = categoryNames.length
+    ? {
+        key: CATEGORY_FIELD_KEY,
+        name: 'Categoria merceologica del prodotto: scegli quella che corrisponde a ciò che vedi',
+        dataType: 'enum',
+        enumValues: categoryNames,
+      }
+    : null;
+
+  // Campi da inviare per un prodotto in base alla sua categoria. Se il prodotto
+  // NON ha categoria, aggiunge il campo sintetico di CLASSIFICAZIONE categoria.
   function fieldsForCategory(categoryId: string | null): { allowedFields: string[]; fieldSpecs: VisualFieldSpec[] } {
     const keys = (categoryId ? keysByCategory.get(categoryId) : null) ?? globalKeys;
     const capped = keys.slice(0, MAX_FIELDS_PER_PRODUCT);
-    return {
-      allowedFields: capped,
-      fieldSpecs: capped.map((k) => specByField.get(k)).filter((s): s is VisualFieldSpec => !!s),
-    };
+    const specs = capped
+      .map((k) => specByField.get(k))
+      .filter((s): s is VisualFieldSpec => !!s);
+    const allowed = [...capped];
+    if (!categoryId && categorySpec) {
+      allowed.push(CATEGORY_FIELD_KEY);
+      specs.push(categorySpec);
+    }
+    return { allowedFields: allowed, fieldSpecs: specs };
   }
 
   // 3) Prodotti del batch con immagini collegate (con la loro categoria).
@@ -388,6 +414,20 @@ export async function runVisualExtractionForBatch(input: {
     const existing = pavByProduct.get(productId) ?? new Map<string, { id: string; status: string }>();
 
     for (const attr of result.data.attributes) {
+      // Classificazione categoria (solo per prodotti senza categoria): imposta
+      // products.category_id scegliendo fra le categorie del preset. Non è un PAV.
+      if (attr.fieldKey === CATEGORY_FIELD_KEY) {
+        const catId = categoryIdByNorm.get(normalizeKey(attr.value));
+        if (catId) {
+          await service
+            .from('products')
+            .update({ category_id: catId, category: categoryNameById.get(catId) ?? null })
+            .eq('id', productId)
+            .is('category_id', null);
+          categoryByProduct.set(productId, catId);
+        }
+        continue;
+      }
       // I claim di MARKETING non diventano mai fatti: aiutano solo a capire, non
       // vengono scritti come attributo del prodotto.
       if (attr.kind === 'marketing') continue;
