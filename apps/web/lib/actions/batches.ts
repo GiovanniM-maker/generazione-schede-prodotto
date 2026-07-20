@@ -283,3 +283,46 @@ export async function confirmMappingAndImportAction(input: {
 
   return { imported, valid, invalid };
 }
+
+// ---------------------------------------------------------------------------
+// Eliminazione batch (con conferma lato UI).
+// ---------------------------------------------------------------------------
+
+/**
+ * Elimina un batch e tutti i dati collegati (prodotti, generazioni, job,
+ * sorgenti) via cascade. Rifiuta se il batch è in coda/elaborazione per non
+ * lasciare crediti riservati orfani o job attivi senza batch.
+ */
+export async function deleteBatchAction(input: {
+  batchId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, error: 'Non autenticato' };
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return { ok: false, error: 'Batch non accessibile' };
+  const service = getServiceClient();
+
+  const { data: batch } = await service
+    .from('batches')
+    .select('status')
+    .eq('id', input.batchId)
+    .maybeSingle();
+  if (!batch) return { ok: false, error: 'Batch non trovato' };
+  if (batch.status === 'queued' || batch.status === 'processing') {
+    return {
+      ok: false,
+      error: 'Il batch è in elaborazione: attendi il completamento prima di eliminarlo.',
+    };
+  }
+
+  const { error } = await service.from('batches').delete().eq('id', input.batchId);
+  if (error) return { ok: false, error: error.message };
+
+  await service.from('app_events').insert({
+    organization_id: orgId,
+    user_id: user.id,
+    event_name: 'batch_deleted',
+    metadata_json: {},
+  });
+  return { ok: true };
+}

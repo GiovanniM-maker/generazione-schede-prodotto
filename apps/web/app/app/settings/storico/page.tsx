@@ -35,6 +35,7 @@ const EVENT_META: Record<
 > = {
   onboarding_completed: { label: 'Onboarding completato', icon: CheckCircle2, tone: 'text-emerald-600' },
   batch_created: { label: 'Batch creato', icon: PackagePlus, tone: 'text-blue-600' },
+  batch_deleted: { label: 'Batch eliminato', icon: Eraser, tone: 'text-amber-600' },
   file_uploaded: { label: 'File caricato', icon: Upload, tone: 'text-gray-500' },
   mapping_confirmed: { label: 'Mappatura confermata', icon: ClipboardList, tone: 'text-gray-500' },
   sample_generated: { label: 'Campione generato', icon: Sparkles, tone: 'text-violet-600' },
