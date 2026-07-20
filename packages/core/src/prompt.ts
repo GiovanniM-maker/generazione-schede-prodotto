@@ -87,8 +87,10 @@ export function buildCopyUserPrompt(input: ProductCopyInput): string {
     safety,
     '',
     `Output richiesto: ${input.requestedOutput.join(', ')}.`,
-    'Restituisci un JSON con: title, shortDescription, longDescription, bullets[], metaDescription, usedFactKeys[], warnings[].',
-    "In usedFactKeys elenca SOLO le chiavi dei fatti effettivamente usati. In warnings segnala eventuali dati mancanti importanti.",
+    'Restituisci un JSON con: title, shortDescription, longDescription, bullets[], metaDescription, faq[], altText, usedFactKeys[], warnings[].',
+    'faq: 2–4 domande e risposte utili (question, answer) basate ESCLUSIVAMENTE sui fatti verificati; se i fatti non bastano per una domanda, ometterla. NON inventare.',
+    'altText: un testo alternativo conciso per l’immagine principale (max ~125 caratteri), descrittivo e senza claim non supportati.',
+    'In usedFactKeys elenca SOLO le chiavi dei fatti effettivamente usati. In warnings segnala eventuali dati mancanti importanti.',
   ]
     .filter(Boolean)
     .join('\n');

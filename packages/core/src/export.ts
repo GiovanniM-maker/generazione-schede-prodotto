@@ -20,6 +20,8 @@ export const EXPORT_COLUMNS = [
   'bullet_4',
   'bullet_5',
   'meta_description',
+  'alt_text',
+  'faq',
   'verification_status',
   'warnings',
 ] as const;
@@ -54,11 +56,16 @@ export function buildExportRow(
     longDescription: pick(input.edited?.longDescription, input.generated.longDescription),
     bullets: pick(input.edited?.bullets, input.generated.bullets),
     metaDescription: pick(input.edited?.metaDescription, input.generated.metaDescription),
+    faq: pick(input.edited?.faq, input.generated.faq ?? []),
+    altText: pick(input.edited?.altText, input.generated.altText ?? ''),
     usedFactKeys: input.generated.usedFactKeys,
     warnings: input.generated.warnings,
   };
 
   const bullets = content.bullets ?? [];
+  const faqText = (content.faq ?? [])
+    .map((f) => `D: ${f.question} R: ${f.answer}`)
+    .join(' | ');
   const row: Record<string, string> = {
     external_id: input.externalId ?? '',
     sku: input.sku ?? '',
@@ -72,6 +79,8 @@ export function buildExportRow(
     bullet_4: bullets[3] ?? '',
     bullet_5: bullets[4] ?? '',
     meta_description: content.metaDescription ?? '',
+    alt_text: content.altText ?? '',
+    faq: faqText,
     verification_status: input.verificationStatus,
     warnings: (content.warnings ?? []).join('; '),
   };

@@ -220,6 +220,8 @@ const REQUESTED_OUTPUT = [
   'longDescription',
   'bullets',
   'metaDescription',
+  'faq',
+  'altText',
 ];
 
 export interface GenerationContext {

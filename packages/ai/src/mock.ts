@@ -134,6 +134,8 @@ export class MockProductCopyProvider implements ProductCopyProvider {
       longDescription,
       bullets,
       metaDescription: `${name}${color ? ' ' + color : ''} — scopri i dettagli.`.slice(0, 155),
+      faq: [{ question: `Che prodotto è ${name}?`, answer: shortDescription }],
+      altText: `${name}${color ? ' ' + color : ''}`.slice(0, 125),
       usedFactKeys: [...new Set(usedKeys)],
       warnings,
     };

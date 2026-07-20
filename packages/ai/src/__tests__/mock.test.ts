@@ -137,6 +137,8 @@ describe('MockFactAuditProvider', () => {
         longDescription: '',
         bullets: [],
         metaDescription: '',
+        faq: [],
+        altText: '',
         usedFactKeys: [],
         warnings: [],
       },

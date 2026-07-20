@@ -75,6 +75,8 @@ describe('audit sensibile al settore (Pharma)', () => {
       longDescription: '',
       bullets: [],
       metaDescription: '',
+      faq: [],
+      altText: '',
       usedFactKeys: [],
       warnings: [],
     };

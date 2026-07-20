@@ -21,6 +21,9 @@ export function collectGeneratedText(content: ProductCopy): string {
     content.longDescription,
     ...(content.bullets ?? []),
     content.metaDescription,
+    // Anche FAQ e alt text sono soggetti all'audit anti-invenzione.
+    ...(content.faq ?? []).flatMap((f) => [f.question, f.answer]),
+    content.altText,
   ]
     .filter(Boolean)
     .join('\n');
