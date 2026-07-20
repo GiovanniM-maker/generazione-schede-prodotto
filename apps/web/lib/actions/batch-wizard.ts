@@ -1446,6 +1446,72 @@ export interface BatchProductRow {
   status: string;
 }
 
+/** Categorie disponibili per il settore del preset del batch (per la mappatura manuale). */
+export async function getBatchCategoryOptions(input: {
+  batchId: string;
+}): Promise<ActionResult<{ categories: Array<{ id: string; name: string }> }>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+  const { data: batch } = await service
+    .from('batches')
+    .select('preset_version_id')
+    .eq('id', input.batchId)
+    .maybeSingle();
+  if (!batch?.preset_version_id) return ok({ categories: [] });
+  const { data: pv } = await service
+    .from('preset_versions')
+    .select('preset_id')
+    .eq('id', batch.preset_version_id)
+    .maybeSingle();
+  if (!pv?.preset_id) return ok({ categories: [] });
+  const { data: preset } = await service
+    .from('presets')
+    .select('sector_id')
+    .eq('id', pv.preset_id)
+    .maybeSingle();
+  if (!preset?.sector_id) return ok({ categories: [] });
+  const { data: cats } = await service
+    .from('categories')
+    .select('id, name')
+    .eq('sector_id', preset.sector_id)
+    .eq('status', 'active')
+    .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
+    .order('name', { ascending: true });
+  return ok({ categories: (cats ?? []).map((c) => ({ id: c.id, name: c.name })) });
+}
+
+/** Assegna manualmente una categoria a uno o più prodotti (deterministico). */
+export async function setProductsCategoryAction(input: {
+  batchId: string;
+  productIds: string[];
+  categoryId: string | null;
+}): Promise<ActionResult<{ updated: number }>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  if (input.productIds.length === 0) return ok({ updated: 0 });
+  const service = getServiceClient();
+
+  let categoryName: string | null = null;
+  if (input.categoryId) {
+    const { data: cat } = await service
+      .from('categories')
+      .select('id, name')
+      .eq('id', input.categoryId)
+      .maybeSingle();
+    if (!cat) return fail('Categoria non valida');
+    categoryName = cat.name;
+  }
+
+  const { error } = await service
+    .from('products')
+    .update({ category_id: input.categoryId, category: categoryName })
+    .eq('batch_id', input.batchId)
+    .in('id', input.productIds);
+  if (error) return fail(`Aggiornamento categoria fallito: ${error.message}`);
+  return ok({ updated: input.productIds.length });
+}
+
 export async function getBatchProductsV2(input: {
   batchId: string;
 }): Promise<ActionResult<{ products: BatchProductRow[] }>> {
