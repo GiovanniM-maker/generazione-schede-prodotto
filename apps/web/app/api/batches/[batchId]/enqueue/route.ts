@@ -4,6 +4,10 @@ import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
+import { runVisualExtractionForBatch } from '@/lib/actions/visual';
+
+// L'estrazione visiva può leggere fino a 50 prodotti: diamo tempo alla funzione.
+export const maxDuration = 300;
 
 // POST /api/batches/[batchId]/enqueue — riserva crediti e accoda la generazione.
 export async function POST(
@@ -21,6 +25,16 @@ export async function POST(
   const service = getServiceClient();
 
   try {
+    // Estrazione visiva automatica PRIMA dell'accodamento: legge le etichette dei
+    // prodotti con foto non ancora letti, così anche i prodotti solo-immagini
+    // acquisiscono dei fatti e diventano eleggibili. Best-effort (non blocca
+    // l'accodamento se fallisce); idempotente (salta i già letti).
+    try {
+      await runVisualExtractionForBatch({ batchId });
+    } catch (e) {
+      console.warn('[enqueue] estrazione visiva automatica non riuscita:', e);
+    }
+
     // NON pre-impostare lo stato: la guardia di enqueueBatch deve restare
     // autoritativa (evita ri-addebito su chiamate ripetute dopo il completamento).
     const result = await enqueueBatch(service, env, batchId);
