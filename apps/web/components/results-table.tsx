@@ -342,7 +342,9 @@ export function ResultsTable({
     });
   }
 
-  async function exportBatch(format: 'csv' | 'xlsx') {
+  async function exportBatch(
+    format: 'csv' | 'xlsx' | 'shopify' | 'woocommerce' | 'prestashop',
+  ) {
     setExporting(format);
     setError(null);
     try {
@@ -434,6 +436,26 @@ export function ResultsTable({
             )}
             XLSX
           </Button>
+          <select
+            value=""
+            disabled={exporting !== null}
+            onChange={(e) => {
+              const v = e.target.value;
+              e.currentTarget.value = '';
+              if (v === 'shopify' || v === 'woocommerce' || v === 'prestashop') exportBatch(v);
+            }}
+            aria-label="Esporta per piattaforma e-commerce"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 disabled:opacity-50"
+          >
+            <option value="">
+              {exporting && ['shopify', 'woocommerce', 'prestashop'].includes(exporting)
+                ? 'Esporto…'
+                : 'Esporta per e-commerce…'}
+            </option>
+            <option value="shopify">Shopify (CSV)</option>
+            <option value="woocommerce">WooCommerce (CSV)</option>
+            <option value="prestashop">PrestaShop (CSV)</option>
+          </select>
         </div>
       </div>
 
