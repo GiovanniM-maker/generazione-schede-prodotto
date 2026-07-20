@@ -586,6 +586,139 @@ export async function uploadBatchFiles(
 }
 
 // ---------------------------------------------------------------------------
+// UPLOAD IMMAGINI VELOCE: upload diretto client→storage con URL firmati, in
+// parallelo. Evita di far passare i byte dal server (limite 25MB) e la lentezza
+// del loop sequenziale. Flusso:
+//   1) createImageUploadTargets → URL firmati + validazione nome/SKU
+//   2) il client carica i file in parallelo direttamente su storage
+//   3) registerUploadedImages → registra i metadati (source_files/source_items)
+// ---------------------------------------------------------------------------
+
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGES_BATCH = 400;
+
+export interface ImageUploadTarget {
+  name: string;
+  valid: boolean;
+  problem: string | null;
+  sku: string | null;
+  bucket: string;
+  path: string | null;
+  token: string | null;
+}
+
+export async function createImageUploadTargets(input: {
+  batchId: string;
+  files: { name: string; size: number; type: string }[];
+}): Promise<ActionResult<{ targets: ImageUploadTarget[] }>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  if (input.files.length === 0) return fail('Nessun file');
+  if (input.files.length > MAX_IMAGES_BATCH) {
+    return fail(`Troppe immagini in un solo caricamento (max ${MAX_IMAGES_BATCH}).`);
+  }
+  const service = getServiceClient();
+  const bucket = STORAGE_BUCKETS.productAssets;
+
+  const targets = await Promise.all(
+    input.files.map(async (f): Promise<ImageUploadTarget> => {
+      if (f.size > MAX_IMAGE_BYTES) {
+        return { name: f.name, valid: false, problem: 'File troppo grande (max 20 MB)', sku: null, bucket, path: null, token: null };
+      }
+      if (!isSupportedImage(f.name)) {
+        return { name: f.name, valid: false, problem: 'Formato non supportato (jpg, png, webp)', sku: null, bucket, path: null, token: null };
+      }
+      const sku = extractSkuFromFilename(f.name);
+      const path = `${orgId}/${input.batchId}/${crypto.randomUUID()}-${sanitizeFilename(f.name)}`;
+      const { data: signed, error } = await service.storage.from(bucket).createSignedUploadUrl(path);
+      if (error || !signed) {
+        return { name: f.name, valid: false, problem: 'Preparazione upload fallita', sku, bucket, path: null, token: null };
+      }
+      return {
+        name: f.name,
+        valid: true,
+        problem: sku ? null : 'SKU assente nel nome file: rinomina come {SKU}_descrizione.jpg',
+        sku,
+        bucket,
+        path: signed.path,
+        token: signed.token,
+      };
+    }),
+  );
+
+  return ok({ targets });
+}
+
+export async function registerUploadedImages(input: {
+  batchId: string;
+  items: { name: string; path: string; size: number; type: string; sku: string | null }[];
+}): Promise<ActionResult<UploadImagesResult>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  if (input.items.length === 0) return ok({ kind: 'images', files: [], validCount: 0, invalidCount: 0 });
+  const service = getServiceClient();
+  const bucket = STORAGE_BUCKETS.productAssets;
+  const batchSourceId = await getOrCreateBatchSource(service, orgId, input.batchId, IMAGE_SOURCE);
+  if (!batchSourceId) return fail('Registrazione sorgente fallita');
+
+  // Inserimento in blocco dei source_files (2 query totali, non N).
+  const { data: files, error: sfErr } = await service
+    .from('source_files')
+    .insert(
+      input.items.map((it) => ({
+        organization_id: orgId,
+        batch_id: input.batchId,
+        storage_bucket: bucket,
+        storage_path: it.path,
+        original_filename: it.name,
+        mime_type: it.type || undefined,
+        size_bytes: it.size,
+        status: 'ready',
+      })),
+    )
+    .select('id, storage_path');
+  if (sfErr) return fail(`Registrazione file fallita: ${sfErr.message}`);
+  const idByPath = new Map((files ?? []).map((f) => [f.storage_path, f.id] as const));
+
+  let validCount = 0;
+  let invalidCount = 0;
+  const summaries: UploadedFileSummary[] = [];
+  const itemRows = input.items
+    .map((it) => {
+      const sourceFileId = idByPath.get(it.path);
+      if (!sourceFileId) return null;
+      const status = it.sku ? 'valid' : 'missing_sku';
+      if (it.sku) validCount++;
+      else invalidCount++;
+      summaries.push({
+        filename: it.name,
+        sku: it.sku,
+        status,
+        problem: it.sku ? null : 'SKU assente nel nome file: rinomina come {SKU}_descrizione.jpg',
+      });
+      return {
+        organization_id: orgId,
+        batch_source_id: batchSourceId,
+        source_file_id: sourceFileId,
+        filename: it.name,
+        mime_type: it.type || undefined,
+        size_bytes: it.size,
+        detected_sku: it.sku,
+        status,
+        metadata_json: { imageType: suggestImageType(it.name) } as unknown as Json,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  if (itemRows.length > 0) {
+    await service.from('source_items').insert(itemRows);
+  }
+  await service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId);
+
+  return ok({ kind: 'images', files: summaries, validCount, invalidCount });
+}
+
+// ---------------------------------------------------------------------------
 // Helper: carica e riparsa lo spreadsheet del batch.
 // ---------------------------------------------------------------------------
 
