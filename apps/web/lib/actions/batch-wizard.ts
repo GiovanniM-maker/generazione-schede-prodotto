@@ -44,7 +44,7 @@ function fail<T = never>(error: string): ActionResult<T> {
 export type WizardSourceType = 'spreadsheet' | 'images';
 
 const SPREADSHEET_SOURCE = 'spreadsheet_upload';
-const IMAGE_SOURCE = 'image_upload';
+const IMAGE_SOURCE = 'images_upload';
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
@@ -337,7 +337,10 @@ async function getOrCreateBatchSource(
     })
     .select('id')
     .single();
-  if (error || !data) return null;
+  if (error || !data) {
+    console.error('getOrCreateBatchSource insert failed', { sourceType, error: error?.message });
+    return null;
+  }
   return data.id;
 }
 
