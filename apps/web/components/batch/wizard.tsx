@@ -90,6 +90,15 @@ function mimeFromName(name: string, fallbackType: string): string {
 
 type AnalyzeData = Extract<Awaited<ReturnType<typeof analyzeBatch>>, { ok: true }>['data'];
 
+/** Copy generata per il campione (mostrata inline nello step Campione). */
+interface SampleCopy {
+  title?: string;
+  shortDescription?: string;
+  longDescription?: string;
+  bullets?: string[];
+  metaDescription?: string;
+}
+
 type SourceMode = 'images' | 'spreadsheet' | 'both';
 
 interface StepDef {
@@ -185,6 +194,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
   const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
+  const [sampleContent, setSampleContent] = useState<SampleCopy | null>(null);
 
   const hasSpreadsheet = sourceMode === 'spreadsheet' || sourceMode === 'both';
   const hasImages = sourceMode === 'images' || sourceMode === 'both';
@@ -512,8 +522,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         const body = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Errore nella generazione del campione');
       }
-      const body = (await r.json().catch(() => ({}))) as { completeness?: unknown };
+      const body = (await r.json().catch(() => ({}))) as {
+        completeness?: unknown;
+        content?: SampleCopy;
+      };
       setSampleCompleteness(normalizeCompleteness(body.completeness ?? null));
+      setSampleContent(body.content ?? null);
       setSampleDone(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Errore');
@@ -620,6 +634,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           busy={busy}
           onRun={runSample}
           completeness={sampleCompleteness}
+          content={sampleContent}
         />
       )}
 
@@ -1632,27 +1647,81 @@ function Step10({
   busy,
   onRun,
   completeness,
+  content,
 }: {
   sampleDone: boolean;
   busy: boolean;
   onRun: () => void;
   completeness: Completeness | null;
+  content: SampleCopy | null;
 }) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Genera un campione gratuito su un prodotto rappresentativo per verificare tono e correttezza prima della generazione in massa.</p>
+      <p className="text-sm text-gray-500">
+        Genera un campione gratuito su un prodotto rappresentativo per verificare tono e correttezza
+        prima della generazione in massa. Se il prodotto ha solo foto, l’AI legge prima le etichette
+        in automatico.
+      </p>
       {!sampleDone ? (
         <Button onClick={onRun} disabled={busy}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Genera campione
+          {busy ? 'Genero il campione…' : 'Genera campione'}
         </Button>
       ) : (
         <>
           <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-            <Check className="h-4 w-4" /> Campione generato. Puoi rivederlo nella scheda del batch o proseguire.
+            <Check className="h-4 w-4" /> Campione generato.
           </div>
+          {content && <SampleOutput content={content} />}
           {completeness && <SampleCompleteness completeness={completeness} />}
+          <Button variant="outline" size="sm" onClick={onRun} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Rigenera campione
+          </Button>
         </>
+      )}
+    </div>
+  );
+}
+
+/** Mostra inline la scheda generata dal campione (titolo, descrizioni, bullet, meta). */
+function SampleOutput({ content }: { content: SampleCopy }) {
+  const bullets = Array.isArray(content.bullets) ? content.bullets : [];
+  return (
+    <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+      {content.title && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Titolo</p>
+          <p className="mt-0.5 text-base font-semibold text-gray-900">{content.title}</p>
+        </div>
+      )}
+      {content.shortDescription && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descrizione breve</p>
+          <p className="mt-0.5 text-sm text-gray-700">{content.shortDescription}</p>
+        </div>
+      )}
+      {content.longDescription && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descrizione lunga</p>
+          <p className="mt-0.5 whitespace-pre-line text-sm text-gray-700">{content.longDescription}</p>
+        </div>
+      )}
+      {bullets.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Punti chiave</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-gray-700">
+            {bullets.map((b, i) => (
+              <li key={i}>{b}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {content.metaDescription && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Meta description</p>
+          <p className="mt-0.5 text-sm text-gray-500">{content.metaDescription}</p>
+        </div>
       )}
     </div>
   );
