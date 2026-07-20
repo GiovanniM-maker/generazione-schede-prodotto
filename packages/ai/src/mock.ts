@@ -12,6 +12,8 @@ import {
   type ProductCopyInput,
   type PromptImproveInput,
   type PromptImproveOutput,
+  type PresetPlanInput,
+  type PresetPlanOutput,
   type VisualExtraction,
   type VisualExtractionInput,
 } from '@app/core';
@@ -22,6 +24,7 @@ import type {
   FactAuditProvider,
   ProductCopyProvider,
   PromptImproveProvider,
+  PresetPlanProvider,
   TranscriptionInput,
   TranscriptionProvider,
   TranscriptionResult,
@@ -286,6 +289,40 @@ export class MockPromptImproveProvider implements PromptImproveProvider {
 }
 
 // ---------------------------------------------------------------------------
+// Preset builder mock: DETERMINISTICO. Deduce N categorie e M attributi dai
+// numeri nella richiesta ("crea un preset con 5 categorie e 3 attributi").
+// ---------------------------------------------------------------------------
+
+export class MockPresetPlanProvider implements PresetPlanProvider {
+  constructor(private opts: MockOptions = {}) {}
+  async planPreset(input: PresetPlanInput): Promise<AiResult<PresetPlanOutput>> {
+    await delay(this.opts.latencyMs ?? 0);
+    const nums = (input.userRequest.match(/\d+/g) ?? []).map((n) => parseInt(n, 10));
+    const nCats = Math.min(Math.max(nums[0] ?? 3, 1), 12);
+    const nAttrs = Math.min(Math.max(nums[1] ?? 3, 1), 10);
+    const categories = Array.from({ length: nCats }, (_, i) => ({
+      name: `Categoria ${i + 1}`,
+      description: null,
+      attributes: Array.from({ length: nAttrs }, (_, j) => ({
+        name: `Attributo ${i + 1}.${j + 1}`,
+        dataType: 'text',
+        enumValues: null,
+        unit: null,
+        generationInstruction: 'Usa il valore solo se presente tra i fatti.',
+      })),
+    }));
+    return {
+      data: {
+        assistantMessage: `Ho preparato ${nCats} categorie con ${nAttrs} attributi ciascuna. Conferma per crearle.`,
+        summary: `${nCats} categorie, ${nCats * nAttrs} attributi.`,
+        categories,
+      },
+      usage: usage('mock-preset-plan', 200, 300),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Trascrizione mock: DETERMINISTICA e offline. Nessuna chiamata di rete.
 // Restituisce una frase fissa in italiano che include il nome del file.
 // ---------------------------------------------------------------------------
@@ -309,6 +346,7 @@ export function createMockProviders(opts: MockOptions = {}) {
     factAudit: new MockFactAuditProvider(opts),
     copilot: new MockCopilotProvider(opts),
     promptImprove: new MockPromptImproveProvider(opts),
+    presetPlan: new MockPresetPlanProvider(opts),
     transcription: new MockTranscriptionProvider(opts),
   };
 }
