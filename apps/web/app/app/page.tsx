@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RecentBatchCard } from '@/components/recent-batch-card';
+import { WelcomeCard } from '@/components/onboarding/welcome-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,6 +169,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      <WelcomeCard />
+
       {/* Intestazione */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

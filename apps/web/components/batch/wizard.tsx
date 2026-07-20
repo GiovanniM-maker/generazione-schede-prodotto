@@ -12,6 +12,7 @@ import {
   Sparkles,
   UploadCloud,
   FileSpreadsheet,
+  HelpCircle,
   Image as ImageIcon,
   Download,
   ArrowLeft,
@@ -41,6 +42,9 @@ import {
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { CategoryAssigner } from '@/components/batch/category-assigner';
+import { GuidedTour, tourSeen, markTourSeen, type TourStep } from '@/components/onboarding/guided-tour';
+import { HelpBubble } from '@/components/onboarding/help-bubble';
+import { WizardGuide } from '@/components/onboarding/wizard-guide';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -121,6 +125,102 @@ const STEP_DEFS: StepDef[] = [
   { id: 11, title: 'Conferma e avvio' },
 ];
 
+// Tour guidato ("fumettini") per passo: i target sono gli attributi data-tour.
+// I passi il cui elemento non è in pagina vengono saltati automaticamente.
+const STEP_TOURS: Record<number, TourStep[]> = {
+  1: [
+    {
+      target: 'batch-name',
+      title: 'Dai un nome al lavoro',
+      body: 'Un batch è un "lotto" di prodotti da generare insieme. Il nome serve solo a te per ritrovarlo (es. «Catalogo vini marzo»).',
+    },
+    {
+      target: 'preset-pick',
+      title: 'Scegli il preset',
+      body: 'Il preset è il modello della scheda: categorie e dati da compilare. Se non ne vedi nessuno, crealo prima da Configurazione → Preset (anche a chat con il Copilot).',
+    },
+    {
+      target: 'wizard-guide',
+      title: 'Se ti blocchi, chiedi qui',
+      body: 'Questa chat ti guida in ogni momento: dimmi cosa hai in mano (foto, Excel o entrambi) e ti dico esattamente cosa fare, passo per passo. Gratis e istantanea.',
+    },
+  ],
+  3: [
+    {
+      target: 'sources',
+      title: 'Da dove arrivano i dati?',
+      body: 'Solo foto: l’AI legge le etichette. Solo Excel: dati certi dal file. Entrambe: il meglio — si agganciano tramite SKU. Puoi tornare qui e cambiare quando vuoi.',
+    },
+  ],
+  5: [
+    {
+      target: 'upload-file',
+      title: 'Carica il file dati',
+      body: 'CSV o Excel con una colonna SKU. Le altre colonne le mappi dopo — comprese quelle extra del fornitore, che puoi importare come dati aggiuntivi.',
+    },
+    {
+      target: 'upload-images',
+      title: 'Carica le foto',
+      body: 'Trascina anche centinaia di immagini: il caricamento è parallelo. Lo SKU viene letto dal nome del file (es. «1234-fronte.jpg»).',
+    },
+    {
+      target: 'sku-separator',
+      title: 'Controlla lo SKU',
+      body: 'Se gli SKU rilevati sembrano sbagliati (es. «1234-fronte» invece di «1234»), cambia il separatore qui: il ricalcolo è immediato.',
+    },
+  ],
+  7: [
+    {
+      target: 'sku-column',
+      title: 'Indica la colonna SKU',
+      body: 'È il codice che identifica ogni prodotto e aggancia le foto al file. L’abbiamo pre-selezionata se riconosciuta: controlla che sia giusta.',
+    },
+    {
+      target: 'category-column',
+      title: 'La categoria: mappata o dedotta',
+      body: 'Se il file ha una colonna categoria, sceglila qui: assegnazione certa, zero AI. Se non ce l’hai, lascia vuoto: l’AI la dedurrà dalle foto (o la assegni a mano al passo Verifica).',
+    },
+  ],
+  8: [
+    {
+      target: 'mapping',
+      title: 'Collega le colonne agli attributi',
+      body: 'Per ogni attributo del preset scegli la colonna del file che lo contiene. Abbiamo già suggerito gli abbinamenti evidenti: controlla e completa.',
+    },
+    {
+      target: 'extra-columns',
+      title: 'Non sprecare le colonne extra',
+      body: 'Il file ha colonne che il preset non prevede (es. «descrizione materiale»)? Spuntale: diventano dati in più per l’AI. Più dati = schede migliori.',
+    },
+  ],
+  9: [
+    {
+      target: 'analyze',
+      title: 'Fai leggere le foto all’AI',
+      body: 'Estrae i dati stampati sulle etichette (peso, ingredienti, marchio…). Parte comunque in automatico all’avvio della generazione: qui puoi lanciarla in anticipo.',
+    },
+    {
+      target: 'assign-categories',
+      title: 'Categorie a mano (se vuoi)',
+      body: 'Qui puoi assegnare la categoria per singolo SKU o in blocco. La categoria decide quali dati l’AI cerca per ogni prodotto.',
+    },
+  ],
+  10: [
+    {
+      target: 'sample',
+      title: 'Prova gratis prima di spendere',
+      body: 'Il campione genera la scheda di un prodotto di prova e te la mostra qui sotto: controlli tono e qualità senza consumare crediti.',
+    },
+  ],
+  11: [
+    {
+      target: 'launch',
+      title: 'Si parte!',
+      body: 'Qui vedi quanti prodotti sono pronti e quanti crediti verranno riservati (1 per prodotto). La generazione gira in background: tieni aperta la pagina di elaborazione e a fine corsa trovi tutto in Risultati.',
+    },
+  ],
+};
+
 const SPREADSHEET_STEPS = new Set([7, 8]);
 
 function normalize(s: string): string {
@@ -151,6 +251,13 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const router = useRouter();
 
   const [stepId, setStepId] = useState(1);
+
+  // Tour guidato del passo corrente: si apre da solo la prima volta, poi solo
+  // dal pulsante "Guida".
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    setTourOpen(Boolean(STEP_TOURS[stepId]) && !tourSeen(`wizard.${stepId}.v1`));
+  }, [stepId]);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [presetVersionId, setPresetVersionId] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
@@ -568,7 +675,23 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   return (
     <div className="space-y-6">
-      <ProgressBar steps={activeSteps} activeIndex={activeIndex} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <ProgressBar steps={activeSteps} activeIndex={activeIndex} />
+        </div>
+        {STEP_TOURS[stepId] && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setTourOpen(true)}
+            aria-label="Rivedi la guida di questo passo"
+            className="shrink-0 text-gray-500"
+          >
+            <HelpCircle className="h-4 w-4" />
+            Guida
+          </Button>
+        )}
+      </div>
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -669,6 +792,18 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           onNext={nextStep}
         />
       </div>
+
+      {/* Onboarding: fumettini del passo corrente + chat-guida sempre a portata. */}
+      {tourOpen && STEP_TOURS[stepId] && (
+        <GuidedTour
+          steps={STEP_TOURS[stepId]!}
+          onClose={() => {
+            markTourSeen(`wizard.${stepId}.v1`);
+            setTourOpen(false);
+          }}
+        />
+      )}
+      <WizardGuide />
     </div>
   );
 }
@@ -786,7 +921,7 @@ function Step1({
   const selected = presets?.find((p) => p.id === selectedPresetId) ?? null;
   return (
     <div className="space-y-6">
-      <div>
+      <div data-tour="batch-name">
         <Label htmlFor="batch-name">Nome del batch</Label>
         <Input id="batch-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Collezione autunno 2026" />
       </div>
@@ -795,8 +930,11 @@ function Step1({
         <Textarea id="batch-desc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Note interne su questo batch." />
       </div>
 
-      <div>
-        <Label>Preset</Label>
+      <div data-tour="preset-pick">
+        <Label>
+          Preset{' '}
+          <HelpBubble text="Il preset è il modello della scheda: definisce le categorie (es. Vino, Ortofrutta) e i dati da compilare per ciascuna. Lo configuri in Configurazione → Preset, anche a chat con il Copilot." />
+        </Label>
         {presets === null && (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Caricamento preset…
@@ -964,8 +1102,11 @@ const SOURCE_CARDS: SourceCard[] = [
 function Step3({ sourceMode, setSourceMode }: { sourceMode: SourceMode | null; setSourceMode: (m: SourceMode) => void }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">Scegli da dove arrivano i dati dei prodotti.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <p className="text-sm text-gray-500">
+        Scegli da dove arrivano i dati dei prodotti. Puoi cambiare idea: se poi scopri di avere
+        anche un Excel, torna a questo passo e scegli «Entrambe».
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2" data-tour="sources">
         {SOURCE_CARDS.map((card) => {
           const active = card.mode !== null && card.mode === sourceMode;
           return (
@@ -1076,8 +1217,11 @@ function Step5({
   return (
     <div className="space-y-6">
       {hasSpreadsheet && (
-        <div>
-          <Label>Foglio CSV o Excel</Label>
+        <div data-tour="upload-file">
+          <Label>
+            Foglio CSV o Excel{' '}
+            <HelpBubble text="Serve una colonna con lo SKU (codice prodotto). Tutte le altre colonne potrai mapparle o importarle come dati extra nei passi successivi." />
+          </Label>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white p-6 text-center hover:bg-gray-50">
             <FileSpreadsheet className="h-6 w-6 text-gray-400" />
             <span className="text-sm text-gray-600">Seleziona un file .csv o .xlsx</span>
@@ -1104,8 +1248,11 @@ function Step5({
       )}
 
       {hasImages && (
-        <div>
-          <Label>Immagini prodotto</Label>
+        <div data-tour="upload-images">
+          <Label>
+            Immagini prodotto{' '}
+            <HelpBubble text="Il nome del file deve contenere lo SKU: es. «1234-fronte.jpg» → SKU 1234. Più foto con lo stesso SKU finiscono sullo stesso prodotto. Dopo il caricamento scegli il separatore giusto." />
+          </Label>
           <label
             onDragOver={(e) => {
               e.preventDefault();
@@ -1156,7 +1303,7 @@ function Step5({
           )}
           {imagesResult && (
             <div className="mt-3 space-y-3 text-sm">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3" data-tour="sku-separator">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-gray-700">Separatore SKU:</span>
                   {([
@@ -1329,8 +1476,11 @@ function Step7({
   return (
     <div className="space-y-6">
       {hasSpreadsheet && (
-        <div>
-          <Label htmlFor="sku-header">Colonna SKU</Label>
+        <div data-tour="sku-column">
+          <Label htmlFor="sku-header">
+            Colonna SKU{' '}
+            <HelpBubble text="Lo SKU è il codice univoco del prodotto: collega righe del file, foto e schede generate. Le righe senza SKU vengono scartate." />
+          </Label>
           <Select id="sku-header" value={skuHeader} onChange={(e) => setSkuHeader(e.target.value)}>
             <option value="">— Seleziona la colonna SKU —</option>
             {headers.map((h) => (
@@ -1344,7 +1494,7 @@ function Step7({
       )}
 
       {hasSpreadsheet && (
-        <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4">
+        <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4" data-tour="category-column">
           <Label htmlFor="category-header">Colonna Categoria (consigliata)</Label>
           <Select
             id="category-header"
@@ -1466,7 +1616,7 @@ function Step8({
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">Associa ogni attributo del preset a una colonna del file. Gli attributi non associati verranno lasciati vuoti.</p>
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="mapping">
         {attributes.map((attr) => (
           <div key={attr.id} className="grid grid-cols-1 items-center gap-2 rounded-lg border border-gray-100 p-3 sm:grid-cols-2">
             <div className="flex items-center gap-2">
@@ -1533,7 +1683,7 @@ function FreeColumnsSection({
   const available = headers.filter((h) => !used.has(h));
   if (available.length === 0) return null;
   return (
-    <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4">
+    <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4" data-tour="extra-columns">
       <p className="text-sm font-medium text-gray-800">Altre colonne del file</p>
       <p className="mt-0.5 text-xs text-gray-600">
         Spunta le colonne extra da importare come dato (es. «descrizione materiale», «prezzo»). Ogni
@@ -1646,7 +1796,7 @@ function Step9({
   return (
     <div className="space-y-4">
       {hasImages && (
-        <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+        <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3" data-tour="analyze">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-gray-600">
               Suggerimenti visivi: verranno usati come fatti solo se li confermi. Materiali,
@@ -1694,7 +1844,11 @@ function Step9({
           Impostazioni → Categorie (Importa lista) e reimportare.
         </p>
       )}
-      {products.length > 0 && <CategoryAssigner batchId={batchId} />}
+      {products.length > 0 && (
+        <div data-tour="assign-categories">
+          <CategoryAssigner batchId={batchId} />
+        </div>
+      )}
       {products.length === 0 ? (
         <p className="text-sm text-gray-500">Nessun prodotto importato. Torna indietro e controlla la colonna SKU o le sorgenti.</p>
       ) : (
@@ -1758,10 +1912,12 @@ function Step10({
         in automatico.
       </p>
       {!sampleDone ? (
-        <Button onClick={onRun} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {busy ? 'Genero il campione…' : 'Genera campione'}
-        </Button>
+        <div data-tour="sample" className="inline-block">
+          <Button onClick={onRun} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {busy ? 'Genero il campione…' : 'Genera campione'}
+          </Button>
+        </div>
       ) : (
         <>
           <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
@@ -1857,7 +2013,7 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
 
 function Step11({ importSummary }: { importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour="launch">
       <Card>
         <CardContent className="space-y-3 p-5 text-sm text-gray-600">
           <p className="font-medium text-gray-900">Pronto per la generazione</p>
