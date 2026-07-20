@@ -2,6 +2,7 @@
 
 import { createAiProviders } from '@app/ai';
 import { STORAGE_BUCKETS } from '@app/config';
+import { NON_ADDITIONAL_FIELDS } from '@app/core';
 import type { VisualExtractionImage, VisualFieldSpec } from '@app/core';
 import type { Json } from '@app/database';
 import { getSessionUser } from '@/lib/auth';
@@ -450,6 +451,46 @@ export async function runVisualExtractionForBatch(input: {
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, poolWorker));
+
+  // Ricalcola l'ELEGGIBILITÀ: i prodotti che ora hanno ≥2 fatti usabili (inclusi
+  // quelli letti dalle immagini) passano da 'excluded' a 'eligible', così la
+  // generazione li può accodare. Senza questo, i solo-immagini resterebbero
+  // esclusi anche con i fatti appena estratti.
+  try {
+    const USABLE_STATUSES = [
+      'provided',
+      'extracted_from_file',
+      'extracted_from_image',
+      'derived',
+      'confirmed',
+    ];
+    const { data: usableRows } = await service
+      .from('product_attribute_values')
+      .select('product_id, attribute_id, status')
+      .in('product_id', targets)
+      .in('status', USABLE_STATUSES);
+    const additionalByProduct = new Map<string, Set<string>>();
+    for (const r of usableRows ?? []) {
+      const a = attrById.get(r.attribute_id);
+      const key = a ? attrFieldKey(a) : r.attribute_id;
+      if (NON_ADDITIONAL_FIELDS.has(key)) continue; // sku/nome/immagini: non contano
+      const set = additionalByProduct.get(r.product_id) ?? new Set<string>();
+      set.add(r.attribute_id);
+      additionalByProduct.set(r.product_id, set);
+    }
+    const nowEligible = [...additionalByProduct.entries()]
+      .filter(([, set]) => set.size >= 2)
+      .map(([pid]) => pid);
+    if (nowEligible.length > 0) {
+      await service
+        .from('products')
+        .update({ verification_status: 'eligible' })
+        .in('id', nowEligible)
+        .eq('verification_status', 'excluded');
+    }
+  } catch (e) {
+    console.warn('[visual] ricalcolo eleggibilità non riuscito:', e);
+  }
 
   await service.from('app_events').insert({
     organization_id: orgId,
