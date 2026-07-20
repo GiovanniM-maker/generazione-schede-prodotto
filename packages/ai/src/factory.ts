@@ -64,6 +64,7 @@ export function createAiProviders(env: ServerEnv): AiProviders {
       copilot: router,
       promptImprove: router,
       presetPlan: router,
+      translator: router,
       transcription,
     };
   }
@@ -89,6 +90,7 @@ export function createAiProviders(env: ServerEnv): AiProviders {
     copilot: providers,
     promptImprove: providers,
     presetPlan: providers,
+    translator: providers,
     transcription,
   };
 }

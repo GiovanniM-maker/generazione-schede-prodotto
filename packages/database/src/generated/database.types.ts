@@ -242,6 +242,7 @@ export interface Database {
           edited_content_json: Json | null;
           audit_json: Json | null;
           completeness_json: Json | null;
+          translations_json: Json;
           status: string;
           accepted_at: string | null;
         } & Timestamps

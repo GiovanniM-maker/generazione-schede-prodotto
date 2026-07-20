@@ -12,6 +12,8 @@ import {
   buildPromptImproveUserPrompt,
   buildPresetPlanSystemPrompt,
   buildPresetPlanUserPrompt,
+  TRANSLATION_SYSTEM_PROMPT,
+  buildTranslationUserPrompt,
   brandProfileSchema,
   productCopySchema,
   factAuditSchema,
@@ -19,6 +21,7 @@ import {
   copilotOutputSchema,
   promptImproveOutputSchema,
   presetPlanOutputSchema,
+  translatedCopySchema,
   BRAND_PROFILE_JSON_SCHEMA,
   PRODUCT_COPY_JSON_SCHEMA,
   FACT_AUDIT_JSON_SCHEMA,
@@ -26,6 +29,7 @@ import {
   COPILOT_JSON_SCHEMA,
   PROMPT_IMPROVE_JSON_SCHEMA,
   PRESET_PLAN_JSON_SCHEMA,
+  TRANSLATED_COPY_JSON_SCHEMA,
   type BrandProfile,
   type BrandProfileInput,
   type CopilotInput,
@@ -38,6 +42,8 @@ import {
   type PromptImproveOutput,
   type PresetPlanInput,
   type PresetPlanOutput,
+  type TranslateCopyInput,
+  type TranslatedCopy,
   type VisualExtraction,
   type VisualExtractionInput,
 } from '@app/core';
@@ -234,6 +240,16 @@ export class OpenRouterProviders
       PROMPT_IMPROVE_JSON_SCHEMA,
       promptImproveOutputSchema,
     ) as Promise<AiResult<PromptImproveOutput>>;
+  }
+
+  async translateCopy(input: TranslateCopyInput): Promise<AiResult<TranslatedCopy>> {
+    return this.structured(
+      TRANSLATION_SYSTEM_PROMPT,
+      buildTranslationUserPrompt(input),
+      'copy_translation',
+      TRANSLATED_COPY_JSON_SCHEMA,
+      translatedCopySchema,
+    ) as Promise<AiResult<TranslatedCopy>>;
   }
 
   async planPreset(input: PresetPlanInput): Promise<AiResult<PresetPlanOutput>> {
