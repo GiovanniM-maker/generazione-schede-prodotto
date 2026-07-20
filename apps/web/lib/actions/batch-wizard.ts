@@ -980,6 +980,8 @@ export async function confirmImportV2(input: {
   attributeMapping: Record<string, string>; // attributeId -> header
   /** Colonna del file che contiene la categoria merceologica (opzionale). */
   categoryHeader?: string;
+  /** Colonne libere del file da importare come fatti (attributo creato al volo). */
+  extraColumns?: Array<{ header: string; name: string }>;
   options: { includeImageOnly: boolean; excludeIncomplete: boolean };
 }): Promise<ActionResult<ImportResultV2>> {
   const user = await getSessionUser();
@@ -1002,13 +1004,13 @@ export async function confirmImportV2(input: {
   // merceologiche dell'organizzazione (settore del preset). I nomi non
   // riconosciuti vengono segnalati (l'utente potrà crearli dalla lista).
   const categoryIdByName = new Map<string, string>();
+  let sectorId: string | null = null;
   if (presetVersionId) {
     const { data: pv } = await service
       .from('preset_versions')
       .select('preset_id')
       .eq('id', presetVersionId)
       .maybeSingle();
-    let sectorId: string | null = null;
     if (pv?.preset_id) {
       const { data: preset } = await service
         .from('presets')
@@ -1035,6 +1037,66 @@ export async function confirmImportV2(input: {
   }
   let categoriesMatched = 0;
   const unmatchedCategories = new Set<string>();
+
+  // Colonne LIBERE del file: importa qualsiasi campo come fatto, creando al volo
+  // un attributo fattuale se non esiste (es. "descrizione materiale", "prezzo").
+  // Ogni fatto in più arricchisce la generazione (e resta sotto l'audit).
+  const usedHeaders = new Set<string>([
+    input.skuHeader,
+    input.categoryHeader ?? '',
+    ...Object.values(input.attributeMapping),
+  ]);
+  const extraColMap = new Map<string, PresetAttributeOption>();
+  if (sectorId && input.extraColumns && input.extraColumns.length > 0) {
+    for (const ec of input.extraColumns.slice(0, 40)) {
+      const header = ec.header?.trim();
+      const attrName = (ec.name || header || '').trim().slice(0, 120);
+      if (!header || !attrName || usedHeaders.has(header) || extraColMap.has(header)) continue;
+      const { data: existing } = await service
+        .from('attributes')
+        .select('id, key, name')
+        .eq('sector_id', sectorId)
+        .eq('status', 'active')
+        .eq('name', attrName)
+        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
+        .limit(1)
+        .maybeSingle();
+      let attr = existing ?? null;
+      if (!attr) {
+        const { data: created } = await service
+          .from('attributes')
+          .insert({
+            sector_id: sectorId,
+            owner_organization_id: orgId,
+            name: attrName,
+            attribute_kind: 'factual',
+            data_type: 'text',
+            default_extraction_instruction: `Estrai "${attrName}" dalle fonti: solo il dato dichiarato, non stimare.`,
+            default_generation_instruction: `Usa "${attrName}" nel testo solo se presente tra i fatti verificati.`,
+            is_system: false,
+            status: 'active',
+            version: 1,
+          })
+          .select('id, key, name')
+          .single();
+        attr = created ?? null;
+      }
+      if (attr) {
+        const opt: PresetAttributeOption = {
+          id: attr.id,
+          key: attr.key ?? null,
+          name: attr.name,
+          dataType: 'text',
+          isRequired: false,
+        };
+        extraColMap.set(header, opt);
+        // Anche i campi liberi contano come fatti "aggiuntivi" per l'eleggibilità.
+        if (!attrById.has(opt.id)) {
+          attrById.set(opt.id, { ...opt, key: opt.key ?? canonicalKey(opt) });
+        }
+      }
+    }
+  }
 
   const spreadsheet = await loadBatchSpreadsheet(service, input.batchId);
   const imageItems = await loadImageItems(service, input.batchId);
@@ -1133,6 +1195,16 @@ export async function confirmImportV2(input: {
         if (attr.key === 'product_name' && !name) name = value;
         if (attr.key === 'category' && !category) category = value;
       }
+      // Colonne libere: ogni valore diventa un fatto passato all'AI.
+      for (const [header, attr] of extraColMap) {
+        const value = (row[header] ?? '').trim();
+        if (value === '') continue;
+        const ck = canonicalKey(attr);
+        if (canonical[ck] !== undefined) continue; // già valorizzato altrove
+        canonical[ck] = value;
+        pavRows.push({ attribute_id: attr.id, value });
+      }
+
       // La colonna Categoria dedicata (se scelta) ha la priorità: è il modo
       // esplicito con cui l'utente assegna la categoria, indipendentemente dagli
       // attributi del preset.

@@ -186,6 +186,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [attributes, setAttributes] = useState<PresetAttributeOption[] | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  // Colonne libere del file da importare come fatti: header -> nome attributo.
+  const [extraCols, setExtraCols] = useState<Record<string, string>>({});
 
   // Step 9
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
@@ -303,6 +305,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         skuHeader: hasSpreadsheet ? skuHeader : '',
         attributeMapping: hasSpreadsheet ? mapping : {},
         categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
+        extraColumns: hasSpreadsheet
+          ? Object.entries(extraCols).map(([header, name]) => ({ header, name: name || header }))
+          : undefined,
         options,
       });
       if (!imp.ok) {
@@ -622,7 +627,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         />
       )}
 
-      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} />}
+      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
 
       {stepId === 9 && batchId && (
         <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} />
@@ -1345,7 +1350,7 @@ function Step7({
             value={categoryHeader}
             onChange={(e) => setCategoryHeader(e.target.value)}
           >
-            <option value="">— Nessuna: la categoria non viene assegnata —</option>
+            <option value="">— Nessuna colonna: la categoria viene dedotta dall’AI dalle foto —</option>
             {headers.map((h) => (
               <option key={h} value={h} disabled={h === skuHeader}>
                 {h}
@@ -1438,6 +1443,8 @@ function Step8({
   setMapping,
   skuHeader,
   categoryHeader,
+  extraCols,
+  setExtraCols,
 }: {
   attributes: PresetAttributeOption[] | null;
   headers: string[];
@@ -1445,6 +1452,8 @@ function Step8({
   setMapping: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
   skuHeader: string;
   categoryHeader: string;
+  extraCols: Record<string, string>;
+  setExtraCols: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
 }) {
   if (attributes === null) {
     return (
@@ -1486,6 +1495,90 @@ function Step8({
             </Select>
           </div>
         ))}
+      </div>
+
+      <FreeColumnsSection
+        headers={headers}
+        mapping={mapping}
+        skuHeader={skuHeader}
+        categoryHeader={categoryHeader}
+        extraCols={extraCols}
+        setExtraCols={setExtraCols}
+      />
+    </div>
+  );
+}
+
+/**
+ * "Altre colonne del file": qualsiasi colonna non ancora usata può essere
+ * importata come dato in più (fatto passato all'AI). Il nome è modificabile.
+ */
+function FreeColumnsSection({
+  headers,
+  mapping,
+  skuHeader,
+  categoryHeader,
+  extraCols,
+  setExtraCols,
+}: {
+  headers: string[];
+  mapping: Record<string, string>;
+  skuHeader: string;
+  categoryHeader: string;
+  extraCols: Record<string, string>;
+  setExtraCols: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
+}) {
+  const used = new Set<string>([skuHeader, categoryHeader, ...Object.values(mapping)].filter(Boolean));
+  const available = headers.filter((h) => !used.has(h));
+  if (available.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4">
+      <p className="text-sm font-medium text-gray-800">Altre colonne del file</p>
+      <p className="mt-0.5 text-xs text-gray-600">
+        Spunta le colonne extra da importare come dato (es. «descrizione materiale», «prezzo»). Ogni
+        dato in più viene passato all’AI e resta comunque sotto l’audit anti-invenzione. Puoi
+        rinominare il campo.
+      </p>
+      <div className="mt-3 space-y-2">
+        {available.map((h) => {
+          const checked = h in extraCols;
+          return (
+            <div key={h} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[auto_1fr_1fr]">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setExtraCols((prev) => {
+                      const next = { ...prev };
+                      if (on) next[h] = h;
+                      else delete next[h];
+                      return next;
+                    });
+                  }}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span className="font-mono text-xs text-gray-600">{h}</span>
+              </label>
+              {checked ? (
+                <>
+                  <span className="hidden text-center text-xs text-gray-400 sm:block">→</span>
+                  <Input
+                    value={extraCols[h] ?? h}
+                    onChange={(e) =>
+                      setExtraCols((prev) => ({ ...prev, [h]: e.target.value }))
+                    }
+                    placeholder="Nome del campo"
+                    aria-label={`Nome del campo per ${h}`}
+                  />
+                </>
+              ) : (
+                <span className="text-xs text-gray-400 sm:col-span-2">non importata</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
