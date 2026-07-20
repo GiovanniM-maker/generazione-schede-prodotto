@@ -331,17 +331,15 @@ export async function runVisualExtractionForBatch(input: {
   let attributesSuggested = 0;
   let productsWithTruncatedImages = 0;
 
-  for (const productId of targets) {
+  // Elabora UN prodotto: legge le immagini e scrive i valori estratti.
+  async function processProduct(productId: string): Promise<void> {
     // Idempotenza: salta i prodotti già letti dalle immagini (evita ri-billing),
     // a meno che non sia richiesto force.
-    if (!input.force && alreadyExtracted.has(productId)) continue;
+    if (!input.force && alreadyExtracted.has(productId)) return;
     const allItems = imagesByProduct.get(productId) ?? [];
     const productItems = allItems.slice(0, MAX_IMAGES_PER_PRODUCT);
     if (allItems.length > MAX_IMAGES_PER_PRODUCT) {
       productsWithTruncatedImages++;
-      console.warn(
-        `[visual] prodotto ${productId}: ${allItems.length} immagini, analizzate solo le prime ${MAX_IMAGES_PER_PRODUCT}.`,
-      );
     }
 
     // Signed URL per ogni immagine (evita il base64 per restare leggeri).
@@ -366,11 +364,11 @@ export async function runVisualExtractionForBatch(input: {
       });
       if (!firstItemId) firstItemId = item.id;
     }
-    if (images.length === 0) continue;
+    if (images.length === 0) return;
 
     // Campi da estrarre in base alla categoria del prodotto (scoping) o globali.
     const { allowedFields, fieldSpecs } = fieldsForCategory(categoryByProduct.get(productId) ?? null);
-    if (allowedFields.length === 0) continue;
+    if (allowedFields.length === 0) return;
 
     let result;
     try {
@@ -382,7 +380,7 @@ export async function runVisualExtractionForBatch(input: {
       });
     } catch (err) {
       console.warn(`[visual] estrazione fallita per prodotto ${productId}:`, err);
-      continue;
+      return;
     }
     productsProcessed++;
 
@@ -412,7 +410,7 @@ export async function runVisualExtractionForBatch(input: {
       const status = isUsableFact ? 'extracted_from_image' : 'inferred_visual';
 
       const payload = {
-        organization_id: orgId,
+        organization_id: orgId as string,
         product_id: productId,
         attribute_id: attributeId,
         value_json: value as unknown as Json,
@@ -439,6 +437,19 @@ export async function runVisualExtractionForBatch(input: {
     }
     pavByProduct.set(productId, existing);
   }
+
+  // Elabora i prodotti in PARALLELO con concorrenza limitata: riduce il tempo
+  // totale (le chiamate di visione sono I/O-bound) restando nei limiti di durata.
+  const CONCURRENCY = 5;
+  let cursor = 0;
+  async function poolWorker(): Promise<void> {
+    while (cursor < targets.length) {
+      const productId = targets[cursor++];
+      if (!productId) break;
+      await processProduct(productId);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, poolWorker));
 
   await service.from('app_events').insert({
     organization_id: orgId,

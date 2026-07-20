@@ -1704,6 +1704,17 @@ function Step11({ importSummary }: { importSummary: { imported: number; valid: n
               {importSummary.imageOnly > 0 && <li>{importSummary.imageOnly} prodotti solo-immagini</li>}
             </ul>
           )}
+          {importSummary && importSummary.imageOnly > 0 && (
+            <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-3 text-brand-accent">
+              <p className="font-medium">Prodotti solo-immagini</p>
+              <p className="mt-0.5 text-gray-600">
+                All’avvio l’AI legge automaticamente le etichette delle foto ed estrae i dati (peso,
+                ingredienti, valori nutrizionali…). I prodotti con abbastanza dati leggibili
+                diventano idonei e vengono generati; l’eventuale conteggio «idonei» qui sopra si
+                aggiorna dopo la lettura.
+              </p>
+            </div>
+          )}
           <p>Verrà riservato 1 credito per ogni prodotto idoneo. La generazione avviene in background.</p>
           <div className="flex items-center gap-2 text-gray-500">
             <ImageIcon className="h-4 w-4" /> Potrai rivedere e correggere i risultati al termine.
