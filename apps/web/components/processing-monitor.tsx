@@ -48,6 +48,31 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
     };
   }, [poll]);
 
+  // Motore di elaborazione lato serverless: finché la pagina è aperta, drena la
+  // coda (fa il lavoro del worker). Ogni chiamata elabora fino a esaurire i job o
+  // il tempo massimo, poi ricomincia finché la coda non è vuota.
+  useEffect(() => {
+    let active = true;
+    async function drainLoop() {
+      while (active) {
+        let empty = false;
+        try {
+          const r = await fetch('/api/cron/drain', { method: 'POST' });
+          const body = (await r.json().catch(() => ({}))) as { empty?: boolean };
+          empty = body.empty === true;
+        } catch {
+          /* riprova dopo la pausa */
+        }
+        if (!active || empty) return;
+        await new Promise((res) => setTimeout(res, 2000));
+      }
+    }
+    void drainLoop();
+    return () => {
+      active = false;
+    };
+  }, [batchId]);
+
   const total = progress?.total ?? 0;
   const processed = progress?.processed ?? 0;
   const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
