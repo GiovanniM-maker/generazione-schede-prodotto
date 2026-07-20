@@ -40,6 +40,7 @@ import {
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
+import { CategoryAssigner } from '@/components/batch/category-assigner';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -1693,6 +1694,7 @@ function Step9({
           Impostazioni → Categorie (Importa lista) e reimportare.
         </p>
       )}
+      {products.length > 0 && <CategoryAssigner batchId={batchId} />}
       {products.length === 0 ? (
         <p className="text-sm text-gray-500">Nessun prodotto importato. Torna indietro e controlla la colonna SKU o le sorgenti.</p>
       ) : (
