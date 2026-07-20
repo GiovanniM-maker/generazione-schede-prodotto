@@ -25,6 +25,7 @@ import {
   uploadBatchFiles,
   createImageUploadTargets,
   registerUploadedImages,
+  reparseImageSkus,
   analyzeBatch,
   getBatchPresetAttributes,
   confirmImportV2,
@@ -161,6 +162,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [spreadsheetResult, setSpreadsheetResult] = useState<UploadSpreadsheetResult | null>(null);
   const [imagesResult, setImagesResult] = useState<UploadImagesResult | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const [skuDelimiter, setSkuDelimiter] = useState<'_' | '-' | '.' | ' '>('_');
+  const [reparsing, setReparsing] = useState(false);
 
   // Step 6
   const [analysis, setAnalysis] = useState<AnalyzeData | null>(null);
@@ -479,6 +482,26 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     }
   }
 
+  function changeSkuDelimiter(d: '_' | '-' | '.' | ' ') {
+    setSkuDelimiter(d);
+    if (!batchId) return;
+    setError(null);
+    setReparsing(true);
+    reparseImageSkus({ batchId, delimiter: d })
+      .then((res) => {
+        setReparsing(false);
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        setImagesResult(res.data);
+      })
+      .catch(() => {
+        setReparsing(false);
+        setError('Ricalcolo SKU non riuscito. Riprova.');
+      });
+  }
+
   async function runSample() {
     if (!batchId) return;
     setBusy(true);
@@ -562,6 +585,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           uploadProgress={uploadProgress}
           onUploadSpreadsheet={doUploadSpreadsheet}
           onUploadImages={doUploadImages}
+          skuDelimiter={skuDelimiter}
+          onChangeDelimiter={changeSkuDelimiter}
+          reparsing={reparsing}
         />
       )}
 
@@ -1009,6 +1035,9 @@ function Step5({
   uploadProgress,
   onUploadSpreadsheet,
   onUploadImages,
+  skuDelimiter,
+  onChangeDelimiter,
+  reparsing,
 }: {
   hasSpreadsheet: boolean;
   hasImages: boolean;
@@ -1018,6 +1047,9 @@ function Step5({
   uploadProgress: { done: number; total: number } | null;
   onUploadSpreadsheet: (file: File) => void;
   onUploadImages: (files: FileList | File[]) => void;
+  skuDelimiter: '_' | '-' | '.' | ' ';
+  onChangeDelimiter: (d: '_' | '-' | '.' | ' ') => void;
+  reparsing: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   return (
@@ -1102,7 +1134,38 @@ function Step5({
             </div>
           )}
           {imagesResult && (
-            <div className="mt-3 space-y-2 text-sm">
+            <div className="mt-3 space-y-3 text-sm">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-gray-700">Separatore SKU:</span>
+                  {([
+                    { d: '_' as const, label: 'trattino_basso' },
+                    { d: '-' as const, label: 'trattino -' },
+                    { d: '.' as const, label: 'punto .' },
+                    { d: ' ' as const, label: 'spazio' },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.d}
+                      type="button"
+                      disabled={reparsing}
+                      onClick={() => onChangeDelimiter(opt.d)}
+                      className={
+                        skuDelimiter === opt.d
+                          ? 'rounded-md border border-brand-accent bg-brand-accent px-2.5 py-1 text-xs font-medium text-white'
+                          : 'rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:border-gray-400'
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  {reparsing && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Lo SKU è la parte del nome file <strong>prima</strong> del separatore. Es.
+                  «100356-image_IT.jpg» con separatore «-» → SKU «100356». Le immagini con lo stesso
+                  SKU vengono raggruppate sullo stesso prodotto.
+                </p>
+              </div>
               <div className="flex items-center gap-3">
                 <Badge tone="green">{imagesResult.validCount} valide</Badge>
                 <Badge tone="amber">{imagesResult.invalidCount} da controllare</Badge>
