@@ -28,6 +28,43 @@ export interface PresetGenerationSpec {
   attributes: { key: string; name: string; isRequired: boolean }[];
 }
 
+/**
+ * Traduce il tipo di dato di un attributo in un'istruzione di formattazione per
+ * il modello, così il TIPO impatta realmente il prompt (booleano, enum, numero,
+ * percentuale, misura, valuta...).
+ */
+function dataTypeHint(
+  name: string,
+  dataType: string | null | undefined,
+  unit: string | null | undefined,
+  enumValues: unknown,
+): string | null {
+  const n = name || 'attributo';
+  switch (dataType) {
+    case 'boolean':
+      return `${n}: è un valore sì/no. Menziona la caratteristica SOLO se il valore è vero/sì; se è falso/no non citarla e non negarla in modo enfatico.`;
+    case 'enum':
+    case 'multi_enum': {
+      const vals = Array.isArray(enumValues)
+        ? (enumValues as unknown[]).filter((v): v is string => typeof v === 'string')
+        : [];
+      const list = vals.length ? ` (valori ammessi: ${vals.join(', ')})` : '';
+      return `${n}: usa esattamente il valore fornito${list}; non sostituirlo con sinonimi.`;
+    }
+    case 'integer':
+    case 'decimal':
+      return `${n}: è un numero. Riportalo fedelmente${unit ? ` con l'unità "${unit}"` : ''}; non arrotondare né inventare cifre.`;
+    case 'percentage':
+      return `${n}: è una percentuale. Esprimila con il simbolo % e il valore esatto fornito.`;
+    case 'currency':
+      return `${n}: è un importo. Riportalo con la valuta/unità indicata, senza alterarlo.`;
+    case 'measurement':
+      return `${n}: è una misura${unit ? ` in "${unit}"` : ''}. Includi l'unità e non convertire.`;
+    default:
+      return null;
+  }
+}
+
 /** Carica settore + istruzioni di generazione effettive dagli attributi del preset. */
 export async function loadPresetGenerationSpec(
   client: TypedClient,
@@ -58,7 +95,7 @@ export async function loadPresetGenerationSpec(
   const { data: attrs } = attrIds.length
     ? await client
         .from('attributes')
-        .select('id, key, name, attribute_kind, default_generation_instruction')
+        .select('id, key, name, attribute_kind, data_type, unit, enum_values_json, default_generation_instruction')
         .in('id', attrIds)
     : { data: [] };
   const attrMap = new Map((attrs ?? []).map((a) => [a.id, a]));
@@ -71,6 +108,13 @@ export async function loadPresetGenerationSpec(
     const a = attrMap.get(p.attribute_id);
     const instr = p.generation_instruction_override ?? a?.default_generation_instruction ?? null;
     if (instr && instr.trim()) instructions.push(`${a?.name ?? ''}: ${instr}`.trim());
+    // Suggerimento derivato dal TIPO DI DATO: fa sì che booleani, enum, numeri,
+    // percentuali, misure ecc. influenzino davvero la generazione (formattazione
+    // e uso corretto del valore).
+    if (a) {
+      const hint = dataTypeHint(a.name, a.data_type, a.unit, a.enum_values_json);
+      if (hint) instructions.push(hint);
+    }
     const key = a?.key ?? a?.name;
     if (key && !seenKeys.has(key)) {
       seenKeys.add(key);

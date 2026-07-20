@@ -159,8 +159,15 @@ const COPILOT_ATTRIBUTE_RULES = [
   'Stai configurando un ATTRIBUTO di prodotto.',
   'attributeKind ammessi: "factual" (fattuale, dato dichiarato), "derived" (derivato), "generative" (generativo).',
   'dataType ammessi: text, long_text, integer, decimal, boolean, date, enum, multi_enum, measurement, percentage, currency, json.',
-  'Se dataType è enum o multi_enum, proponi enumValues coerenti; per measurement/percentage/currency proponi una unit adeguata.',
-  'Fornisci extractionInstruction (come estrarre il dato dalle fonti) e generationInstruction (come usarlo nel testo).',
+  'DEDUCI SEMPRE il dataType dal linguaggio dell\'utente e imposta il campo dataType:',
+  '- "sì/no", "vero/falso", "booleano", "flag", "presente/assente" → boolean.',
+  '- "a scelta", "select", "menu", "una tra queste opzioni", "elenco di valori" → enum (single) o multi_enum (se più valori contemporanei), e popola SEMPRE enumValues con le opzioni indicate.',
+  '- "numero", "quantità", "conteggio" → integer; con decimali → decimal.',
+  '- "percentuale", "%" → percentage.',
+  '- "prezzo", "costo", "importo" → currency (imposta una unit valuta, es. EUR).',
+  '- "misura", "peso", "lunghezza", "dimensione" → measurement e imposta la unit (es. cm, g, ml).',
+  'Se dataType è enum o multi_enum, enumValues è OBBLIGATORIO; per measurement/percentage/currency proponi una unit adeguata.',
+  'Fornisci extractionInstruction (come estrarre il dato dalle fonti) e generationInstruction (come usarlo nel testo, coerente col tipo: es. per boolean "cita solo se vero", per percentage "esprimi con %").',
   'categoryKeys è la lista facoltativa di categorie a cui collegare l\'attributo; isRequired indica se è obbligatorio in quelle categorie.',
 ];
 

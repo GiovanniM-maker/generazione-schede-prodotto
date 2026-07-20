@@ -4,18 +4,17 @@ import {
   Plus,
   PackageOpen,
   ArrowRight,
-  Download,
   Check,
   Settings2,
 } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
 import { getCreditBalance } from '@/lib/credits';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { formatDate, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge } from '@/components/status-badge';
+import { RecentBatchCard } from '@/components/recent-batch-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -295,52 +294,22 @@ export default async function DashboardPage() {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {batches.map((b) => {
-              const total = b.total_products ?? 0;
-              const processed = b.processed_products ?? 0;
-              const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
-              const isCompleted =
-                b.status === 'completed' || b.status === 'partial_failed';
-              return (
-                <Card key={b.id}>
-                  <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate font-semibold text-gray-900">
-                          {b.name}
-                        </h3>
-                        <StatusBadge status={b.status} />
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                        <span>{total} prodotti</span>
-                        {total > 0 && (
-                          <span>
-                            {processed}/{total} elaborati ({pct}%)
-                          </span>
-                        )}
-                        <span>Creato il {formatDate(b.created_at)}</span>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {isCompleted && (
-                        <Link href={`/app/batches/${b.id}/results`}>
-                          <Button variant="outline" size="sm">
-                            <Download className="h-4 w-4" />
-                            Esporta
-                          </Button>
-                        </Link>
-                      )}
-                      <Link href={batchHref(b.id, b.status)}>
-                        <Button variant="secondary" size="sm">
-                          Apri
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {batches.map((b) => (
+              <RecentBatchCard
+                key={b.id}
+                batch={{
+                  id: b.id,
+                  name: b.name,
+                  status: b.status,
+                  total: b.total_products ?? 0,
+                  processed: b.processed_products ?? 0,
+                  createdAt: b.created_at,
+                  href: batchHref(b.id, b.status),
+                  isCompleted:
+                    b.status === 'completed' || b.status === 'partial_failed',
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
