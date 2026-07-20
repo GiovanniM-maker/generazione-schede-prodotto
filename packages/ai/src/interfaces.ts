@@ -9,6 +9,8 @@ import type {
   ProductCopyInput,
   PromptImproveInput,
   PromptImproveOutput,
+  PresetPlanInput,
+  PresetPlanOutput,
   VisualExtraction,
   VisualExtractionInput,
 } from '@app/core';
@@ -63,6 +65,15 @@ export interface PromptImproveProvider {
   improvePrompt(input: PromptImproveInput): Promise<AiResult<PromptImproveOutput>>;
 }
 
+/**
+ * Costruttore di preset: pianifica un intero preset (categorie + attributi +
+ * tipi) da una richiesta in linguaggio naturale, in una sola chiamata. Non
+ * scrive nel catalogo: la creazione avviene poi in modo deterministico.
+ */
+export interface PresetPlanProvider {
+  planPreset(input: PresetPlanInput): Promise<AiResult<PresetPlanOutput>>;
+}
+
 // ---------------------------------------------------------------------------
 // Trascrizione audio (Fase 6). Nota: OpenRouter NON supporta l'audio (solo
 // chat-completions), quindi la trascrizione reale usa OpenAI Whisper. È
@@ -92,5 +103,6 @@ export interface AiProviders {
   factAudit: FactAuditProvider;
   copilot: CopilotProvider;
   promptImprove: PromptImproveProvider;
+  presetPlan: PresetPlanProvider;
   transcription: TranscriptionProvider;
 }

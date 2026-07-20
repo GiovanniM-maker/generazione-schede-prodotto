@@ -9,11 +9,18 @@ export interface RateLimitConfig {
   windowSeconds: number;
 }
 
-export type AiAction = 'copilot' | 'prompt_improve' | 'visual' | 'sample' | 'transcribe';
+export type AiAction =
+  | 'copilot'
+  | 'prompt_improve'
+  | 'preset_plan'
+  | 'visual'
+  | 'sample'
+  | 'transcribe';
 
 export const AI_RATE_LIMITS: Record<AiAction, RateLimitConfig> = {
   copilot: { max: 30, windowSeconds: 60 },
   prompt_improve: { max: 10, windowSeconds: 60 },
+  preset_plan: { max: 10, windowSeconds: 60 },
   visual: { max: 8, windowSeconds: 60 },
   sample: { max: 20, windowSeconds: 60 },
   transcribe: { max: 20, windowSeconds: 60 },

@@ -10,18 +10,22 @@ import {
   buildCopilotUserPrompt,
   buildPromptImproveSystemPrompt,
   buildPromptImproveUserPrompt,
+  buildPresetPlanSystemPrompt,
+  buildPresetPlanUserPrompt,
   brandProfileSchema,
   productCopySchema,
   factAuditSchema,
   visualExtractionSchema,
   copilotOutputSchema,
   promptImproveOutputSchema,
+  presetPlanOutputSchema,
   BRAND_PROFILE_JSON_SCHEMA,
   PRODUCT_COPY_JSON_SCHEMA,
   FACT_AUDIT_JSON_SCHEMA,
   VISUAL_EXTRACTION_JSON_SCHEMA,
   COPILOT_JSON_SCHEMA,
   PROMPT_IMPROVE_JSON_SCHEMA,
+  PRESET_PLAN_JSON_SCHEMA,
   type BrandProfile,
   type BrandProfileInput,
   type CopilotInput,
@@ -32,6 +36,8 @@ import {
   type ProductCopyInput,
   type PromptImproveInput,
   type PromptImproveOutput,
+  type PresetPlanInput,
+  type PresetPlanOutput,
   type VisualExtraction,
   type VisualExtractionInput,
 } from '@app/core';
@@ -43,6 +49,7 @@ import type {
   FactAuditProvider,
   ProductCopyProvider,
   PromptImproveProvider,
+  PresetPlanProvider,
   UsageInfo,
   VisualExtractionProvider,
 } from './interfaces.js';
@@ -80,7 +87,8 @@ export class OpenAiProviders
     VisualExtractionProvider,
     FactAuditProvider,
     CopilotProvider,
-    PromptImproveProvider
+    PromptImproveProvider,
+    PresetPlanProvider
 {
   private client: OpenAI;
 
@@ -232,5 +240,16 @@ export class OpenAiProviders
       PROMPT_IMPROVE_JSON_SCHEMA,
       promptImproveOutputSchema,
     ) as Promise<AiResult<PromptImproveOutput>>;
+  }
+
+  async planPreset(input: PresetPlanInput): Promise<AiResult<PresetPlanOutput>> {
+    return this.structured(
+      this.config.models.copilot,
+      buildPresetPlanSystemPrompt(),
+      buildPresetPlanUserPrompt(input),
+      'preset_plan',
+      PRESET_PLAN_JSON_SCHEMA,
+      presetPlanOutputSchema,
+    ) as Promise<AiResult<PresetPlanOutput>>;
   }
 }

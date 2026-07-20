@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { PresetCopilotPanel } from '@/components/settings/preset-copilot-panel';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -64,6 +65,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
   const [importCatText, setImportCatText] = useState('');
   const [importCatMsg, setImportCatMsg] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
   function handleImportAttrs() {
     setError(null);
@@ -151,15 +153,22 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="group relative">
-            <Button variant="outline" size="sm" disabled>
-              <Sparkles className="h-4 w-4" />
-              Chiedi al Copilot
-            </Button>
-            <span className="pointer-events-none absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-              Disponibile a breve
-            </span>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setCopilotOpen(true);
+            }}
+            title={
+              editable
+                ? 'Costruisci il preset con l’AI'
+                : 'Verrà creata una bozza per applicare le modifiche'
+            }
+          >
+            <Sparkles className="h-4 w-4" />
+            Chiedi al Copilot
+          </Button>
           {editable && (
             <>
               <Button
@@ -497,6 +506,21 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Costruttore di preset con AI */}
+      <Modal
+        open={copilotOpen}
+        onClose={() => setCopilotOpen(false)}
+        title="Costruisci il preset con l'AI"
+        className="max-w-2xl"
+      >
+        {copilotOpen && (
+          <PresetCopilotPanel
+            presetId={detail.preset.id}
+            onClose={() => setCopilotOpen(false)}
+          />
+        )}
       </Modal>
 
       {/* Svuota preset */}
