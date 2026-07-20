@@ -753,50 +753,95 @@ function AddCategoryModal({
 }: {
   open: boolean;
   onClose: () => void;
-  available: { id: string; name: string; isSystem: boolean }[];
+  available: { id: string; name: string; isSystem: boolean; createdAt: string }[];
   versionId: string;
   onError: (msg: string | null) => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [value, setValue] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+
+  const filtered = available.filter((c) =>
+    search.trim() ? c.name.toLowerCase().includes(search.trim().toLowerCase()) : true,
+  );
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function submit() {
-    const categoryId = value || available[0]?.id;
-    if (!categoryId) return;
+    const ids = [...selected];
+    if (ids.length === 0) return;
     onError(null);
     startTransition(async () => {
-      const res = await addCategoryToPreset({
-        presetVersionId: versionId,
-        categoryId,
-      });
-      if (!res.ok) {
-        onError(res.error);
-        return;
+      for (const categoryId of ids) {
+        const res = await addCategoryToPreset({ presetVersionId: versionId, categoryId });
+        if (!res.ok) {
+          onError(res.error);
+          return;
+        }
       }
+      setSelected(new Set());
       onClose();
       router.refresh();
     });
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Aggiungi categoria">
-      <div className="space-y-4">
-        <Select value={value} onChange={(e) => setValue(e.target.value)}>
-          {available.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-              {c.isSystem ? ' (sistema)' : ''}
-            </option>
-          ))}
-        </Select>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Annulla
-          </Button>
-          <Button size="sm" onClick={submit} disabled={pending}>
-            Aggiungi
-          </Button>
+    <Modal open={open} onClose={onClose} title="Aggiungi categorie">
+      <div className="space-y-3">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Cerca categoria…"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          aria-label="Cerca categoria"
+        />
+        <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-1">
+          {filtered.length === 0 ? (
+            <p className="px-2 py-4 text-center text-sm text-gray-400">
+              Nessuna categoria disponibile.
+            </p>
+          ) : (
+            filtered.map((c) => (
+              <label
+                key={c.id}
+                className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={selected.has(c.id)}
+                  onChange={() => toggle(c.id)}
+                />
+                <span className="flex-1 text-gray-900">
+                  {c.name}
+                  {c.isSystem && <span className="ml-1 text-xs text-gray-400">(sistema)</span>}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {new Date(c.createdAt).toLocaleDateString('it-IT')}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500">{selected.size} selezionate</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Annulla
+            </Button>
+            <Button size="sm" onClick={submit} disabled={pending || selected.size === 0}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Aggiungi ({selected.size})
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
