@@ -6,6 +6,8 @@ import {
   parseCsv,
   parseXlsx,
   extractSkuFromFilename,
+  SKU_DELIMITERS,
+  type SkuDelimiter,
   suggestImageType,
   isSupportedImage,
   validateRowSku,
@@ -722,6 +724,57 @@ export async function registerUploadedImages(input: {
   await service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId);
 
   return ok({ kind: 'images', files: summaries, validCount, invalidCount });
+}
+
+/**
+ * Ri-estrae lo SKU dai nomi file delle immagini già caricate usando il
+ * separatore scelto dall'utente (es. "-" per "100356-image_IT.jpg" → "100356").
+ * Aggiorna detected_sku + status dei source_items. Va usata PRIMA della conferma
+ * import (quando i prodotti non sono ancora creati).
+ */
+export async function reparseImageSkus(input: {
+  batchId: string;
+  delimiter: string;
+}): Promise<ActionResult<UploadImagesResult>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+  const items = await loadImageItems(service, input.batchId);
+  if (items.length === 0) return ok({ kind: 'images', files: [], validCount: 0, invalidCount: 0 });
+
+  const delimiter: SkuDelimiter | string = SKU_DELIMITERS.includes(input.delimiter as SkuDelimiter)
+    ? input.delimiter
+    : '_';
+
+  let validCount = 0;
+  let invalidCount = 0;
+  const files: UploadedFileSummary[] = [];
+  const updates = items.map((it) => {
+    const sku = extractSkuFromFilename(it.filename, delimiter);
+    const status = sku ? 'valid' : 'missing_sku';
+    if (sku) validCount++;
+    else invalidCount++;
+    files.push({
+      filename: it.filename,
+      sku,
+      status,
+      problem: sku ? null : 'SKU non riconosciuto con questo separatore',
+    });
+    return { id: it.id, sku, status };
+  });
+
+  const CHUNK = 20;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    await Promise.all(
+      updates
+        .slice(i, i + CHUNK)
+        .map((u) =>
+          service.from('source_items').update({ detected_sku: u.sku, status: u.status }).eq('id', u.id),
+        ),
+    );
+  }
+
+  return ok({ kind: 'images', files, validCount, invalidCount });
 }
 
 // ---------------------------------------------------------------------------

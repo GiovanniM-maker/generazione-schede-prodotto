@@ -21,23 +21,39 @@ export type ImageType = (typeof IMAGE_TYPES)[number];
 /** Estensioni immagine ammesse. */
 export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as const;
 
+/** Separatori ammessi fra lo SKU e il resto del nome file. */
+export const SKU_DELIMITERS = ['_', '-', '.', ' '] as const;
+export type SkuDelimiter = (typeof SKU_DELIMITERS)[number];
+
 /**
- * Estrae lo SKU dal nome file immagine. Lo SKU è la parte PRIMA del primo
- * underscore. Nell'MVP lo SKU NON può contenere underscore; può contenere
- * lettere, numeri, trattini e punti (regex ^[A-Za-z0-9.-]+_).
+ * Estrae lo SKU dal nome file immagine: è la parte PRIMA del primo separatore
+ * scelto (default underscore). Lo SKU non può contenere il separatore; può
+ * contenere lettere, numeri, trattini e punti.
  *
- *   TSHIRT001_front.jpg → "TSHIRT001"
- *   ABC-123_1.webp      → "ABC-123"
- *   ABC_123_front.jpg   → "ABC"   (parte prima del primo underscore)
- *   front.jpg           → null    (nessun underscore)
+ *   TSHIRT001_front.jpg              → "TSHIRT001"      (delim "_")
+ *   ABC-123_1.webp                   → "ABC-123"        (delim "_")
+ *   100356-image_IT.jpg  (delim "-") → "100356"
+ *   front.jpg                        → null    (nessun separatore)
  */
-export function extractSkuFromFilename(filename: string): string | null {
+export function extractSkuFromFilename(
+  filename: string,
+  delimiter: SkuDelimiter | string = '_',
+): string | null {
   if (!filename) return null;
   // Scarta eventuale percorso, tiene solo il nome file.
   const base = filename.split(/[\\/]/).pop() ?? filename;
-  const underscore = base.indexOf('_');
-  if (underscore <= 0) return null; // nessun underscore o underscore iniziale
-  const candidate = base.slice(0, underscore);
+  // Rimuovi l'estensione immagine, così lo SKU non la include (indispensabile
+  // se il separatore scelto è ".").
+  let name = base;
+  for (const ext of IMAGE_EXTENSIONS) {
+    if (name.toLowerCase().endsWith(ext)) {
+      name = name.slice(0, name.length - ext.length);
+      break;
+    }
+  }
+  const idx = name.indexOf(delimiter);
+  if (idx <= 0) return null; // nessun separatore o separatore iniziale
+  const candidate = name.slice(0, idx).trim();
   if (!/^[A-Za-z0-9.-]+$/.test(candidate)) return null;
   return candidate;
 }
