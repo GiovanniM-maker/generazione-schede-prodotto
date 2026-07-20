@@ -922,6 +922,8 @@ export async function confirmImportV2(input: {
   batchId: string;
   skuHeader: string;
   attributeMapping: Record<string, string>; // attributeId -> header
+  /** Colonna del file che contiene la categoria merceologica (opzionale). */
+  categoryHeader?: string;
   options: { includeImageOnly: boolean; excludeIncomplete: boolean };
 }): Promise<ActionResult<ImportResultV2>> {
   const user = await getSessionUser();
@@ -1074,6 +1076,13 @@ export async function confirmImportV2(input: {
         pavRows.push({ attribute_id: attributeId, value });
         if (attr.key === 'product_name' && !name) name = value;
         if (attr.key === 'category' && !category) category = value;
+      }
+      // La colonna Categoria dedicata (se scelta) ha la priorità: è il modo
+      // esplicito con cui l'utente assegna la categoria, indipendentemente dagli
+      // attributi del preset.
+      if (input.categoryHeader) {
+        const catVal = (row[input.categoryHeader] ?? '').trim();
+        if (catVal) category = catVal;
       }
       if (!name) name = sku;
 

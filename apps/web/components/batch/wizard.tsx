@@ -167,6 +167,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 7
   const [skuHeader, setSkuHeader] = useState('');
+  const [categoryHeader, setCategoryHeader] = useState('');
   const [importOption, setImportOption] = useState<'complete' | 'includeImageOnly' | 'excludeIncomplete'>('complete');
 
   // Step 8
@@ -262,6 +263,18 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     });
   }, [stepId, batchId, skuHeader]);
 
+  // Step 7: prova a indovinare la colonna Categoria dalle intestazioni.
+  useEffect(() => {
+    if (stepId !== 7 || categoryHeader) return;
+    const hs = spreadsheetResult?.headers ?? [];
+    const guess = hs.find((h) =>
+      ['categoria', 'category', 'reparto', 'famiglia', 'tipologia', 'macrocategoria'].includes(
+        normalize(h),
+      ),
+    );
+    if (guess) setCategoryHeader(guess);
+  }, [stepId, spreadsheetResult, categoryHeader]);
+
   // Step 9: import + prodotti.
   useEffect(() => {
     if (stepId !== 9 || !batchId) return;
@@ -276,6 +289,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         batchId,
         skuHeader: hasSpreadsheet ? skuHeader : '',
         attributeMapping: hasSpreadsheet ? mapping : {},
+        categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
         options,
       });
       if (!imp.ok) {
@@ -561,12 +575,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           headers={spreadsheetResult?.headers ?? []}
           skuHeader={skuHeader}
           setSkuHeader={setSkuHeader}
+          categoryHeader={categoryHeader}
+          setCategoryHeader={setCategoryHeader}
           importOption={importOption}
           setImportOption={setImportOption}
         />
       )}
 
-      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} />}
+      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} />}
 
       {stepId === 9 && batchId && (
         <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} />
@@ -1210,6 +1226,8 @@ function Step7({
   headers,
   skuHeader,
   setSkuHeader,
+  categoryHeader,
+  setCategoryHeader,
   importOption,
   setImportOption,
 }: {
@@ -1219,6 +1237,8 @@ function Step7({
   headers: string[];
   skuHeader: string;
   setSkuHeader: (v: string) => void;
+  categoryHeader: string;
+  setCategoryHeader: (v: string) => void;
   importOption: 'complete' | 'includeImageOnly' | 'excludeIncomplete';
   setImportOption: (v: 'complete' | 'includeImageOnly' | 'excludeIncomplete') => void;
 }) {
@@ -1236,6 +1256,31 @@ function Step7({
             ))}
           </Select>
           <p className="mt-1 text-xs text-gray-500">Le righe senza SKU in questa colonna verranno scartate.</p>
+        </div>
+      )}
+
+      {hasSpreadsheet && (
+        <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4">
+          <Label htmlFor="category-header">Colonna Categoria (consigliata)</Label>
+          <Select
+            id="category-header"
+            value={categoryHeader}
+            onChange={(e) => setCategoryHeader(e.target.value)}
+          >
+            <option value="">— Nessuna: la categoria non viene assegnata —</option>
+            {headers.map((h) => (
+              <option key={h} value={h} disabled={h === skuHeader}>
+                {h}
+                {h === skuHeader ? ' (colonna SKU)' : ''}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1.5 text-xs text-gray-600">
+            La categoria di ogni prodotto viene presa da questa colonna e agganciata in automatico al
+            tuo catalogo (nessuna AI). <strong>Decide quali attributi e istruzioni del preset vengono
+            usati in generazione</strong>: un Vino riceve gli attributi del vino, non quelli della
+            carne. I nomi non presenti nel catalogo verranno segnalati al passo successivo.
+          </p>
         </div>
       )}
 
@@ -1314,12 +1359,14 @@ function Step8({
   mapping,
   setMapping,
   skuHeader,
+  categoryHeader,
 }: {
   attributes: PresetAttributeOption[] | null;
   headers: string[];
   mapping: Record<string, string>;
   setMapping: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
   skuHeader: string;
+  categoryHeader: string;
 }) {
   if (attributes === null) {
     return (
@@ -1352,9 +1399,10 @@ function Step8({
             >
               <option value="">— Nessuna colonna —</option>
               {headers.map((h) => (
-                <option key={h} value={h} disabled={h === skuHeader}>
+                <option key={h} value={h} disabled={h === skuHeader || h === categoryHeader}>
                   {h}
                   {h === skuHeader ? ' (colonna SKU)' : ''}
+                  {h === categoryHeader ? ' (colonna Categoria)' : ''}
                 </option>
               ))}
             </Select>

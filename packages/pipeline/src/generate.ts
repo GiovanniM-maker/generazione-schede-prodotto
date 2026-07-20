@@ -26,6 +26,8 @@ export interface PresetGenerationSpec {
   instructions: string[];
   /** Attributi del preset con chiave/nome e obbligatorietà. */
   attributes: { key: string; name: string; isRequired: boolean }[];
+  /** id categoria a cui è stata ristretta la spec (null = tutti gli attributi). */
+  scopedCategoryId: string | null;
 }
 
 /**
@@ -65,12 +67,22 @@ function dataTypeHint(
   }
 }
 
-/** Carica settore + istruzioni di generazione effettive dagli attributi del preset. */
+/**
+ * Carica settore + istruzioni di generazione effettive dagli attributi del preset.
+ *
+ * Se `opts.categoryId` è valorizzato, la spec viene RISTRETTA agli attributi
+ * collegati a quella categoria (più eventuali attributi "globali" con
+ * category_id null): così la categoria assegnata al prodotto (deterministica,
+ * da Excel) decide quali attributi/istruzioni entrano nel prompt. Senza
+ * categoria si usano tutti gli attributi del preset (fallback).
+ */
 export async function loadPresetGenerationSpec(
   client: TypedClient,
   presetVersionId: string | null,
+  opts?: { categoryId?: string | null },
 ): Promise<PresetGenerationSpec | null> {
   if (!presetVersionId) return null;
+  const categoryId = opts?.categoryId ?? null;
   const { data: pv } = await client
     .from('preset_versions')
     .select('id, preset_id')
@@ -87,10 +99,16 @@ export async function loadPresetGenerationSpec(
     : { data: null };
 
   // Istruzioni di generazione effettive per attributo (override o default).
-  const { data: pas } = await client
+  // Con categoryId: solo gli attributi di quella categoria + gli eventuali
+  // globali (category_id null).
+  let pasQuery = client
     .from('preset_attributes')
-    .select('attribute_id, generation_instruction_override, enabled, is_required')
+    .select('attribute_id, category_id, generation_instruction_override, enabled, is_required')
     .eq('preset_version_id', presetVersionId);
+  if (categoryId) {
+    pasQuery = pasQuery.or(`category_id.eq.${categoryId},category_id.is.null`);
+  }
+  const { data: pas } = await pasQuery;
   const attrIds = [...new Set((pas ?? []).map((p) => p.attribute_id))];
   const { data: attrs } = attrIds.length
     ? await client
@@ -147,7 +165,31 @@ export async function loadPresetGenerationSpec(
     sectorName: sector?.name ?? '',
     instructions,
     attributes,
+    scopedCategoryId: categoryId,
   };
+}
+
+/**
+ * Carica la spec di generazione per un prodotto, applicando lo scoping per
+ * categoria quando il prodotto ha una categoria assegnata. Ritorna anche se si
+ * è ricaduti su "tutti gli attributi" (nessuna categoria o categoria non
+ * rappresentata nel preset), così il chiamante può segnalarlo.
+ */
+async function loadSpecForProduct(
+  client: TypedClient,
+  presetVersionId: string | null,
+  categoryId: string | null,
+): Promise<{ spec: PresetGenerationSpec | null; usedFallback: boolean }> {
+  if (categoryId) {
+    const scoped = await loadPresetGenerationSpec(client, presetVersionId, { categoryId });
+    // Se la categoria assegnata non è rappresentata nel preset (0 attributi),
+    // non generare "a vuoto": ricadi su tutti gli attributi con segnalazione.
+    if (scoped && scoped.attributes.length > 0) {
+      return { spec: scoped, usedFallback: false };
+    }
+    return { spec: await loadPresetGenerationSpec(client, presetVersionId), usedFallback: true };
+  }
+  return { spec: await loadPresetGenerationSpec(client, presetVersionId), usedFallback: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -292,7 +334,7 @@ export async function generateSample(
   // Sceglie il prodotto con il punteggio qualità più alto.
   const { data: products } = await ctx.client
     .from('products')
-    .select('id, canonical_attributes_json, data_quality_score')
+    .select('id, canonical_attributes_json, data_quality_score, category_id')
     .eq('batch_id', batchId)
     .order('data_quality_score', { ascending: false })
     .limit(5);
@@ -308,7 +350,11 @@ export async function generateSample(
     throw new Error('INSUFFICIENT_FACTS: dati insufficienti per generare un campione');
   }
   const { profile } = await loadBrandProfile(ctx.client, batch.brand_profile_version_id);
-  const spec = await loadPresetGenerationSpec(ctx.client, batch.preset_version_id);
+  const { spec } = await loadSpecForProduct(
+    ctx.client,
+    batch.preset_version_id,
+    candidate.category_id ?? null,
+  );
   const { content, audit, completeness } = await generateCopyWithAudit(ctx, facts, profile, spec);
   return { productId: candidate.id, facts, content, audit, completeness };
 }
@@ -373,7 +419,14 @@ export async function runProductGeneration(
     batch.brand_profile_version_id,
   );
 
-  const spec = await loadPresetGenerationSpec(client, batch.preset_version_id);
+  // Categoria assegnata al prodotto (deterministica, da import Excel): decide
+  // quali attributi/istruzioni del preset entrano nel prompt.
+  const { data: prod } = await client
+    .from('products')
+    .select('category_id')
+    .eq('id', job.product_id)
+    .maybeSingle();
+  const { spec } = await loadSpecForProduct(client, batch.preset_version_id, prod?.category_id ?? null);
   const model = ctx.env.OPENAI_MODEL_COPY;
   const inputHash = computeInputHash({
     facts,
