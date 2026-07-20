@@ -23,6 +23,8 @@ import {
   getPresetExplorer,
   setBatchSources,
   uploadBatchFiles,
+  createImageUploadTargets,
+  registerUploadedImages,
   analyzeBatch,
   getBatchPresetAttributes,
   confirmImportV2,
@@ -37,6 +39,7 @@ import {
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -131,6 +134,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 5
   const [spreadsheetResult, setSpreadsheetResult] = useState<UploadSpreadsheetResult | null>(null);
   const [imagesResult, setImagesResult] = useState<UploadImagesResult | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Step 6
   const [analysis, setAnalysis] = useState<AnalyzeData | null>(null);
@@ -328,28 +332,89 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (arr.length === 0) return;
     setBusy(true);
     setError(null);
-    const fd = new FormData();
-    fd.set('batchId', batchId);
-    fd.set('sourceType', 'images');
-    for (const f of arr) fd.append('files', f);
-    const res = await uploadBatchFiles(fd);
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    const data = res.data;
-    if (data.kind === 'images') {
+    setUploadProgress(null);
+    try {
+      // 1) Chiedi gli URL firmati (validazione nome/SKU lato server).
+      const targetsRes = await createImageUploadTargets({
+        batchId,
+        files: arr.map((f) => ({ name: f.name, size: f.size, type: f.type })),
+      });
+      if (!targetsRes.ok) {
+        setError(targetsRes.error);
+        return;
+      }
+      const byName = new Map(arr.map((f) => [f.name, f] as const));
+      const targets = targetsRes.data.targets;
+      const uploaded: {
+        name: string;
+        path: string;
+        size: number;
+        type: string;
+        sku: string | null;
+      }[] = [];
+      const failedSummaries: UploadedFileSummary[] = [];
+
+      // 2) Upload DIRETTO client→storage, in parallelo (concorrenza limitata).
+      const supabase = createSupabaseBrowserClient();
+      const valid = targets.filter((t) => t.valid && t.path && t.token);
+      // Segnala subito i file scartati (nome/formato/SKU non validi in fase 1).
+      for (const t of targets) {
+        if (!t.valid) {
+          failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: t.problem });
+        }
+      }
+      let done = 0;
+      setUploadProgress({ done: 0, total: valid.length });
+      const CONCURRENCY = 6;
+      let idx = 0;
+      async function worker() {
+        while (idx < valid.length) {
+          const t = valid[idx++];
+          if (!t) break;
+          const file = byName.get(t.name);
+          if (!file || !t.path || !t.token) continue;
+          const { error } = await supabase.storage
+            .from(t.bucket)
+            .uploadToSignedUrl(t.path, t.token, file);
+          if (error) {
+            failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: 'Upload fallito' });
+          } else {
+            uploaded.push({ name: t.name, path: t.path, size: file.size, type: file.type, sku: t.sku });
+          }
+          done++;
+          setUploadProgress({ done, total: valid.length });
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, valid.length) }, worker));
+
+      // 3) Registra i metadati dei file caricati (2 query lato server).
+      const reg = await registerUploadedImages({ batchId, items: uploaded });
+      if (!reg.ok) {
+        setError(reg.error);
+        return;
+      }
+      const data = reg.data;
+      const mergedFiles = [...data.files, ...failedSummaries];
       setImagesResult((prev) =>
         prev
           ? {
               kind: 'images',
-              files: [...prev.files, ...data.files],
+              files: [...prev.files, ...mergedFiles],
               validCount: prev.validCount + data.validCount,
-              invalidCount: prev.invalidCount + data.invalidCount,
+              invalidCount: prev.invalidCount + data.invalidCount + failedSummaries.length,
             }
-          : data,
+          : {
+              kind: 'images',
+              files: mergedFiles,
+              validCount: data.validCount,
+              invalidCount: data.invalidCount + failedSummaries.length,
+            },
       );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Caricamento non riuscito');
+    } finally {
+      setBusy(false);
+      setUploadProgress(null);
     }
   }
 
@@ -433,6 +498,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           busy={busy}
           spreadsheetResult={spreadsheetResult}
           imagesResult={imagesResult}
+          uploadProgress={uploadProgress}
           onUploadSpreadsheet={doUploadSpreadsheet}
           onUploadImages={doUploadImages}
         />
@@ -877,6 +943,7 @@ function Step5({
   busy,
   spreadsheetResult,
   imagesResult,
+  uploadProgress,
   onUploadSpreadsheet,
   onUploadImages,
 }: {
@@ -885,6 +952,7 @@ function Step5({
   busy: boolean;
   spreadsheetResult: UploadSpreadsheetResult | null;
   imagesResult: UploadImagesResult | null;
+  uploadProgress: { done: number; total: number } | null;
   onUploadSpreadsheet: (file: File) => void;
   onUploadImages: (files: FileList | File[]) => void;
 }) {
@@ -940,6 +1008,7 @@ function Step5({
           >
             <UploadCloud className="h-6 w-6 text-gray-400" />
             <span className="text-sm text-gray-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
+            <span className="text-xs text-gray-400">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
             <input
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.zip"
@@ -951,6 +1020,24 @@ function Step5({
               }}
             />
           </label>
+          {uploadProgress && (
+            <div className="mt-3">
+              <div className="mb-1 flex justify-between text-xs text-gray-500">
+                <span>Caricamento immagini…</span>
+                <span>
+                  {uploadProgress.done}/{uploadProgress.total}
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-brand-accent transition-all"
+                  style={{
+                    width: `${uploadProgress.total > 0 ? Math.round((uploadProgress.done / uploadProgress.total) * 100) : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
           {imagesResult && (
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-center gap-3">
