@@ -20,6 +20,7 @@ import {
   removeCategoryFromPreset,
   addAttributeToPreset,
   addAttributesFromListToPreset,
+  addCategoriesFromListToPreset,
   removeAttributeFromPreset,
   setPresetAttribute,
   publishPresetVersion,
@@ -57,7 +58,11 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
   const [removeCatTarget, setRemoveCatTarget] = useState<string | null>(null);
   const [importAttrOpen, setImportAttrOpen] = useState(false);
   const [importText, setImportText] = useState('');
+  const [importDataType, setImportDataType] = useState('text');
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [importCatOpen, setImportCatOpen] = useState(false);
+  const [importCatText, setImportCatText] = useState('');
+  const [importCatMsg, setImportCatMsg] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
 
   function handleImportAttrs() {
@@ -67,6 +72,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       const res = await addAttributesFromListToPreset({
         presetVersionId: detail.workingVersionId,
         text: importText,
+        dataType: importDataType,
       });
       if (!res.ok) {
         setError(res.error);
@@ -76,6 +82,24 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       setImportMsg(
         `${res.added} attributi aggiunti al preset (${res.created} nuovi creati).`,
       );
+      router.refresh();
+    });
+  }
+
+  function handleImportCats() {
+    setError(null);
+    setImportCatMsg(null);
+    startTransition(async () => {
+      const res = await addCategoriesFromListToPreset({
+        presetVersionId: detail.workingVersionId,
+        text: importCatText,
+      });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setImportCatText('');
+      setImportCatMsg(`${res.added} categorie aggiunte al preset (${res.created} nuove create).`);
       router.refresh();
     });
   }
@@ -138,6 +162,19 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
           </div>
           {editable && (
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  setImportCatMsg(null);
+                  setImportCatOpen(true);
+                }}
+              >
+                <ClipboardList className="h-4 w-4" />
+                Categorie da lista
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -375,16 +412,33 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       >
         <div className="space-y-4">
           <div>
+            <label className="text-sm font-medium text-gray-700">Tipo di dato</label>
+            <Select value={importDataType} onChange={(e) => setImportDataType(e.target.value)}>
+              <option value="text">Testo</option>
+              <option value="boolean">Sì/No (booleano)</option>
+              <option value="integer">Numero intero</option>
+              <option value="decimal">Numero decimale</option>
+              <option value="percentage">Percentuale</option>
+              <option value="currency">Valuta</option>
+              <option value="measurement">Misura (con unità)</option>
+            </Select>
+            <p className="mt-1 text-xs text-gray-500">
+              Il tipo scelto viene applicato a tutti gli attributi della lista e influenza
+              come vengono usati nella generazione. Per gli elenchi (select) crea l’attributo
+              a mano o col Copilot, per definirne i valori.
+            </p>
+          </div>
+          <div>
             <Textarea
-              rows={8}
+              rows={7}
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               placeholder={'Materiale\nColore\nVestibilità\nStagione'}
               aria-label="Attributi, uno per riga"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Un attributo per riga. Quelli non ancora esistenti vengono creati (fattuali,
-              testo) e aggiunti al preset. Max 300 per volta.
+              Un attributo per riga. Quelli non ancora esistenti vengono creati e aggiunti
+              al preset. Max 300 per volta.
             </p>
           </div>
           {importMsg && (
@@ -401,6 +455,43 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               onClick={handleImportAttrs}
               disabled={pending || !importText.trim()}
             >
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Aggiungi
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Importa categorie da lista */}
+      <Modal
+        open={importCatOpen}
+        onClose={() => setImportCatOpen(false)}
+        title="Aggiungi categorie da lista"
+      >
+        <div className="space-y-4">
+          <div>
+            <Textarea
+              rows={8}
+              value={importCatText}
+              onChange={(e) => setImportCatText(e.target.value)}
+              placeholder={'T-shirt\nCamicie\nPantaloni\nGiacche'}
+              aria-label="Categorie, una per riga"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Una categoria per riga. Quelle non ancora esistenti vengono create e aggiunte
+              al preset con i loro attributi tipici. Max 300 per volta.
+            </p>
+          </div>
+          {importCatMsg && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {importCatMsg}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportCatOpen(false)}>
+              Chiudi
+            </Button>
+            <Button size="sm" onClick={handleImportCats} disabled={pending || !importCatText.trim()}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Aggiungi
             </Button>

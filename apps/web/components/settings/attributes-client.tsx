@@ -70,6 +70,7 @@ export function AttributesClient({
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importSector, setImportSector] = useState(initialSectorId ?? sectors[0]?.id ?? '');
+  const [importDataType, setImportDataType] = useState('text');
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
@@ -115,6 +116,7 @@ export function AttributesClient({
       const res = await createAttributesFromList({
         sectorId: importSector,
         text: importText,
+        dataType: importDataType,
       });
       if (!res.ok) {
         setError(res.error);
@@ -356,6 +358,22 @@ export function AttributesClient({
             </Select>
           </div>
           <div>
+            <Label htmlFor="imp-attr-type">Tipo di dato</Label>
+            <Select
+              id="imp-attr-type"
+              value={importDataType}
+              onChange={(e) => setImportDataType(e.target.value)}
+            >
+              <option value="text">Testo</option>
+              <option value="boolean">Sì/No (booleano)</option>
+              <option value="integer">Numero intero</option>
+              <option value="decimal">Numero decimale</option>
+              <option value="percentage">Percentuale</option>
+              <option value="currency">Valuta</option>
+              <option value="measurement">Misura (con unità)</option>
+            </Select>
+          </div>
+          <div>
             <Label htmlFor="imp-attr-text">Un attributo per riga</Label>
             <Textarea
               id="imp-attr-text"
@@ -365,8 +383,9 @@ export function AttributesClient({
               placeholder={'Materiale\nColore\nVestibilità\nStagione'}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Creati come attributi fattuali (testo). Potrai raffinarne tipo e istruzioni
-              dopo. I nomi già esistenti vengono saltati. Max 300 per volta.
+              Il tipo scelto vale per tutti. Per gli elenchi (select) crea l’attributo a
+              mano o col Copilot per definirne i valori. I nomi già esistenti vengono
+              saltati. Max 300 per volta.
             </p>
           </div>
           {importMsg && (

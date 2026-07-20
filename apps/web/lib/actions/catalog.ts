@@ -61,6 +61,22 @@ async function logEvent(
 /** Numero massimo di voci creabili in un'unica importazione da lista. */
 const MAX_LIST_ITEMS = 300;
 
+/** Tipi di dato ammessi per la creazione in blocco (enum richiede valori,
+ * quindi non è disponibile nell'import da lista: si crea a mano o via Copilot). */
+const BULK_DATA_TYPES = new Set([
+  'text',
+  'long_text',
+  'boolean',
+  'integer',
+  'decimal',
+  'percentage',
+  'currency',
+  'measurement',
+]);
+function normalizeBulkDataType(dt: string | undefined): string {
+  return dt && BULK_DATA_TYPES.has(dt) ? dt : 'text';
+}
+
 /**
  * Estrae una lista di nomi da testo incollato: una voce per riga, oppure
  * separate da virgola/punto e virgola/tab. Rimuove vuoti e duplicati
@@ -2123,12 +2139,14 @@ export async function createCategoriesFromList(input: {
 export async function createAttributesFromList(input: {
   sectorId: string;
   text: string;
+  dataType?: string;
 }): Promise<Ok<{ created: number; skipped: number; total: number }> | Fail> {
   try {
     const auth = await requireOrg();
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
     if (!input.sectorId) return { ok: false, error: 'Settore obbligatorio' };
+    const dataType = normalizeBulkDataType(input.dataType);
     const names = parseNameList(input.text);
     if (names.length === 0) return { ok: false, error: 'Nessun nome valido nella lista' };
 
@@ -2148,7 +2166,7 @@ export async function createAttributesFromList(input: {
           owner_organization_id: organizationId,
           name,
           attribute_kind: 'factual',
-          data_type: 'text',
+          data_type: dataType,
           default_extraction_instruction: `Estrai il valore di "${name}" dalle fonti: solo il dato dichiarato, non stimare.`,
           default_generation_instruction: `Usa "${name}" nel testo solo se presente tra i fatti verificati.`,
           is_system: false,
@@ -2207,6 +2225,7 @@ export async function clearPresetVersion(input: {
 export async function addAttributesFromListToPreset(input: {
   presetVersionId: string;
   text: string;
+  dataType?: string;
 }): Promise<Ok<{ added: number; created: number; total: number }> | Fail> {
   try {
     const auth = await requireOrg();
@@ -2215,6 +2234,7 @@ export async function addAttributesFromListToPreset(input: {
     const chk = await requireDraftVersion(service, organizationId, input.presetVersionId);
     if (!chk.ok) return chk;
 
+    const dataType = normalizeBulkDataType(input.dataType);
     const names = parseNameList(input.text);
     if (names.length === 0) return { ok: false, error: 'Nessun nome valido nella lista' };
 
@@ -2249,7 +2269,7 @@ export async function addAttributesFromListToPreset(input: {
             owner_organization_id: organizationId,
             name,
             attribute_kind: 'factual',
-            data_type: 'text',
+            data_type: dataType,
             default_extraction_instruction: `Estrai il valore di "${name}" dalle fonti: solo il dato dichiarato, non stimare.`,
             default_generation_instruction: `Usa "${name}" nel testo solo se presente tra i fatti verificati.`,
             is_system: false,
@@ -2297,6 +2317,125 @@ export async function addAttributesFromListToPreset(input: {
       target: 'preset',
     });
     return { ok: true, added: uniqueToLink.length, created, total: names.length };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+}
+
+/**
+ * Popola un preset (bozza) da una lista di CATEGORIE incollata: crea quelle
+ * mancanti nel settore del preset, le collega alla versione e porta con sé gli
+ * attributi tipici di ciascuna categoria (come "Aggiungi categoria").
+ */
+export async function addCategoriesFromListToPreset(input: {
+  presetVersionId: string;
+  text: string;
+}): Promise<Ok<{ added: number; created: number; total: number }> | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    const chk = await requireDraftVersion(service, organizationId, input.presetVersionId);
+    if (!chk.ok) return chk;
+
+    const names = parseNameList(input.text);
+    if (names.length === 0) return { ok: false, error: 'Nessun nome valido nella lista' };
+
+    const { data: preset } = await service
+      .from('presets')
+      .select('sector_id')
+      .eq('id', chk.presetId)
+      .maybeSingle();
+    const sectorId = preset?.sector_id;
+    if (!sectorId) return { ok: false, error: 'Settore del preset non trovato' };
+
+    // Categorie esistenti (sistema o org) del settore, per nome.
+    const { data: existing } = await service
+      .from('categories')
+      .select('id, name')
+      .eq('sector_id', sectorId)
+      .eq('status', 'active')
+      .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`);
+    const idByName = new Map(
+      (existing ?? []).map((c) => [c.name.trim().toLowerCase(), c.id] as const),
+    );
+
+    // Crea le categorie mancanti (di proprietà dell'org).
+    const missing = names.filter((n) => !idByName.has(n.toLowerCase()));
+    let created = 0;
+    if (missing.length > 0) {
+      const { data: inserted, error } = await service
+        .from('categories')
+        .insert(
+          missing.map((name) => ({
+            sector_id: sectorId,
+            owner_organization_id: organizationId,
+            name,
+            is_system: false,
+            status: 'active',
+          })),
+        )
+        .select('id, name');
+      if (error) return { ok: false, error: error.message };
+      for (const c of inserted ?? []) idByName.set(c.name.trim().toLowerCase(), c.id);
+      created = (inserted ?? []).length;
+    }
+
+    // Categorie già collegate alla versione.
+    const { data: presentRows } = await service
+      .from('preset_categories')
+      .select('category_id, display_order')
+      .eq('preset_version_id', input.presetVersionId);
+    const present = new Set((presentRows ?? []).map((p) => p.category_id));
+    let nextOrder = (presentRows ?? []).reduce((m, p) => Math.max(m, p.display_order ?? 0), 0);
+
+    const toLink = [
+      ...new Set(
+        names
+          .map((n) => idByName.get(n.toLowerCase()))
+          .filter((id): id is string => Boolean(id) && !present.has(id as string)),
+      ),
+    ];
+
+    let added = 0;
+    for (const categoryId of toLink) {
+      const { error } = await service.from('preset_categories').insert({
+        preset_version_id: input.presetVersionId,
+        category_id: categoryId,
+        display_order: ++nextOrder,
+        enabled: true,
+      });
+      if (error) continue;
+      added++;
+      // Porta gli attributi tipici della categoria nel preset.
+      const { data: links } = await service
+        .from('category_attributes')
+        .select(
+          'attribute_id, is_required, display_order, extraction_instruction_override, generation_instruction_override',
+        )
+        .eq('category_id', categoryId);
+      if (links && links.length > 0) {
+        await service.from('preset_attributes').insert(
+          links.map((l) => ({
+            preset_version_id: input.presetVersionId,
+            attribute_id: l.attribute_id,
+            category_id: categoryId,
+            is_required: l.is_required,
+            display_order: l.display_order,
+            extraction_instruction_override: l.extraction_instruction_override,
+            generation_instruction_override: l.generation_instruction_override,
+            enabled: true,
+          })),
+        );
+      }
+    }
+
+    await logEvent(service, organizationId, auth.userId, 'categories_imported', {
+      added,
+      created,
+      target: 'preset',
+    });
+    return { ok: true, added, created, total: names.length };
   } catch (err) {
     return { ok: false, error: toError(err) };
   }
