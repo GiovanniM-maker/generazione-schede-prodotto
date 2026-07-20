@@ -18,12 +18,15 @@ export async function POST(
   if (!orgId) return NextResponse.json({ error: 'Batch non accessibile' }, { status: 403 });
 
   const body = (await request.json().catch(() => ({}))) as { format?: string };
-  const format = body.format === 'xlsx' ? 'xlsx' : 'csv';
+  const ALLOWED = ['csv', 'xlsx', 'shopify', 'woocommerce', 'prestashop'] as const;
+  const format = (ALLOWED as readonly string[]).includes(body.format ?? '')
+    ? (body.format as (typeof ALLOWED)[number])
+    : 'csv';
 
   const service = getServiceClient();
   const result = await buildBatchExport(service, batchId, format);
 
-  const path = `${orgId}/${batchId}/${crypto.randomUUID()}-export.${result.extension}`;
+  const path = `${orgId}/${batchId}/${crypto.randomUUID()}-export-${format}.${result.extension}`;
   const { error: uploadErr } = await service.storage
     .from(STORAGE_BUCKETS.exports)
     .upload(path, result.buffer, { contentType: result.contentType, upsert: false });
@@ -31,11 +34,14 @@ export async function POST(
     return NextResponse.json({ error: `Upload fallito: ${uploadErr.message}` }, { status: 500 });
   }
 
+  // exports.format è un enum (csv/xlsx): gli export piattaforma sono file CSV,
+  // la piattaforma va in mapping_json.
+  const storedFormat = result.extension === 'xlsx' ? 'xlsx' : 'csv';
   await service.from('exports').insert({
     organization_id: orgId,
     batch_id: batchId,
-    format,
-    mapping_json: {},
+    format: storedFormat,
+    mapping_json: { platform: format },
     storage_bucket: STORAGE_BUCKETS.exports,
     storage_path: path,
     row_count: result.rowCount,
