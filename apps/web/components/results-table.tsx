@@ -20,6 +20,8 @@ import {
   acceptGenerationAction,
   rejectGenerationAction,
   regenerateProductAction,
+  getProductAttributesAction,
+  type ProductAttributeView,
 } from '@/lib/actions/results';
 import {
   saveOutputEdit,
@@ -59,6 +61,7 @@ export interface ResultRow {
   id: string;
   externalId: string;
   name: string;
+  category: string | null;
   status: string;
   jobFailed: boolean;
   hasEdited: boolean;
@@ -778,6 +781,74 @@ function ImprovementModal({
   );
 }
 
+const SOURCE_TONE: Record<ProductAttributeView['source'], 'green' | 'blue' | 'gray' | 'violet'> = {
+  foto: 'blue',
+  excel: 'green',
+  manuale: 'violet',
+  derivato: 'gray',
+  altro: 'gray',
+};
+
+/** Pannello "Attributi estratti": mostra i dati (peso, marchio, ecc.) con fonte e confidenza. */
+function ProductAttributesPanel({ productId }: { productId: string }) {
+  const [attrs, setAttrs] = useState<ProductAttributeView[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setAttrs(null);
+    setError(null);
+    getProductAttributesAction(productId)
+      .then((res) => {
+        if (!active) return;
+        if (res.ok) setAttrs(res.data);
+        else setError(res.error);
+      })
+      .catch(() => active && setError('Errore nel caricamento degli attributi'));
+    return () => {
+      active = false;
+    };
+  }, [productId]);
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="text-sm font-medium text-gray-700">Attributi estratti</p>
+      {attrs === null && !error && (
+        <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carico gli attributi…
+        </div>
+      )}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {attrs && attrs.length === 0 && (
+        <p className="mt-2 text-sm text-gray-500">
+          Nessun attributo valorizzato. Con le sole foto vengono riempiti solo i dati leggibili sul
+          pack; aggiungi un Excel per completare gli altri.
+        </p>
+      )}
+      {attrs && attrs.length > 0 && (
+        <div className="mt-2 divide-y divide-gray-100">
+          {attrs.map((a, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 py-1.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-gray-800">
+                  <span className="font-medium">{a.name}:</span> {a.value}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {!a.usable && <Badge tone="amber">da confermare</Badge>}
+                {a.confidence != null && a.source === 'foto' && (
+                  <span className="text-xs text-gray-400">{Math.round(a.confidence * 100)}%</span>
+                )}
+                <Badge tone={SOURCE_TONE[a.source]}>{a.source}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DetailDrawer({
   row,
   pending,
@@ -846,7 +917,15 @@ function DetailDrawer({
         <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
           <div className="min-w-0">
             <h2 className="truncate font-semibold text-gray-900">{row.name}</h2>
-            <p className="font-mono text-xs text-gray-500">{row.externalId}</p>
+            <p className="font-mono text-xs text-gray-500">
+              {row.externalId}
+              {row.category && (
+                <>
+                  {' · '}
+                  <span className="font-sans text-gray-600">{row.category}</span>
+                </>
+              )}
+            </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Chiudi">
             <PanelRightClose className="h-5 w-5" />
@@ -889,6 +968,8 @@ function DetailDrawer({
               )}
             </div>
           )}
+
+          <ProductAttributesPanel productId={row.id} />
 
           {original && (
             <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
