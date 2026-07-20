@@ -61,6 +61,32 @@ import {
 // le server action e mostra gli errori restituiti inline.
 // ---------------------------------------------------------------------------
 
+// SHA-256 esadecimale nel browser (stesso formato di createHash('sha256').digest('hex')
+// lato server). Serve a registrare i file: la colonna sha256 è NOT NULL.
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Il browser a volte non riconosce il MIME (File.type = ''): lo deriviamo
+// dall'estensione, così la colonna mime_type (NOT NULL) è sempre valorizzata.
+function mimeFromName(name: string, fallbackType: string): string {
+  if (fallbackType && fallbackType.trim()) return fallbackType;
+  const ext = name.toLowerCase().split('.').pop() ?? '';
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    heic: 'image/heic',
+    heif: 'image/heif',
+  };
+  return map[ext] ?? 'application/octet-stream';
+}
+
 type AnalyzeData = Extract<Awaited<ReturnType<typeof analyzeBatch>>, { ok: true }>['data'];
 
 type SourceMode = 'images' | 'spreadsheet' | 'both';
@@ -350,6 +376,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         path: string;
         size: number;
         type: string;
+        sha256: string;
         sku: string | null;
       }[] = [];
       const failedSummaries: UploadedFileSummary[] = [];
@@ -373,13 +400,33 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           if (!t) break;
           const file = byName.get(t.name);
           if (!file || !t.path || !t.token) continue;
-          const { error } = await supabase.storage
-            .from(t.bucket)
-            .uploadToSignedUrl(t.path, t.token, file);
-          if (error) {
+          try {
+            const buffer = await file.arrayBuffer();
+            const sha256 = await sha256Hex(buffer);
+            const contentType = mimeFromName(t.name, file.type);
+            // Un tentativo + un retry su errori transitori di rete/storage.
+            let uploadError = null;
+            for (let attempt = 0; attempt < 2; attempt++) {
+              const { error } = await supabase.storage
+                .from(t.bucket)
+                .uploadToSignedUrl(t.path, t.token, file, { upsert: true, contentType });
+              uploadError = error;
+              if (!error) break;
+            }
+            if (uploadError) {
+              failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: 'Upload fallito' });
+            } else {
+              uploaded.push({
+                name: t.name,
+                path: t.path,
+                size: file.size,
+                type: mimeFromName(t.name, file.type),
+                sha256,
+                sku: t.sku,
+              });
+            }
+          } catch {
             failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: 'Upload fallito' });
-          } else {
-            uploaded.push({ name: t.name, path: t.path, size: file.size, type: file.type, sku: t.sku });
           }
           done++;
           setUploadProgress({ done, total: valid.length });

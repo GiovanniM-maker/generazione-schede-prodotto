@@ -651,7 +651,7 @@ export async function createImageUploadTargets(input: {
 
 export async function registerUploadedImages(input: {
   batchId: string;
-  items: { name: string; path: string; size: number; type: string; sku: string | null }[];
+  items: { name: string; path: string; size: number; type: string; sha256?: string; sku: string | null }[];
 }): Promise<ActionResult<UploadImagesResult>> {
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
@@ -671,7 +671,10 @@ export async function registerUploadedImages(input: {
         storage_bucket: bucket,
         storage_path: it.path,
         original_filename: it.name,
-        mime_type: it.type || undefined,
+        // Colonne NOT NULL: garantiamo sempre un valore (il client li fornisce,
+        // ma teniamo un fallback difensivo lato server).
+        mime_type: it.type && it.type.trim() ? it.type : 'application/octet-stream',
+        sha256: it.sha256 && it.sha256.trim() ? it.sha256 : 'unknown',
         size_bytes: it.size,
         status: 'ready',
       })),
