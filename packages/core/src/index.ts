@@ -22,3 +22,4 @@ export * from './template.js';
 export * from './copilot.js';
 export * from './prompt-improve.js';
 export * from './preset-plan.js';
+export * from './translation.js';

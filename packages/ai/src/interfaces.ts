@@ -11,6 +11,8 @@ import type {
   PromptImproveOutput,
   PresetPlanInput,
   PresetPlanOutput,
+  TranslateCopyInput,
+  TranslatedCopy,
   VisualExtraction,
   VisualExtractionInput,
 } from '@app/core';
@@ -95,6 +97,14 @@ export interface TranscriptionProvider {
   transcribe(input: TranscriptionInput): Promise<AiResult<TranscriptionResult>>;
 }
 
+/**
+ * Traduzione dell'output generato: fedele, senza aggiungere claim. La fonte
+ * resta il testo italiano già passato dall'audit.
+ */
+export interface TranslationCopyProvider {
+  translateCopy(input: TranslateCopyInput): Promise<AiResult<TranslatedCopy>>;
+}
+
 /** Aggregato di tutti i provider AI. */
 export interface AiProviders {
   brandProfile: BrandProfileProvider;
@@ -104,5 +114,6 @@ export interface AiProviders {
   copilot: CopilotProvider;
   promptImprove: PromptImproveProvider;
   presetPlan: PresetPlanProvider;
+  translator: TranslationCopyProvider;
   transcription: TranscriptionProvider;
 }

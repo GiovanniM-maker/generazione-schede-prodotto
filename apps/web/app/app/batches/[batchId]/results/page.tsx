@@ -13,6 +13,7 @@ interface GenRow {
   generated_content_json: unknown;
   edited_content_json: unknown;
   completeness_json: unknown;
+  translations_json: unknown;
   status: string;
   created_at: string;
 }
@@ -68,7 +69,7 @@ export default async function ResultsPage({
     ? await supabase
         .from('product_generations')
         .select(
-          'product_id, generated_content_json, edited_content_json, completeness_json, status, created_at',
+          'product_id, generated_content_json, edited_content_json, completeness_json, translations_json, status, created_at',
         )
         .in('product_id', productIds)
         .order('created_at', { ascending: false })
@@ -115,6 +116,7 @@ export default async function ResultsPage({
       generated,
       edited,
       completeness: normalizeCompleteness(latest?.completeness_json ?? null),
+      translations: (latest?.translations_json ?? {}) as ResultRow['translations'],
     };
   });
 

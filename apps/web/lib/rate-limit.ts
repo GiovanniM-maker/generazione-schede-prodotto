@@ -15,6 +15,7 @@ export type AiAction =
   | 'preset_plan'
   | 'visual'
   | 'sample'
+  | 'translate'
   | 'transcribe';
 
 export const AI_RATE_LIMITS: Record<AiAction, RateLimitConfig> = {
@@ -23,6 +24,8 @@ export const AI_RATE_LIMITS: Record<AiAction, RateLimitConfig> = {
   preset_plan: { max: 10, windowSeconds: 60 },
   visual: { max: 8, windowSeconds: 60 },
   sample: { max: 20, windowSeconds: 60 },
+  // Un run traduce l'intero batch: limite basso sul numero di run.
+  translate: { max: 4, windowSeconds: 60 },
   transcribe: { max: 20, windowSeconds: 60 },
 };
 

@@ -4,6 +4,8 @@ import {
   buildExportRow,
   exportColumns,
   isCompletenessExportable,
+  neutralizeCell,
+  type TranslationsMap,
   type ProductCopy,
   type FactAuditResult,
   type ProductGenerationDecision,
@@ -46,10 +48,11 @@ export async function buildBatchExport(
 
   const rows: Array<Record<string, string>> = [];
   const items: ExportItem[] = [];
+  const usedLangs = new Set<string>();
   for (const product of products ?? []) {
     const { data: gen } = await service
       .from('product_generations')
-      .select('generated_content_json, edited_content_json, audit_json, completeness_json, status')
+      .select('generated_content_json, edited_content_json, audit_json, completeness_json, translations_json, status')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -72,21 +75,35 @@ export async function buildBatchExport(
     const edited = (gen.edited_content_json ?? null) as unknown as Partial<ProductCopy> | null;
     const canonical = (product.canonical_attributes_json ?? {}) as Record<string, string>;
 
-    rows.push(
-      buildExportRow(
-        {
-          externalId: product.external_id,
-          sku: canonical['sku'] ?? null,
-          productName: product.name,
-          canonicalAttributes: canonical,
-          generated,
-          edited,
-          audit,
-          verificationStatus: gen.status,
-        },
-        EXTRA_FACT_COLUMNS,
-      ),
+    const baseRow = buildExportRow(
+      {
+        externalId: product.external_id,
+        sku: canonical['sku'] ?? null,
+        productName: product.name,
+        canonicalAttributes: canonical,
+        generated,
+        edited,
+        audit,
+        verificationStatus: gen.status,
+      },
+      EXTRA_FACT_COLUMNS,
     );
+    // Colonne per lingua dalle traduzioni salvate (title_en, ..., faq_en).
+    const translations = ((gen.translations_json ?? {}) as TranslationsMap) || {};
+    for (const [lang, t] of Object.entries(translations)) {
+      if (!t) continue;
+      usedLangs.add(lang);
+      baseRow[`title_${lang}`] = neutralizeCell(t.title ?? '');
+      baseRow[`short_description_${lang}`] = neutralizeCell(t.shortDescription ?? '');
+      baseRow[`long_description_${lang}`] = neutralizeCell(t.longDescription ?? '');
+      baseRow[`bullets_${lang}`] = neutralizeCell((t.bullets ?? []).join(' | '));
+      baseRow[`meta_description_${lang}`] = neutralizeCell(t.metaDescription ?? '');
+      baseRow[`alt_text_${lang}`] = neutralizeCell(t.altText ?? '');
+      baseRow[`faq_${lang}`] = neutralizeCell(
+        (t.faq ?? []).map((f) => `D: ${f.question} R: ${f.answer}`).join(' | '),
+      );
+    }
+    rows.push(baseRow);
 
     // Versione normalizzata (testo editato preferito) per i mapper piattaforma.
     items.push({
@@ -116,7 +133,16 @@ export async function buildBatchExport(
     };
   }
 
-  const columns = exportColumns(EXTRA_FACT_COLUMNS);
+  const langCols = [...usedLangs].sort().flatMap((lang) => [
+    `title_${lang}`,
+    `short_description_${lang}`,
+    `long_description_${lang}`,
+    `bullets_${lang}`,
+    `meta_description_${lang}`,
+    `alt_text_${lang}`,
+    `faq_${lang}`,
+  ]);
+  const columns = [...exportColumns(EXTRA_FACT_COLUMNS), ...langCols];
 
   if (format === 'csv') {
     const csv = stringify(rows, { header: true, columns, bom: true });

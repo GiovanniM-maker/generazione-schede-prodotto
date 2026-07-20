@@ -14,6 +14,8 @@ import {
   type PromptImproveOutput,
   type PresetPlanInput,
   type PresetPlanOutput,
+  type TranslateCopyInput,
+  type TranslatedCopy,
   type VisualExtraction,
   type VisualExtractionInput,
 } from '@app/core';
@@ -27,6 +29,7 @@ import type {
   PresetPlanProvider,
   TranscriptionInput,
   TranscriptionProvider,
+  TranslationCopyProvider,
   TranscriptionResult,
   VisualExtractionProvider,
 } from './interfaces.js';
@@ -340,6 +343,30 @@ export class MockTranscriptionProvider implements TranscriptionProvider {
   }
 }
 
+export class MockTranslationProvider implements TranslationCopyProvider {
+  constructor(private opts: MockOptions = {}) {}
+  async translateCopy(input: TranslateCopyInput): Promise<AiResult<TranslatedCopy>> {
+    await delay(this.opts.latencyMs ?? 0);
+    // DETERMINISTICO: prefissa con il codice lingua, preserva numeri e struttura
+    // (stesso numero di bullets e FAQ) per testare i vincoli senza rete.
+    const tag = `[${input.targetLanguage.toUpperCase()}]`;
+    const t = (s: string) => (s ? `${tag} ${s}` : '');
+    const c = input.content;
+    return {
+      data: {
+        title: t(c.title).slice(0, 80),
+        shortDescription: t(c.shortDescription),
+        longDescription: t(c.longDescription),
+        bullets: c.bullets.map(t),
+        metaDescription: t(c.metaDescription).slice(0, 155),
+        faq: c.faq.map((f) => ({ question: t(f.question), answer: t(f.answer) })),
+        altText: t(c.altText).slice(0, 125),
+      },
+      usage: usage('mock-translate', 120, 100),
+    };
+  }
+}
+
 export function createMockProviders(opts: MockOptions = {}) {
   return {
     brandProfile: new MockBrandProfileProvider(opts),
@@ -349,6 +376,7 @@ export function createMockProviders(opts: MockOptions = {}) {
     copilot: new MockCopilotProvider(opts),
     promptImprove: new MockPromptImproveProvider(opts),
     presetPlan: new MockPresetPlanProvider(opts),
+    translator: new MockTranslationProvider(opts),
     transcription: new MockTranscriptionProvider(opts),
   };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Download,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   Wand2,
   ArrowRight,
+  Globe,
 } from 'lucide-react';
 import {
   acceptGenerationAction,
@@ -59,6 +61,9 @@ export interface GenContent {
   warnings: string[];
 }
 
+/** Copy tradotta in una lingua (come GenContent, senza warnings). */
+export type TranslatedContent = Omit<GenContent, 'warnings'>;
+
 export interface ResultRow {
   id: string;
   externalId: string;
@@ -70,7 +75,18 @@ export interface ResultRow {
   generated: GenContent | null;
   edited: GenContent | null;
   completeness: Completeness | null;
+  /** lingua ('en', 'fr', …) → copy tradotta. */
+  translations: Partial<Record<string, TranslatedContent>>;
 }
+
+const LANGS: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'Inglese' },
+  { code: 'fr', label: 'Francese' },
+  { code: 'de', label: 'Tedesco' },
+  { code: 'es', label: 'Spagnolo' },
+  { code: 'pt', label: 'Portoghese' },
+  { code: 'nl', label: 'Olandese' },
+];
 
 type Filter =
   | 'tutti'
@@ -456,6 +472,7 @@ export function ResultsTable({
             <option value="woocommerce">WooCommerce (CSV)</option>
             <option value="prestashop">PrestaShop (CSV)</option>
           </select>
+          <TranslatePanel batchId={batchId} productCount={rows.length} />
         </div>
       </div>
 
@@ -806,6 +823,100 @@ function ImprovementModal({
   );
 }
 
+/**
+ * Traduzione del batch: scegli le lingue → una chiamata AI per prodotto/lingua.
+ * Idempotente lato server (le lingue già tradotte vengono saltate).
+ */
+function TranslatePanel({ batchId, productCount }: { batchId: string; productCount: number }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [langs, setLangs] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  function toggle(code: string) {
+    setLangs((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
+  async function run() {
+    if (langs.size === 0) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch(`/api/batches/${batchId}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ languages: [...langs] }),
+      });
+      const body = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        translated?: number;
+        skipped?: number;
+        remaining?: number;
+      };
+      if (!r.ok) {
+        setMsg(body.error ?? 'Traduzione non riuscita');
+        return;
+      }
+      const parts = [`${body.translated ?? 0} tradotte`];
+      if (body.skipped) parts.push(`${body.skipped} già pronte`);
+      if (body.remaining) parts.push(`${body.remaining} rimaste (rilancia)`);
+      setMsg(parts.join(' · '));
+      router.refresh();
+    } catch {
+      setMsg('Errore di rete. Riprova.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
+        <Globe className="h-4 w-4" />
+        Traduci
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+          <p className="text-sm font-medium text-gray-800">Traduci le schede</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Circa una chiamata AI per prodotto e lingua ({productCount} prodotti). Le traduzioni
+            restano fedeli al testo verificato: nessun claim aggiunto.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {LANGS.map((l) => (
+              <label key={l.code} className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={langs.has(l.code)}
+                  onChange={() => toggle(l.code)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                {l.label}
+              </label>
+            ))}
+          </div>
+          {msg && <p className="mt-2 text-xs text-gray-600">{msg}</p>}
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={busy}>
+              Chiudi
+            </Button>
+            <Button size="sm" onClick={run} disabled={busy || langs.size === 0}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+              {busy ? 'Traduco…' : 'Avvia'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SOURCE_TONE: Record<ProductAttributeView['source'], 'green' | 'blue' | 'gray' | 'violet'> = {
   foto: 'blue',
   excel: 'green',
@@ -868,6 +979,68 @@ function ProductAttributesPanel({ productId }: { productId: string }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Mostra le traduzioni disponibili con selettore lingua (sola lettura). */
+function TranslationsViewer({
+  translations,
+}: {
+  translations: Partial<Record<string, TranslatedContent>>;
+}) {
+  const codes = LANGS.filter((l) => translations[l.code]).map((l) => l.code);
+  const [lang, setLang] = useState<string | null>(null);
+  if (codes.length === 0) return null;
+  const active = lang && translations[lang] ? translations[lang] : null;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Globe className="h-4 w-4 text-brand-accent" />
+        <span className="text-sm font-medium text-gray-700">Traduzioni</span>
+        {codes.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setLang((cur) => (cur === c ? null : c))}
+            className={cn(
+              'rounded-full border px-2 py-0.5 font-mono text-xs uppercase',
+              lang === c
+                ? 'border-brand-accent bg-brand-accent text-white'
+                : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400',
+            )}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+      {active && (
+        <div className="mt-3 space-y-2 text-sm text-gray-700">
+          <p className="font-semibold text-gray-900">{active.title}</p>
+          <p>{active.shortDescription}</p>
+          <p className="whitespace-pre-line text-gray-600">{active.longDescription}</p>
+          {active.bullets.length > 0 && (
+            <ul className="list-inside list-disc space-y-0.5">
+              {active.bullets.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
+            </ul>
+          )}
+          {active.metaDescription && (
+            <p className="text-xs text-gray-500">meta: {active.metaDescription}</p>
+          )}
+          {active.altText && <p className="text-xs text-gray-500">alt: {active.altText}</p>}
+          {active.faq.length > 0 && (
+            <div className="space-y-1">
+              {active.faq.map((f, i) => (
+                <p key={i} className="text-xs text-gray-600">
+                  <span className="font-medium text-gray-800">{f.question}</span> — {f.answer}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -997,6 +1170,8 @@ function DetailDrawer({
           )}
 
           <ProductAttributesPanel productId={row.id} />
+
+          <TranslationsViewer translations={row.translations} />
 
           {base && (base.altText || (base.faq?.length ?? 0) > 0) && (
             <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
