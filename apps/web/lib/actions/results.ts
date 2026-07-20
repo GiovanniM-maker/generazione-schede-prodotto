@@ -35,6 +35,75 @@ async function assertProductAccess(productId: string): Promise<string> {
   return orgId;
 }
 
+export interface ProductAttributeView {
+  name: string;
+  value: string;
+  /** Da dove arriva il dato. */
+  source: 'foto' | 'excel' | 'manuale' | 'derivato' | 'altro';
+  /** Stato del valore (usato/da confermare/…). */
+  status: string;
+  /** true = fatto usabile in generazione; false = da confermare. */
+  usable: boolean;
+  confidence: number | null;
+}
+
+const USABLE_PAV = new Set([
+  'provided',
+  'extracted_from_file',
+  'extracted_from_image',
+  'derived',
+  'confirmed',
+]);
+
+/** Attributi (fatti) di un prodotto, con fonte e confidenza — per il dettaglio scheda. */
+export async function getProductAttributesAction(
+  productId: string,
+): Promise<{ ok: true; data: ProductAttributeView[] } | { ok: false; error: string }> {
+  try {
+    await assertProductAccess(productId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Non accessibile' };
+  }
+  const service = getServiceClient();
+  const { data: rows } = await service
+    .from('product_attribute_values')
+    .select('attribute_id, value_json, status, source_type, confidence')
+    .eq('product_id', productId);
+  const usableRows = (rows ?? []).filter((r) => r.status !== 'rejected');
+  const attrIds = [...new Set(usableRows.map((r) => r.attribute_id))];
+  const { data: attrs } = attrIds.length
+    ? await service.from('attributes').select('id, name').in('id', attrIds)
+    : { data: [] as Array<{ id: string; name: string }> };
+  const nameById = new Map((attrs ?? []).map((a) => [a.id, a.name] as const));
+
+  function sourceLabel(s: string | null, status: string): ProductAttributeView['source'] {
+    if (s === 'image') return 'foto';
+    if (s === 'manual') return 'manuale';
+    if (s === 'derived' || status === 'derived') return 'derivato';
+    if (s === 'file' || s === 'spreadsheet' || status === 'extracted_from_file' || status === 'provided')
+      return 'excel';
+    return 'altro';
+  }
+
+  const data: ProductAttributeView[] = usableRows
+    .map((r) => ({
+      name: nameById.get(r.attribute_id) ?? 'attributo',
+      value:
+        typeof r.value_json === 'string'
+          ? r.value_json
+          : r.value_json == null
+            ? ''
+            : JSON.stringify(r.value_json),
+      source: sourceLabel(r.source_type, r.status),
+      status: r.status,
+      usable: USABLE_PAV.has(r.status),
+      confidence: typeof r.confidence === 'number' ? r.confidence : null,
+    }))
+    .filter((a) => a.value.trim() !== '')
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { ok: true, data };
+}
+
 /** Salva il testo editato SEPARATAMENTE dall'output generato originale. */
 export async function saveEditAction(input: {
   productId: string;

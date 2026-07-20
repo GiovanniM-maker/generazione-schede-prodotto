@@ -2,6 +2,7 @@ import { requireUser } from '@/lib/auth';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ResultsTable, type ResultRow, type GenContent } from '@/components/results-table';
 import { ImportIssuesBanner } from '@/components/import-issues-banner';
+import { ReanalyzeButton } from '@/components/reanalyze-button';
 import { computeImportIssues } from '@/lib/import-issues';
 import { normalizeCompleteness } from '@/lib/completeness';
 
@@ -46,7 +47,7 @@ export default async function ResultsPage({
 
   const { data: products } = await supabase
     .from('products')
-    .select('id, external_id, name, verification_status')
+    .select('id, external_id, name, category, verification_status')
     .eq('batch_id', batchId)
     .order('created_at', { ascending: true });
 
@@ -96,6 +97,7 @@ export default async function ResultsPage({
       id: p.id,
       externalId: p.external_id ?? '—',
       name: p.name ?? '—',
+      category: p.category ?? null,
       status: latest?.status ?? 'pending',
       jobFailed: jobStatusByProduct.get(p.id) === 'failed',
       hasEdited,
@@ -125,12 +127,15 @@ export default async function ResultsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Risultati</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Rivedi, modifica e approva le schede generate, poi esporta il
-          catalogo.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Risultati</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Rivedi, modifica e approva le schede generate, poi esporta il
+            catalogo.
+          </p>
+        </div>
+        <ReanalyzeButton batchId={batchId} />
       </div>
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
       <ResultsTable batchId={batchId} presetId={presetId} rows={rows} />
