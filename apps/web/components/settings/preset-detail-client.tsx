@@ -527,7 +527,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="min-h-0 flex-1 px-6 pb-5 pt-4">
               <PresetCopilotPanel
                 presetId={detail.preset.id}
                 onClose={() => setCopilotOpen(false)}
