@@ -97,7 +97,7 @@ export function PresetCopilotPanel({
       </div>
 
       {history.length > 0 && (
-        <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div className="max-h-52 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
           {history.map((m, i) => (
             <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
               <div
@@ -140,7 +140,7 @@ export function PresetCopilotPanel({
               {plan.categories.length} categorie · {totalAttrs} attributi
             </span>
           </div>
-          <div className="max-h-72 space-y-3 overflow-y-auto p-4">
+          <div className="max-h-[50vh] space-y-3 overflow-y-auto p-4">
             {plan.categories.map((c, i) => (
               <div key={i}>
                 <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">

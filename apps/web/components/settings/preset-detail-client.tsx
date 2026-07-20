@@ -14,6 +14,7 @@ import {
   Save,
   ClipboardList,
   Eraser,
+  X,
 } from 'lucide-react';
 import {
   addCategoryToPreset,
@@ -508,20 +509,33 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         </div>
       </Modal>
 
-      {/* Costruttore di preset con AI */}
-      <Modal
-        open={copilotOpen}
-        onClose={() => setCopilotOpen(false)}
-        title="Costruisci il preset con l'AI"
-        className="max-w-2xl"
-      >
-        {copilotOpen && (
-          <PresetCopilotPanel
-            presetId={detail.preset.id}
-            onClose={() => setCopilotOpen(false)}
+      {/* Costruttore di preset con AI — pannello laterale ampio */}
+      {copilotOpen && (
+        <div className="fixed inset-0 z-40 flex justify-end">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setCopilotOpen(false)}
+            aria-hidden
           />
-        )}
-      </Modal>
+          <aside className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-brand-accent" />
+                <h2 className="font-semibold text-gray-900">Costruisci il preset con l’AI</h2>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setCopilotOpen(false)} aria-label="Chiudi">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <PresetCopilotPanel
+                presetId={detail.preset.id}
+                onClose={() => setCopilotOpen(false)}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Svuota preset */}
       <ConfirmDialog
