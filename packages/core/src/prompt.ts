@@ -10,6 +10,7 @@ import type {
   FactAttribute,
   ProductCopy,
   ProductCopyInput,
+  VisualFieldSpec,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -150,35 +151,61 @@ export const FACT_AUDIT_PROMPT_VERSION_EXPORT = FACT_AUDIT_PROMPT_VERSION;
 // deduzione di materiale, composizione, misure, cura, origine, ecc.
 // ---------------------------------------------------------------------------
 
-/** Elenco esplicito di ciò che NON è mai deducibile da un'immagine. */
-const VISUAL_FORBIDDEN = [
-  'materiale',
-  'composizione',
-  'misure o taglie',
-  'istruzioni di lavaggio o cura',
-  'paese di origine / Made in Italy',
-  'sostenibilità o riciclato',
-  'impermeabilità o resistenza all\'acqua',
-  'qualità o certificazioni',
-];
+/** Riga descrittiva di un campo per il prompt (tipo + valori ammessi). */
+function fieldSpecLine(spec: VisualFieldSpec): string {
+  const parts = [`- ${spec.key} — ${spec.name}`];
+  const t = spec.dataType;
+  if (t === 'boolean') parts.push('(sì/no: valore "sì" solo se la caratteristica è affermata sul pack)');
+  else if (t === 'enum' || t === 'multi_enum') {
+    const vals = spec.enumValues && spec.enumValues.length ? `: ${spec.enumValues.join(' | ')}` : '';
+    parts.push(`(scegli ESATTAMENTE uno dei valori${vals})`);
+  } else if (t === 'integer' || t === 'decimal') {
+    parts.push(`(numero${spec.unit ? `, unità "${spec.unit}"` : ''}: riporta la cifra esatta stampata)`);
+  } else if (t === 'percentage') parts.push('(percentuale con simbolo %)');
+  else if (t === 'measurement') parts.push(`(misura${spec.unit ? ` in "${spec.unit}"` : ''})`);
+  return parts.join(' ');
+}
 
-export function buildVisualUserPrompt(allowedFields: string[], sectorName?: string): string {
+/**
+ * Prompt di ESTRAZIONE VISIVA (OCR + comprensione) per le immagini di prodotto.
+ * Legge tutto il testo stampato sul pack e compila i campi richiesti, con
+ * categoria (dato di fatto / brand / marketing) e confidenza. Non inventa: solo
+ * ciò che è leggibile.
+ */
+export function buildVisualUserPrompt(
+  allowedFields: string[],
+  sectorName?: string,
+  fieldSpecs?: VisualFieldSpec[],
+): string {
   const sector = sectorName ? `Settore: ${sectorName}.` : '';
+  const specByKey = new Map((fieldSpecs ?? []).map((s) => [s.key, s] as const));
   const allowed = allowedFields.length
-    ? allowedFields.map((f) => `- ${f}`).join('\n')
-    : '(nessun campo consentito: non suggerire nulla)';
+    ? allowedFields
+        .map((f) => {
+          const spec = specByKey.get(f);
+          return spec ? fieldSpecLine(spec) : `- ${f}`;
+        })
+        .join('\n')
+    : '(nessun campo consentito)';
   return [
-    'Osserva le immagini del prodotto allegate.',
+    'Sei un esperto di lettura etichette di prodotto (OCR + comprensione).',
     sector,
-    'Puoi SUGGERIRE esclusivamente gli attributi elencati qui sotto, e SOLO se chiaramente visibili nelle immagini:',
+    'Osserva TUTTE le immagini allegate (fronte, retro, etichetta, tabella nutrizionale, packaging).',
+    'Leggi con attenzione ogni testo stampato e compila i campi richiesti qui sotto SOLO con ciò che è effettivamente leggibile o inequivocabilmente visibile:',
     allowed,
-    'Per ogni attributo suggerito indica un valore conciso in italiano e una confidence tra 0 e 1.',
-    'Se un attributo non è chiaramente visibile, NON produrlo (ometti la voce). Non indovinare.',
-    `Non dedurre MAI: ${VISUAL_FORBIDDEN.join(', ')}.`,
-    'Questi suggerimenti NON sono fatti: verranno usati solo se l\'utente li conferma.',
-    'Restituisci un JSON: { "attributes": [{ "fieldKey", "value", "confidence" }] }.',
-    'Usa come fieldKey esattamente una delle chiavi consentite elencate sopra. Nessun\'altra chiave.',
+    '',
+    'Regole:',
+    '1) NON inventare e NON dedurre: se un dato non è leggibile sul pack, ometti quel campo. Meglio vuoto che sbagliato.',
+    '2) Rispetta il tipo indicato (enum: usa un valore esatto dell’elenco; sì/no; numeri con unità; percentuali con %).',
+    '3) Per OGNI valore indica la categoria "kind":',
+    '   - "onpack_factual": dato oggettivo stampato (peso, ingredienti, valori nutrizionali, allergeni, gradazione, produttore, denominazione…).',
+    '   - "brand": marchio / nome commerciale / logo.',
+    '   - "marketing": claim promozionale non verificabile (es. "gusto unico", "il migliore", "qualità superiore"). Marcalo come marketing, non come fatto.',
+    '4) Indica una "confidence" tra 0 e 1 (quanto sei sicuro della lettura).',
+    '5) Usa come "fieldKey" ESATTAMENTE una delle chiavi consentite elencate sopra. Nessun’altra chiave.',
+    '',
+    'Restituisci SOLO JSON: { "attributes": [{ "fieldKey", "value", "confidence", "kind" }] }.',
   ]
-    .filter(Boolean)
+    .filter((l) => l !== undefined && l !== null)
     .join('\n');
 }

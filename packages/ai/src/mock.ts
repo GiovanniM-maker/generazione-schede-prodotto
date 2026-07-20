@@ -163,9 +163,9 @@ export class MockVisualExtractionProvider implements VisualExtractionProvider {
     const hasImages = input.images.length > 0;
     const allows = (f: string) => input.allowedFields.includes(f);
     if (hasImages && allows('apparent_color')) {
-      attributes.push({ fieldKey: 'apparent_color', value: 'colore da confermare', confidence: 0.4 });
+      attributes.push({ fieldKey: 'apparent_color', value: 'colore da confermare', confidence: 0.4, kind: 'onpack_factual' });
       if (allows('product_type')) {
-        attributes.push({ fieldKey: 'product_type', value: 'capo', confidence: 0.4 });
+        attributes.push({ fieldKey: 'product_type', value: 'capo', confidence: 0.4, kind: 'onpack_factual' });
       }
     }
     return {

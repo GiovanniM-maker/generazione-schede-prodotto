@@ -198,14 +198,14 @@ export class OpenAiProviders
     // Responses API: content con input_text + input_image (image_url stringa,
     // data URL o https). Cast documentato al tipo di input della Responses API.
     const userContent = [
-      { type: 'input_text', text: buildVisualUserPrompt(input.allowedFields, input.sectorName) },
+      { type: 'input_text', text: buildVisualUserPrompt(input.allowedFields, input.sectorName, input.fieldSpecs) },
       ...input.images.map((img) => ({ type: 'input_image', image_url: img.dataUrl, detail: 'auto' })),
     ];
     const requestInput = [
       {
         role: 'system',
         content:
-          'Analizzi immagini di prodotto e suggerisci SOLO attributi visuali evidenti (da confermare). Rispondi in italiano.',
+          'Leggi le etichette dei prodotti (OCR + comprensione) ed estrai i dati richiesti. Non inventare: solo ciò che è leggibile sul pack. Classifica ogni valore (dato di fatto / brand / marketing). Rispondi in italiano.',
       },
       { role: 'user', content: userContent },
     ] as unknown as OpenAI.Responses.ResponseInput;

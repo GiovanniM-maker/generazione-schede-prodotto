@@ -1,8 +1,8 @@
 'use server';
 
 import { createAiProviders } from '@app/ai';
-import { STORAGE_BUCKETS, VISUAL_WHITELIST } from '@app/config';
-import type { VisualExtractionImage } from '@app/core';
+import { STORAGE_BUCKETS } from '@app/config';
+import type { VisualExtractionImage, VisualFieldSpec } from '@app/core';
 import type { Json } from '@app/database';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
@@ -76,43 +76,27 @@ function mimeFromFilename(filename: string): string {
   }
 }
 
-interface PresetAttr {
+interface PresetAttrFull {
   id: string;
   key: string | null;
   name: string;
+  dataType: string | null;
+  unit: string | null;
+  enumValues: string[] | null;
 }
 
-/** Whitelist visuale per settore. Per ora solo Moda ha attributi suggeribili. */
-function sectorVisualWhitelist(sectorKey: string | null | undefined): string[] {
-  return sectorKey === 'moda' ? [...VISUAL_WHITELIST] : [];
-}
-
+/** Numero massimo di campi inviati al modello per prodotto (dimensione prompt). */
+const MAX_FIELDS_PER_PRODUCT = 60;
 /**
- * Mappa i fieldKey della whitelist agli attributi del preset (per chiave esatta
- * o, in fallback, per nome normalizzato). Ritorna solo i campi effettivamente
- * presenti come attributo nel preset.
+ * Soglia di confidenza sopra la quale un dato di fatto letto sul pack diventa
+ * un fatto USABILE (status 'extracted_from_image') e alimenta la generazione.
+ * Sotto la soglia resta 'inferred_visual' (da confermare).
  */
-function buildFieldMapping(
-  whitelist: string[],
-  attributes: PresetAttr[],
-): { allowedFields: string[]; fieldToAttrId: Map<string, string> } {
-  const byKey = new Map<string, string>();
-  const byName = new Map<string, string>();
-  for (const a of attributes) {
-    if (a.key) byKey.set(normalizeKey(a.key), a.id);
-    byName.set(normalizeKey(a.name), a.id);
-  }
-  const allowedFields: string[] = [];
-  const fieldToAttrId = new Map<string, string>();
-  for (const field of whitelist) {
-    const norm = normalizeKey(field);
-    const attrId = byKey.get(norm) ?? byName.get(norm);
-    if (attrId) {
-      allowedFields.push(field);
-      fieldToAttrId.set(field, attrId);
-    }
-  }
-  return { allowedFields, fieldToAttrId };
+const AUTO_FACT_CONFIDENCE = 0.7;
+
+/** fieldKey stabile di un attributo (chiave esplicita o nome normalizzato). */
+function attrFieldKey(a: { key: string | null; name: string }): string {
+  return a.key && a.key.trim() ? a.key.trim() : normalizeKey(a.name);
 }
 
 export interface VisualExtractionSummary {
@@ -139,6 +123,10 @@ function emptyVisualSummary(): VisualExtractionSummary {
 
 export async function runVisualExtractionForBatch(input: {
   batchId: string;
+  /** Se true, ri-analizza anche i prodotti già letti (default: salta i già fatti). */
+  force?: boolean;
+  /** Se valorizzato, limita l'estrazione a questi prodotti (es. il campione). */
+  productIds?: string[];
 }): Promise<ActionResult<VisualExtractionSummary>> {
   const user = await getSessionUser();
   if (!user) return fail('Non autenticato');
@@ -183,35 +171,90 @@ export async function runVisualExtractionForBatch(input: {
     }
   }
 
-  // 2) Whitelist ∩ attributi del preset.
-  const whitelist = sectorVisualWhitelist(sectorKey);
-  if (whitelist.length === 0) {
-    // Settore senza whitelist visuale (es. Food/Pharma): nessun suggerimento.
-    return ok(emptyVisualSummary());
-  }
-
+  // 2) Attributi del preset con TIPI e CATEGORIA (multi-settore, non più solo Moda).
+  //    I campi inviati al modello per un prodotto sono quelli della SUA categoria
+  //    (scoping) oppure, se il prodotto non ha categoria, l'insieme deduplicato.
+  void sectorKey; // il settore non filtra più i campi: li guida il preset.
   const { data: presetAttrs } = await service
     .from('preset_attributes')
-    .select('attribute_id, enabled')
+    .select('attribute_id, category_id, enabled')
     .eq('preset_version_id', presetVersionId);
-  const attrIds = (presetAttrs ?? []).filter((a) => a.enabled !== false).map((a) => a.attribute_id);
+  const enabledPas = (presetAttrs ?? []).filter((a) => a.enabled !== false);
+  const attrIds = [...new Set(enabledPas.map((a) => a.attribute_id))];
   if (attrIds.length === 0) return ok(emptyVisualSummary());
 
   const { data: attrRows } = await service
     .from('attributes')
-    .select('id, key, name')
+    .select('id, key, name, data_type, unit, enum_values_json')
     .in('id', attrIds);
-  const attributes: PresetAttr[] = (attrRows ?? []).map((a) => ({ id: a.id, key: a.key, name: a.name }));
+  const attrById = new Map<string, PresetAttrFull>();
+  for (const a of attrRows ?? []) {
+    const enumValues = Array.isArray(a.enum_values_json)
+      ? (a.enum_values_json as unknown[]).filter((v): v is string => typeof v === 'string')
+      : null;
+    attrById.set(a.id, {
+      id: a.id,
+      key: a.key,
+      name: a.name,
+      dataType: a.data_type,
+      unit: a.unit,
+      enumValues,
+    });
+  }
 
-  const { allowedFields, fieldToAttrId } = buildFieldMapping(whitelist, attributes);
-  if (allowedFields.length === 0) return ok(emptyVisualSummary());
+  // Mappa fieldKey -> attributeId (globale) e fieldKey -> spec tipizzata.
+  const fieldToAttrId = new Map<string, string>();
+  const specByField = new Map<string, VisualFieldSpec>();
+  for (const a of attrById.values()) {
+    const key = attrFieldKey(a);
+    if (!fieldToAttrId.has(key)) fieldToAttrId.set(key, a.id);
+    if (!specByField.has(key)) {
+      specByField.set(key, {
+        key,
+        name: a.name,
+        dataType: a.dataType ?? undefined,
+        enumValues: a.enumValues ?? undefined,
+        unit: a.unit ?? undefined,
+      });
+    }
+  }
 
-  // 3) Prodotti del batch con immagini collegate.
+  // fieldKeys per categoria (scoping) + insieme globale deduplicato (no categoria).
+  const keysByCategory = new Map<string, string[]>();
+  const globalKeysSet = new Set<string>();
+  for (const p of enabledPas) {
+    const a = attrById.get(p.attribute_id);
+    if (!a) continue;
+    const key = attrFieldKey(a);
+    globalKeysSet.add(key);
+    if (p.category_id) {
+      const arr = keysByCategory.get(p.category_id) ?? [];
+      if (!arr.includes(key)) arr.push(key);
+      keysByCategory.set(p.category_id, arr);
+    }
+  }
+  const globalKeys = [...globalKeysSet].slice(0, MAX_FIELDS_PER_PRODUCT);
+  if (fieldToAttrId.size === 0) return ok(emptyVisualSummary());
+
+  // Campi da inviare per un prodotto in base alla sua categoria.
+  function fieldsForCategory(categoryId: string | null): { allowedFields: string[]; fieldSpecs: VisualFieldSpec[] } {
+    const keys = (categoryId ? keysByCategory.get(categoryId) : null) ?? globalKeys;
+    const capped = keys.slice(0, MAX_FIELDS_PER_PRODUCT);
+    return {
+      allowedFields: capped,
+      fieldSpecs: capped.map((k) => specByField.get(k)).filter((s): s is VisualFieldSpec => !!s),
+    };
+  }
+
+  // 3) Prodotti del batch con immagini collegate (con la loro categoria).
   const { data: products } = await service
     .from('products')
-    .select('id')
+    .select('id, category_id')
     .eq('batch_id', input.batchId);
   const productIds = (products ?? []).map((p) => p.id);
+  const categoryByProduct = new Map<string, string | null>(
+    (products ?? []).map((p) => [p.id, p.category_id ?? null] as const),
+  );
   if (productIds.length === 0) return ok(emptyVisualSummary());
 
   const { data: links } = await service
@@ -242,6 +285,10 @@ export async function runVisualExtractionForBatch(input: {
   }
 
   let targets = [...imagesByProduct.keys()];
+  if (input.productIds && input.productIds.length > 0) {
+    const wanted = new Set(input.productIds);
+    targets = targets.filter((id) => wanted.has(id));
+  }
   if (targets.length === 0) {
     return ok({
       productsProcessed: 0,
@@ -264,9 +311,10 @@ export async function runVisualExtractionForBatch(input: {
   // 4) Stato attuale dei valori (per rispettare la priorità delle fonti).
   const { data: existingPav } = await service
     .from('product_attribute_values')
-    .select('id, product_id, attribute_id, status')
+    .select('id, product_id, attribute_id, status, source_type')
     .in('product_id', targets);
   const pavByProduct = new Map<string, Map<string, { id: string; status: string }>>();
+  const alreadyExtracted = new Set<string>();
   for (const row of existingPav ?? []) {
     let m = pavByProduct.get(row.product_id);
     if (!m) {
@@ -274,6 +322,7 @@ export async function runVisualExtractionForBatch(input: {
       pavByProduct.set(row.product_id, m);
     }
     m.set(row.attribute_id, { id: row.id, status: row.status });
+    if (row.source_type === 'image') alreadyExtracted.add(row.product_id);
   }
 
   const providers = createAiProviders(getServerEnv());
@@ -283,6 +332,9 @@ export async function runVisualExtractionForBatch(input: {
   let productsWithTruncatedImages = 0;
 
   for (const productId of targets) {
+    // Idempotenza: salta i prodotti già letti dalle immagini (evita ri-billing),
+    // a meno che non sia richiesto force.
+    if (!input.force && alreadyExtracted.has(productId)) continue;
     const allItems = imagesByProduct.get(productId) ?? [];
     const productItems = allItems.slice(0, MAX_IMAGES_PER_PRODUCT);
     if (allItems.length > MAX_IMAGES_PER_PRODUCT) {
@@ -316,11 +368,16 @@ export async function runVisualExtractionForBatch(input: {
     }
     if (images.length === 0) continue;
 
+    // Campi da estrarre in base alla categoria del prodotto (scoping) o globali.
+    const { allowedFields, fieldSpecs } = fieldsForCategory(categoryByProduct.get(productId) ?? null);
+    if (allowedFields.length === 0) continue;
+
     let result;
     try {
       result = await providers.visual.extractVisualAttributes({
         images,
         allowedFields,
+        fieldSpecs,
         sectorName,
       });
     } catch (err) {
@@ -332,8 +389,11 @@ export async function runVisualExtractionForBatch(input: {
     const existing = pavByProduct.get(productId) ?? new Map<string, { id: string; status: string }>();
 
     for (const attr of result.data.attributes) {
+      // I claim di MARKETING non diventano mai fatti: aiutano solo a capire, non
+      // vengono scritti come attributo del prodotto.
+      if (attr.kind === 'marketing') continue;
       const attributeId = fieldToAttrId.get(attr.fieldKey);
-      if (!attributeId) continue; // fieldKey fuori whitelist/preset: ignora.
+      if (!attributeId) continue; // fieldKey fuori dal preset: ignora.
       const value = (attr.value ?? '').trim();
       if (value === '') continue;
 
@@ -343,12 +403,20 @@ export async function runVisualExtractionForBatch(input: {
         continue;
       }
 
+      // Dato di fatto sul pack con confidenza alta → fatto USABILE
+      // ('extracted_from_image'); altrimenti resta da confermare ('inferred_visual').
+      const isUsableFact =
+        (attr.kind === 'onpack_factual' || attr.kind === 'brand') &&
+        typeof attr.confidence === 'number' &&
+        attr.confidence >= AUTO_FACT_CONFIDENCE;
+      const status = isUsableFact ? 'extracted_from_image' : 'inferred_visual';
+
       const payload = {
         organization_id: orgId,
         product_id: productId,
         attribute_id: attributeId,
         value_json: value as unknown as Json,
-        status: 'inferred_visual',
+        status,
         source_type: 'image',
         source_item_id: firstItemId,
         confidence: attr.confidence,
@@ -366,7 +434,7 @@ export async function runVisualExtractionForBatch(input: {
         const { error } = await service.from('product_attribute_values').insert(payload);
         if (error) continue;
       }
-      existing.set(attributeId, { id: current?.id ?? '', status: 'inferred_visual' });
+      existing.set(attributeId, { id: current?.id ?? '', status });
       attributesSuggested++;
     }
     pavByProduct.set(productId, existing);

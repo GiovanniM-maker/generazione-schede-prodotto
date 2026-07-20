@@ -83,7 +83,9 @@ export async function loadProductFactsV2(
   client: TypedClient,
   productId: string,
 ): Promise<FactAttribute[]> {
-  const usable = ['provided', 'extracted_from_file', 'derived', 'confirmed'];
+  // 'extracted_from_image' = dato di fatto letto dal pack ad alta confidenza:
+  // è un fatto usabile (l'AI di lettura etichette è una fonte, non invenzione).
+  const usable = ['provided', 'extracted_from_file', 'extracted_from_image', 'derived', 'confirmed'];
   const { data: rows } = await client
     .from('product_attribute_values')
     .select('attribute_id, value_json, status, source_type')
