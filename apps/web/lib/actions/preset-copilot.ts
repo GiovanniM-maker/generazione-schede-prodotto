@@ -1,7 +1,7 @@
 'use server';
 
 import { createAiProviders } from '@app/ai';
-import type { PresetPlanOutput, PlannedCategory } from '@app/core';
+import type { PresetPlanOutput, PlannedCategory, PlannedAttribute } from '@app/core';
 import type { Json } from '@app/database';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
@@ -84,10 +84,43 @@ async function assertPresetAccess(presetId: string): Promise<PresetCtx | null> {
   };
 }
 
+export interface PlannedAttributeView extends PlannedAttribute {
+  /** true se l'attributo è già collegato a questa categoria nella versione di lavoro. */
+  existing: boolean;
+}
+export interface PlannedCategoryView {
+  name: string;
+  description: string | null;
+  /** true se la categoria è già collegata al preset (versione di lavoro). */
+  existing: boolean;
+  attributes: PlannedAttributeView[];
+}
+
 export interface PresetPlanResult {
   assistantMessage: string;
   summary: string;
-  categories: PlannedCategory[];
+  categories: PlannedCategoryView[];
+  /** Quante categorie del piano non sono ancora nel preset. */
+  newCategories: number;
+  /** Quanti attributi del piano non sono ancora collegati. */
+  newAttributes: number;
+}
+
+/** Trova la versione di lavoro (bozza, altrimenti pubblicata, altrimenti l'ultima). */
+async function findWorkingVersionId(
+  service: ReturnType<typeof getServiceClient>,
+  presetId: string,
+): Promise<string | null> {
+  const { data: versions } = await service
+    .from('preset_versions')
+    .select('id, version, published_at')
+    .eq('preset_id', presetId)
+    .order('version', { ascending: false });
+  if (!versions || versions.length === 0) return null;
+  const draft = versions.find((v) => v.published_at === null);
+  const published = versions.find((v) => v.published_at !== null);
+  const working = draft ?? published ?? versions[0];
+  return working?.id ?? null;
 }
 
 /** Progetta un preset (una chiamata AI). NON scrive nulla. */
@@ -110,17 +143,33 @@ export async function planPresetAction(input: {
   const [{ data: cats }, { data: attrs }] = await Promise.all([
     service
       .from('categories')
-      .select('name')
+      .select('id, name')
       .eq('sector_id', ctx.sectorId)
       .eq('status', 'active')
       .or(`owner_organization_id.is.null,owner_organization_id.eq.${ctx.orgId}`),
     service
       .from('attributes')
-      .select('name')
+      .select('id, name')
       .eq('sector_id', ctx.sectorId)
       .eq('status', 'active')
       .or(`owner_organization_id.is.null,owner_organization_id.eq.${ctx.orgId}`),
   ]);
+
+  // Stato attuale del preset (versione di lavoro): serve a marcare ciò che è GIÀ
+  // presente, così l'anteprima non chiede di ri-accettare modifiche già create.
+  const catIdByName = new Map((cats ?? []).map((c) => [norm(c.name), c.id] as const));
+  const attrIdByName = new Map((attrs ?? []).map((a) => [norm(a.name), a.id] as const));
+  const workingVersionId = await findWorkingVersionId(service, ctx.presetId);
+  const linkedCats = new Set<string>();
+  const linkedAttrKeys = new Set<string>();
+  if (workingVersionId) {
+    const [{ data: pc }, { data: pa }] = await Promise.all([
+      service.from('preset_categories').select('category_id').eq('preset_version_id', workingVersionId),
+      service.from('preset_attributes').select('attribute_id, category_id').eq('preset_version_id', workingVersionId),
+    ]);
+    for (const r of pc ?? []) linkedCats.add(r.category_id);
+    for (const r of pa ?? []) linkedAttrKeys.add(`${r.attribute_id}|${r.category_id ?? ''}`);
+  }
 
   let out: PresetPlanOutput;
   try {
@@ -138,22 +187,45 @@ export async function planPresetAction(input: {
     return fail(`Pianificazione non riuscita: ${err instanceof Error ? err.message : 'errore AI'}`);
   }
 
-  // Sanifica: cap su numero categorie/attributi per sicurezza.
-  const categories = out.categories.slice(0, 20).map((c) => ({
-    name: c.name.trim().slice(0, 120),
-    description: c.description?.trim().slice(0, 500) ?? null,
-    attributes: c.attributes.slice(0, 20).map((a) => ({
-      name: a.name.trim().slice(0, 120),
-      dataType: normDataType(a.dataType),
-      enumValues: Array.isArray(a.enumValues)
-        ? a.enumValues.map((v) => String(v).trim()).filter(Boolean).slice(0, 30)
-        : null,
-      unit: a.unit?.trim().slice(0, 40) ?? null,
-      generationInstruction: a.generationInstruction?.trim().slice(0, 500) ?? null,
-    })),
-  }));
+  // Sanifica + annota (già presente vs nuovo).
+  let newCategories = 0;
+  let newAttributes = 0;
+  const categories: PlannedCategoryView[] = out.categories.slice(0, 20).map((c) => {
+    const name = c.name.trim().slice(0, 120);
+    const catId = catIdByName.get(norm(name));
+    const catExisting = !!catId && linkedCats.has(catId);
+    if (!catExisting) newCategories++;
+    const attributes: PlannedAttributeView[] = c.attributes.slice(0, 20).map((a) => {
+      const aName = a.name.trim().slice(0, 120);
+      const attrId = attrIdByName.get(norm(aName));
+      const attrExisting = !!attrId && !!catId && linkedAttrKeys.has(`${attrId}|${catId}`);
+      if (!attrExisting) newAttributes++;
+      return {
+        name: aName,
+        dataType: normDataType(a.dataType),
+        enumValues: Array.isArray(a.enumValues)
+          ? a.enumValues.map((v) => String(v).trim()).filter(Boolean).slice(0, 30)
+          : null,
+        unit: a.unit?.trim().slice(0, 40) ?? null,
+        generationInstruction: a.generationInstruction?.trim().slice(0, 500) ?? null,
+        existing: attrExisting,
+      };
+    });
+    return {
+      name,
+      description: c.description?.trim().slice(0, 500) ?? null,
+      existing: catExisting,
+      attributes,
+    };
+  });
 
-  return ok({ assistantMessage: out.assistantMessage, summary: out.summary, categories });
+  return ok({
+    assistantMessage: out.assistantMessage,
+    summary: out.summary,
+    categories,
+    newCategories,
+    newAttributes,
+  });
 }
 
 export interface ApplyPlanResult {
