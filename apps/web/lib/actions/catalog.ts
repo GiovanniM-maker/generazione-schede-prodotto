@@ -223,7 +223,7 @@ export interface PresetDetail {
   categories: PresetCategoryGroup[];
   generalAttributes: PresetAttrRow[];
   generatedFields: PresetGeneratedFieldRow[];
-  availableCategories: { id: string; name: string; isSystem: boolean }[];
+  availableCategories: { id: string; name: string; isSystem: boolean; createdAt: string }[];
   availableAttributes: {
     id: string;
     name: string;
@@ -849,7 +849,7 @@ export async function getPresetDetail(input: {
         .order('display_order', { ascending: true }),
       service
         .from('categories')
-        .select('id, name, owner_organization_id')
+        .select('id, name, owner_organization_id, created_at')
         .eq('sector_id', preset.sector_id)
         .eq('status', 'active')
         .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`),
@@ -951,7 +951,10 @@ export async function getPresetDetail(input: {
         id: c.id,
         name: c.name,
         isSystem: c.owner_organization_id === null,
-      }));
+        createdAt: c.created_at,
+      }))
+      // Più recenti in alto: così le categorie appena create sono subito in cima.
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 
     const availableAttributes = (sectorAttrs.data ?? []).map((a) => ({
       id: a.id,
