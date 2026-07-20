@@ -54,6 +54,8 @@ export interface GenContent {
   longDescription: string;
   bullets: string[];
   metaDescription: string;
+  faq: { question: string; answer: string }[];
+  altText: string;
   warnings: string[];
 }
 
@@ -107,7 +109,8 @@ function effective(row: ResultRow): GenContent | null {
 
 // Campi di output modificabili (per la cattura delle correzioni). copyKey deve
 // combaciare con OUTPUT_COPY_FIELDS in @app/core.
-const EDIT_FIELDS: { copyKey: keyof GenContent; label: string }[] = [
+type EditKey = 'title' | 'shortDescription' | 'longDescription' | 'bullets' | 'metaDescription';
+const EDIT_FIELDS: { copyKey: EditKey; label: string }[] = [
   { copyKey: 'title', label: 'Titolo' },
   { copyKey: 'shortDescription', label: 'Descrizione breve' },
   { copyKey: 'longDescription', label: 'Descrizione lunga' },
@@ -892,6 +895,8 @@ function DetailDrawer({
         .map((b) => b.trim())
         .filter(Boolean),
       metaDescription,
+      faq: base?.faq ?? [],
+      altText: base?.altText ?? '',
       warnings: base?.warnings ?? [],
     };
     // Confronta con l'ULTIMO testo salvato (edited se presente, altrimenti
@@ -970,6 +975,32 @@ function DetailDrawer({
           )}
 
           <ProductAttributesPanel productId={row.id} />
+
+          {base && (base.altText || (base.faq?.length ?? 0) > 0) && (
+            <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+              {base.altText && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    Alt text immagine
+                  </p>
+                  <p className="mt-0.5 text-sm text-gray-700">{base.altText}</p>
+                </div>
+              )}
+              {(base.faq?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">FAQ</p>
+                  <div className="mt-1 space-y-2">
+                    {base.faq.map((f, i) => (
+                      <div key={i}>
+                        <p className="text-sm font-medium text-gray-800">{f.question}</p>
+                        <p className="text-sm text-gray-600">{f.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {original && (
             <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">

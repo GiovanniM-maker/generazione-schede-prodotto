@@ -30,6 +30,17 @@ function asContent(v: unknown): GenContent {
       : [],
     metaDescription:
       typeof o.metaDescription === 'string' ? o.metaDescription : '',
+    faq: Array.isArray(o.faq)
+      ? o.faq
+          .filter(
+            (f): f is { question: string; answer: string } =>
+              !!f &&
+              typeof (f as { question?: unknown }).question === 'string' &&
+              typeof (f as { answer?: unknown }).answer === 'string',
+          )
+          .map((f) => ({ question: f.question, answer: f.answer }))
+      : [],
+    altText: typeof o.altText === 'string' ? o.altText : '',
     warnings: Array.isArray(o.warnings)
       ? o.warnings.filter((w): w is string => typeof w === 'string')
       : [],

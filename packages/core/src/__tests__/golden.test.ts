@@ -14,6 +14,8 @@ function copy(partial: Partial<ProductCopy>): ProductCopy {
     longDescription: '',
     bullets: [],
     metaDescription: '',
+    faq: [],
+    altText: '',
     usedFactKeys: [],
     warnings: [],
     ...partial,

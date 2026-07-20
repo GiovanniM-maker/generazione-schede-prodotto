@@ -121,6 +121,8 @@ describe('export', () => {
     longDescription: 'Lunga',
     bullets: ['a', 'b'],
     metaDescription: 'Meta',
+    faq: [],
+    altText: '',
     usedFactKeys: ['color'],
     warnings: [],
   };
@@ -158,6 +160,8 @@ describe('structured output schema', () => {
       longDescription: 'z',
       bullets: ['a'],
       metaDescription: 'm',
+      faq: [],
+      altText: '',
       usedFactKeys: [],
       warnings: [],
     });
@@ -170,6 +174,8 @@ describe('structured output schema', () => {
       longDescription: 'z',
       bullets: [],
       metaDescription: 'm',
+      faq: [],
+      altText: '',
       usedFactKeys: [],
       warnings: [],
     });

@@ -40,12 +40,20 @@ export interface BrandProfile {
 }
 
 /** Output di generazione copy prodotto. */
+export interface ProductFaq {
+  question: string;
+  answer: string;
+}
 export interface ProductCopy {
   title: string;
   shortDescription: string;
   longDescription: string;
   bullets: string[];
   metaDescription: string;
+  /** Domande e risposte frequenti, basate SOLO sui fatti verificati. */
+  faq: ProductFaq[];
+  /** Testo alternativo per l'immagine principale (accessibilità + SEO). */
+  altText: string;
   usedFactKeys: string[];
   warnings: string[];
 }
