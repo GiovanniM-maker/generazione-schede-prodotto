@@ -6,6 +6,7 @@ import { getServerEnv } from '@/lib/env.server';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getSessionUser } from '@/lib/auth';
 import { notifyCompletedBatches } from '@/lib/notify';
+import { finalizeDoubtsForCompletedBatches } from '@/lib/actions/doubts';
 
 // Drena la coda di generazione lato serverless: fa il lavoro del worker senza
 // un processo separato.
@@ -45,7 +46,8 @@ async function drain(): Promise<{ processed: number; empty: boolean; error?: str
       return { processed, empty: false, error: err instanceof Error ? err.message : 'queue_read' };
     }
     if (messages.length === 0) {
-      // Coda vuota: buon momento per notificare i batch appena completati.
+      // Coda vuota: notifica i batch completati e genera i "dubbi" dell'AI.
+      await finalizeDoubtsForCompletedBatches(service);
       await notifyCompletedBatches(service);
       return { processed, empty: true };
     }
@@ -73,6 +75,7 @@ async function drain(): Promise<{ processed: number; empty: boolean; error?: str
     processed += messages.length;
   }
 
+  await finalizeDoubtsForCompletedBatches(service);
   await notifyCompletedBatches(service);
   return { processed, empty: false };
 }
