@@ -313,6 +313,7 @@ export class MockPresetPlanProvider implements PresetPlanProvider {
         dataType: 'text',
         enumValues: null,
         unit: null,
+        extractionInstruction: `Estrai "Attributo ${i + 1}.${j + 1}" dalle fonti: solo il dato dichiarato.`,
         generationInstruction: 'Usa il valore solo se presente tra i fatti.',
       })),
     }));

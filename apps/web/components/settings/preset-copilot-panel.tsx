@@ -116,7 +116,9 @@ export function PresetCopilotPanel({
     setHistory(nextHistory);
     setInput('');
     setBusy(true);
-    planPresetAction({ presetId, request, history })
+    // Se c'è già un piano proposto, lo passiamo: così una richiesta di modifica
+    // parte da quel piano invece di ripartire da zero.
+    planPresetAction({ presetId, request, history, currentPlan: plan?.categories ?? null })
       .then((res) => {
         if (myId !== runId.current) return; // richiesta annullata con "Stop"
         setBusy(false);
@@ -295,25 +297,47 @@ export function PresetCopilotPanel({
                     <Badge tone="green">nuova</Badge>
                   )}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-1.5 pl-5">
+                <div className="mt-1.5 space-y-1.5 pl-5">
                   {c.attributes.map((a, j) => (
-                    <span
+                    <div
                       key={j}
                       className={
                         a.existing
-                          ? 'inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs text-gray-400'
-                          : 'inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-gray-700'
+                          ? 'rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5'
+                          : 'rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5'
                       }
-                      title={a.existing ? 'già presente' : 'nuovo'}
                     >
-                      {a.existing ? (
-                        <Check className="h-3 w-3 text-gray-400" />
-                      ) : (
-                        <Tags className="h-3 w-3 text-emerald-500" />
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {a.existing ? (
+                          <Check className="h-3 w-3 shrink-0 text-gray-400" />
+                        ) : (
+                          <Tags className="h-3 w-3 shrink-0 text-emerald-500" />
+                        )}
+                        <span className={a.existing ? 'text-gray-400' : 'font-medium text-gray-800'}>
+                          {a.name}
+                        </span>
+                        <Badge tone="gray">{TYPE_LABEL[a.dataType] ?? a.dataType}</Badge>
+                        {a.enumValues && a.enumValues.length > 0 && (
+                          <span className="truncate text-gray-400">{a.enumValues.join(' · ')}</span>
+                        )}
+                      </div>
+                      {!a.existing && (a.extractionInstruction || a.generationInstruction) && (
+                        <div className="mt-1 space-y-0.5 pl-[18px] text-[11px] leading-snug text-gray-500">
+                          {a.extractionInstruction && (
+                            <p>
+                              <span className="font-medium text-gray-400">Estrazione:</span>{' '}
+                              {a.extractionInstruction}
+                            </p>
+                          )}
+                          {a.generationInstruction && (
+                            <p>
+                              <span className="font-medium text-gray-400">Nel testo:</span>{' '}
+                              {a.generationInstruction}
+                            </p>
+                          )}
+                        </div>
                       )}
-                      {a.name}
-                      <Badge tone="gray">{TYPE_LABEL[a.dataType] ?? a.dataType}</Badge>
-                    </span>
+                    </div>
                   ))}
                   {c.attributes.length === 0 && (
                     <span className="text-xs text-gray-400">nessun attributo</span>
