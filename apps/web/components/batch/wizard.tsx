@@ -43,6 +43,7 @@ import {
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { CategoryAssigner } from '@/components/batch/category-assigner';
+import { ImageQcPanel } from '@/components/batch/image-qc-panel';
 import { GuidedTour, tourSeen, markTourSeen, type TourStep } from '@/components/onboarding/guided-tour';
 import { HelpBubble } from '@/components/onboarding/help-bubble';
 import { WizardGuide } from '@/components/onboarding/wizard-guide';
@@ -2095,6 +2096,10 @@ function Step9({
             ))}
           </TBody>
         </Table>
+      )}
+
+      {hasImages && !analyzing && (
+        <ImageQcPanel batchId={batchId} reloadKey={analyzeProgress?.done ?? 0} />
       )}
     </div>
   );
