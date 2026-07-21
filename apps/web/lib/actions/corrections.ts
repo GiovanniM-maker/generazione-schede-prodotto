@@ -156,9 +156,13 @@ export async function saveOutputEdit(input: {
   // Limiti anti-abuso sul testo che poi confluisce nel prompt di miglioramento.
   const cap = (s: string, max: number) => (s.length > max ? s.slice(0, max) : s);
 
-  // Registra solo le modifiche reali (corrected != original), con o senza motivo.
+  // Registra le modifiche reali (corrected != original) E i feedback puri
+  // (valore invariato ma con un motivo): entrambi sono segnale per il prompt.
   const rows = input.changes
-    .filter((c) => (c.corrected ?? '') !== (c.original ?? ''))
+    .filter(
+      (c) =>
+        (c.corrected ?? '') !== (c.original ?? '') || (c.reason?.trim() ?? '') !== '',
+    )
     .map((c) => {
       const fieldKey = fieldKeyByCopyKey.get(c.copyKey) ?? c.copyKey;
       return {

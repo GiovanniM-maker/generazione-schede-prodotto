@@ -400,8 +400,10 @@ export function ResultsTable({
         }
         patchRow(id, { edited: content, hasEdited: true });
         setOpenId(null);
-        // Le correzioni con motivazione alimentano il miglioramento del prompt.
-        if (changes.some((c) => c.corrected !== c.original)) refreshCorrections();
+        // Correzioni e feedback puri alimentano il miglioramento del prompt.
+        if (changes.some((c) => c.corrected !== c.original || (c.reason ?? '').trim() !== '')) {
+          refreshCorrections();
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Errore');
       }
@@ -529,11 +531,11 @@ export function ResultsTable({
             </span>
             <div>
               <p className="text-sm font-semibold text-violet-900">
-                {corrStatus.pending} correzion{corrStatus.pending === 1 ? 'e' : 'i'} da cui imparare
-                {corrStatus.pending >= 5 && ' — consigliato migliorare il prompt'}
+                {corrStatus.pending} feedback/correzion{corrStatus.pending === 1 ? 'e' : 'i'} da cui imparare
+                {corrStatus.pending >= 5 && ' — conviene migliorare la pipeline'}
               </p>
               <p className="mt-0.5 text-xs text-violet-700">
-                Trasforma le tue modifiche in istruzioni migliori per la prossima generazione.
+                Trasforma i tuoi feedback e le tue modifiche in istruzioni migliori per la prossima generazione.
                 {corrStatus.estimate && (
                   <>
                     {' '}Costo AI stimato ~
@@ -556,7 +558,7 @@ export function ResultsTable({
             ) : (
               <Sparkles className="h-4 w-4" />
             )}
-            Migliora il prompt
+            Migliora la pipeline
           </Button>
         </div>
       )}
@@ -1072,6 +1074,19 @@ function TranslationsViewer({
   );
 }
 
+/** Micro-input di feedback su un singolo campo (alimenta "Migliora la pipeline"). */
+function FieldFeedback({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="💬 Feedback su questo campo (facoltativo): cosa non va?"
+      className="mt-1 w-full rounded-md border border-violet-100 bg-violet-50/40 px-2 py-1 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
+    />
+  );
+}
+
 function DetailDrawer({
   row,
   pending,
@@ -1093,7 +1108,10 @@ function DetailDrawer({
   const [longDescription, setLong] = useState(base?.longDescription ?? '');
   const [bullets, setBullets] = useState((base?.bullets ?? []).join('\n'));
   const [metaDescription, setMeta] = useState(base?.metaDescription ?? '');
-  const [reason, setReason] = useState('');
+  // Feedback PER CAMPO: alimenta il miglioramento del prompt. Un feedback vale
+  // anche senza modificare il valore (segnale puro).
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const setReason = (key: string, val: string) => setReasons((r) => ({ ...r, [key]: val }));
 
   const original = row.generated;
 
@@ -1126,8 +1144,9 @@ function DetailDrawer({
     const changes: OutputChange[] = EDIT_FIELDS.map((f) => {
       const before = baseline ? asText(baseline[f.copyKey]) : '';
       const after = asText(content[f.copyKey]);
-      return { copyKey: f.copyKey as string, original: before, corrected: after, reason: reason.trim() };
-    }).filter((c) => c.corrected !== c.original);
+      const fieldReason = (reasons[f.copyKey as string] ?? '').trim();
+      return { copyKey: f.copyKey as string, original: before, corrected: after, reason: fieldReason };
+    }).filter((c) => c.corrected !== c.original || c.reason !== '');
     return { content, changes };
   }
 
@@ -1264,6 +1283,7 @@ function DetailDrawer({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+            <FieldFeedback value={reasons.title ?? ''} onChange={(v) => setReason('title', v)} />
           </div>
           <div>
             <Label htmlFor="d-short">Descrizione breve</Label>
@@ -1273,6 +1293,7 @@ function DetailDrawer({
               value={shortDescription}
               onChange={(e) => setShort(e.target.value)}
             />
+            <FieldFeedback value={reasons.shortDescription ?? ''} onChange={(v) => setReason('shortDescription', v)} />
           </div>
           <div>
             <Label htmlFor="d-long">Descrizione completa</Label>
@@ -1282,6 +1303,7 @@ function DetailDrawer({
               value={longDescription}
               onChange={(e) => setLong(e.target.value)}
             />
+            <FieldFeedback value={reasons.longDescription ?? ''} onChange={(v) => setReason('longDescription', v)} />
           </div>
           <div>
             <Label htmlFor="d-bullets">Bullet (uno per riga)</Label>
@@ -1291,6 +1313,7 @@ function DetailDrawer({
               value={bullets}
               onChange={(e) => setBullets(e.target.value)}
             />
+            <FieldFeedback value={reasons.bullets ?? ''} onChange={(v) => setReason('bullets', v)} />
           </div>
           <div>
             <Label htmlFor="d-meta">Meta description</Label>
@@ -1300,24 +1323,20 @@ function DetailDrawer({
               value={metaDescription}
               onChange={(e) => setMeta(e.target.value)}
             />
+            <FieldFeedback value={reasons.metaDescription ?? ''} onChange={(v) => setReason('metaDescription', v)} />
           </div>
 
-          {/* Perché della modifica: alimenta il miglioramento del prompt */}
-          <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
-            <Label htmlFor="d-reason" className="flex items-center gap-1.5 text-violet-900">
+          {/* Come funziona la revisione: disclaimer a prova di scemo. */}
+          <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3 text-xs text-violet-800">
+            <p className="flex items-center gap-1.5 font-medium text-violet-900">
               <Wand2 className="h-4 w-4" />
-              Perché questa modifica? (facoltativo, ma migliora il prompt)
-            </Label>
-            <Textarea
-              id="d-reason"
-              rows={2}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Es: il titolo era troppo lungo; tono troppo enfatico; mancava il colore…"
-              className="mt-1 bg-white"
-            />
-            <p className="mt-1 text-xs text-violet-700">
-              Le tue correzioni insegnano al sistema a scrivere meglio la prossima volta.
+              Come funziona la revisione
+            </p>
+            <p className="mt-1">
+              Correggi i campi e/o lascia un <strong>feedback</strong> dove serve (i riquadri viola
+              sotto ogni campo). Quando salvi, i feedback vengono registrati; poi con
+              <strong> «Migliora la pipeline»</strong> (in cima alla pagina) il sistema li usa per
+              scrivere meglio la prossima volta. I dati mancanti non vengono mai inventati.
             </p>
           </div>
         </div>
