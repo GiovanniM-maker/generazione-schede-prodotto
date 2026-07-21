@@ -265,7 +265,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [busy, setBusy] = useState(false);
 
   // Step 1
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => {
+    // Precompilato: l'utente pigro può cliccare "Crea e continua" e basta.
+    const d = new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+    return `Batch ${d}`;
+  });
   const [description, setDescription] = useState('');
   const [presets, setPresets] = useState<PublishedPresetSummary[] | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
@@ -335,8 +339,13 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   useEffect(() => {
     if (presets !== null) return;
     void listPublishedPresets().then((res) => {
-      if (res.ok) setPresets(res.data);
-      else setError(res.error);
+      if (res.ok) {
+        setPresets(res.data);
+        // Utente pigro: con UN solo preset pubblicato lo selezioniamo noi.
+        if (res.data.length === 1 && res.data[0]) {
+          setSelectedPresetId((cur) => cur ?? res.data[0]!.id);
+        }
+      } else setError(res.error);
     });
   }, [presets]);
 
@@ -964,7 +973,7 @@ function Step1({
                   onClick={() => setSelectedPresetId(p.id)}
                   className={cn(
                     'rounded-xl border p-4 text-left transition-colors',
-                    active ? 'border-brand-accent bg-blue-50/50 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
+                    active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -1118,7 +1127,7 @@ function Step3({ sourceMode, setSourceMode }: { sourceMode: SourceMode | null; s
               className={cn(
                 'rounded-xl border p-4 text-left transition-colors',
                 card.disabled && 'cursor-not-allowed opacity-60',
-                active ? 'border-brand-accent bg-blue-50/50 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
+                active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
               )}
             >
               <div className="flex items-center justify-between">
@@ -1266,7 +1275,7 @@ function Step5({
             }}
             className={cn(
               'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center',
-              dragOver ? 'border-brand-accent bg-blue-50/50' : 'border-gray-300 bg-white hover:bg-gray-50',
+              dragOver ? 'border-brand-accent bg-brand-soft/70' : 'border-gray-300 bg-white hover:bg-gray-50',
             )}
           >
             <UploadCloud className="h-6 w-6 text-gray-400" />
@@ -1570,7 +1579,7 @@ function OptionRow({ checked, onSelect, title, description }: { checked: boolean
     <button
       type="button"
       onClick={onSelect}
-      className={cn('flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors', checked ? 'border-brand-accent bg-blue-50/50' : 'border-gray-200 bg-white hover:bg-gray-50')}
+      className={cn('flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors', checked ? 'border-brand-accent bg-brand-soft/70' : 'border-gray-200 bg-white hover:bg-gray-50')}
     >
       <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', checked ? 'border-brand-accent bg-brand-accent' : 'border-gray-300')}>
         {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}

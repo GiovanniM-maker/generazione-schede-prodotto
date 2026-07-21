@@ -4,7 +4,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        brand: { DEFAULT: '#111827', muted: '#6b7280', accent: '#2563eb' },
+        brand: {
+          DEFAULT: '#0e1626',
+          muted: '#64748b',
+          accent: '#4f46e5',
+          accentHover: '#4338ca',
+          soft: '#eef2ff',
+        },
       },
     },
   },

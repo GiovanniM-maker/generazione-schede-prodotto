@@ -557,7 +557,7 @@ export function OnboardingStepper({
                     className={cn(
                       'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                       active
-                        ? 'border-brand-accent bg-blue-50/50 ring-1 ring-brand-accent'
+                        ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
                         : 'border-gray-200 hover:border-gray-300',
                     )}
                   >
@@ -864,7 +864,7 @@ export function OnboardingStepper({
                   className={cn(
                     'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                     style === s.value
-                      ? 'border-brand-accent bg-blue-50/50 ring-1 ring-brand-accent'
+                      ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
                       : 'border-gray-200 hover:border-gray-300',
                   )}
                 >

@@ -17,10 +17,10 @@ export function Logo({
         className,
       )}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white">
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-accent to-violet-600 text-white shadow-sm">
         <Sparkles className="h-4 w-4" />
       </span>
-      <span className="text-base tracking-tight">Schede Moda</span>
+      <span className="hidden text-base tracking-tight sm:inline">Schede&nbsp;AI</span>
     </Link>
   );
 }
