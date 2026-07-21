@@ -16,7 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 
 const steps = [
   { icon: UploadCloud, title: 'Carica', text: 'Importa il catalogo in CSV o Excel.' },
-  { icon: ListChecks, title: 'Mappa', text: 'Abbina le colonne ai campi moda.' },
+  { icon: ListChecks, title: 'Mappa', text: 'Abbina le colonne ai campi del tuo settore.' },
   { icon: Eye, title: 'Controlla', text: 'Verifica i dati prima di procedere.' },
   { icon: Sparkles, title: 'Campione', text: 'Approva un campione nel tuo tono.' },
   { icon: Layers, title: 'Genera', text: 'Elabora l’intero catalogo in massa.' },
@@ -86,15 +86,14 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
               <Sparkles className="h-3.5 w-3.5 text-brand-accent" />
-              Copy per l’e-commerce moda
+              Schede prodotto con AI verificata
             </span>
             <h1 className="mt-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-              Trasforma il tuo catalogo moda in schede prodotto pronte da
-              pubblicare
+              Da foto ed Excel a schede prodotto pronte da pubblicare
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
-              Carica CSV o Excel, conferma i dati e genera in massa descrizioni
-              professionali coerenti con il tuo brand.
+              L’AI legge etichette e listini, scrive descrizioni fedeli ai dati — mai
+              inventate — e le esporta per Shopify, WooCommerce e PrestaShop. In 6 lingue.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link href="/login">
@@ -141,7 +140,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <p className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-gray-700">
-                Con Schede Moda parti dai dati che già possiedi: mappi le colonne
+                Con Schede AI parti dai dati che già possiedi: mappi le colonne
                 una sola volta, definisci il tono del brand e generi tutte le
                 schede mantenendo coerenza e controllo.
               </p>
@@ -331,7 +330,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <p className="text-sm text-gray-400">
-            © {new Date().getFullYear()} Schede Moda
+            © {new Date().getFullYear()} Schede AI
           </p>
         </div>
       </footer>

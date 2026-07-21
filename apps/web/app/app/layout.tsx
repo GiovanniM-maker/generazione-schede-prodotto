@@ -25,27 +25,27 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <header className="sticky top-0 z-20 border-b border-gray-200 bg-white">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Logo href="/app" />
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-brand text-white shadow-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
+          <Logo href="/app" className="shrink-0 text-white" />
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
             <Link href="/app">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only sm:not-sr-only">Dashboard</span>
               </Button>
             </Link>
 
             <Link href="/app/settings/presets">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <Settings className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only sm:not-sr-only">Configurazione</span>
               </Button>
             </Link>
 
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-700"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-1.5 text-sm font-medium text-white sm:px-3"
               title="Crediti disponibili"
             >
               <Coins className="h-4 w-4 text-amber-500" />
@@ -54,14 +54,14 @@ export default async function AppLayout({
             </span>
 
             <Link href="/app/billing">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <CreditCard className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only sm:not-sr-only">Fatturazione</span>
               </Button>
             </Link>
 
             <form action={signOut}>
-              <Button variant="outline" size="sm" type="submit">
+              <Button variant="outline" size="sm" type="submit" className="border-white/25 bg-transparent text-white hover:bg-white/10">
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only sm:not-sr-only">Esci</span>
               </Button>
@@ -69,28 +69,6 @@ export default async function AppLayout({
           </div>
         </div>
 
-        <nav className="border-t border-gray-100 bg-gray-50/60">
-          <div className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 py-2 text-sm sm:px-6">
-            <span className="mr-2 whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Configurazione catalogo
-            </span>
-            {[
-              { href: '/app/settings/presets', label: 'Preset' },
-              { href: '/app/settings/categories', label: 'Categorie' },
-              { href: '/app/settings/attributes', label: 'Attributi' },
-              { href: '/app/settings/sectors', label: 'Settori' },
-              { href: '/app/settings/integrations', label: 'Integrazioni' },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="whitespace-nowrap rounded-md px-3 py-1.5 font-medium text-gray-600 transition-colors hover:bg-white hover:text-gray-900"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>

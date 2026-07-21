@@ -618,7 +618,13 @@ export function ResultsTable({
                       <TD className="font-mono text-xs text-gray-600">
                         {r.externalId}
                       </TD>
-                      <TD className="font-medium text-gray-900">{r.name}</TD>
+                      <TD className="font-medium text-gray-900">
+                        {r.name !== r.externalId ? (
+                          r.name
+                        ) : (
+                          <span className="font-normal text-gray-300">—</span>
+                        )}
+                      </TD>
                       <TD className="max-w-[16rem] truncate text-gray-700">
                         {eff?.title || <span className="text-gray-300">—</span>}
                       </TD>

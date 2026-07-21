@@ -11,7 +11,7 @@ export interface ImportIssues {
   unmatched: number; // immagini non associate ad alcuno SKU
   emptyFile: number; // file vuoti
   unsupportedFormat: number; // formati non supportati
-  excludedProducts: number; // prodotti esclusi (batches.invalid_products)
+  excludedProducts: number; // prodotti ancora esclusi (conteggio live)
   total: number;
 }
 
@@ -33,9 +33,18 @@ export async function computeImportIssues(
 ): Promise<ImportIssues> {
   const { data: batch } = await supabase
     .from('batches')
-    .select('invalid_products')
+    .select('id')
     .eq('id', batchId)
     .maybeSingle();
+
+  // Conta gli esclusi DAL VIVO: il contatore batches.invalid_products è una
+  // fotografia dell'import e resta stantio dopo che l'estrazione visiva ha
+  // promosso i prodotti a idonei (falso allarme "N esclusi" a batch riuscito).
+  const { count: excludedNow } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('batch_id', batchId)
+    .eq('verification_status', 'excluded');
 
   const { data: sources } = await supabase
     .from('batch_sources')
@@ -61,7 +70,7 @@ export async function computeImportIssues(
     unmatched: count('unmatched'),
     emptyFile: count('empty_file'),
     unsupportedFormat: count('unsupported_format'),
-    excludedProducts: Number(batch?.invalid_products ?? 0),
+    excludedProducts: excludedNow ?? 0,
     total: 0,
   };
   issues.total =
