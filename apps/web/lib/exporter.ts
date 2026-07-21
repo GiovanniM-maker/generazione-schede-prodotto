@@ -43,12 +43,13 @@ export async function buildBatchExport(
   // Ultima generazione per prodotto del batch.
   const { data: products } = await service
     .from('products')
-    .select('id, external_id, name, category, canonical_attributes_json')
+    .select('id, external_id, name, category, parent_external_id, canonical_attributes_json')
     .eq('batch_id', batchId);
 
   const rows: Array<Record<string, string>> = [];
   const items: ExportItem[] = [];
   const usedLangs = new Set<string>();
+  let hasParents = false;
   for (const product of products ?? []) {
     const { data: gen } = await service
       .from('product_generations')
@@ -88,6 +89,10 @@ export async function buildBatchExport(
       },
       EXTRA_FACT_COLUMNS,
     );
+    // Legame variante: codice padre condiviso da colore/taglia dello stesso prodotto.
+    const parentId = product.parent_external_id ?? '';
+    if (parentId) hasParents = true;
+    baseRow['codice_padre'] = parentId;
     // Colonne per lingua dalle traduzioni salvate (title_en, ..., faq_en).
     const translations = ((gen.translations_json ?? {}) as TranslationsMap) || {};
     for (const [lang, t] of Object.entries(translations)) {
@@ -142,7 +147,11 @@ export async function buildBatchExport(
     `alt_text_${lang}`,
     `faq_${lang}`,
   ]);
-  const columns = [...exportColumns(EXTRA_FACT_COLUMNS), ...langCols];
+  const columns = [
+    ...exportColumns(EXTRA_FACT_COLUMNS),
+    ...(hasParents ? ['codice_padre'] : []),
+    ...langCols,
+  ];
 
   if (format === 'csv') {
     const csv = stringify(rows, { header: true, columns, bom: true });

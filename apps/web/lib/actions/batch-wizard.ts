@@ -982,6 +982,8 @@ export async function confirmImportV2(input: {
   attributeMapping: Record<string, string>; // attributeId -> header
   /** Colonna del file che contiene la categoria merceologica (opzionale). */
   categoryHeader?: string;
+  /** Colonna del "codice padre": raggruppa le varianti (colore/taglia) di uno stesso prodotto. */
+  parentHeader?: string;
   /** Colonne libere del file da importare come fatti (attributo creato al volo). */
   extraColumns?: Array<{ header: string; name: string }>;
   options: { includeImageOnly: boolean; excludeIncomplete: boolean };
@@ -1216,10 +1218,17 @@ export async function confirmImportV2(input: {
       }
       if (!name) name = sku;
 
+      // Codice padre (varianti): raggruppa colore/taglia dello stesso prodotto.
+      let parentExternalId: string | null = null;
+      if (input.parentHeader) {
+        const pv = (row[input.parentHeader] ?? '').trim();
+        if (pv && pv !== sku) parentExternalId = pv;
+      }
+
       const hasImages = imageBySku.has(sku);
       const built: BuiltProduct = {
         externalId: sku,
-        parentExternalId: null,
+        parentExternalId,
         name,
         productType: null,
         category,
@@ -1265,6 +1274,7 @@ export async function confirmImportV2(input: {
           name,
           category,
           category_id: categoryId,
+          parent_external_id: parentExternalId,
           preset_version_id: presetVersionId,
           external_id: sku,
           raw_input_json: row as unknown as Json,
