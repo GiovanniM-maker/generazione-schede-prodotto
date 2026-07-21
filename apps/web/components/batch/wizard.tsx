@@ -31,6 +31,7 @@ import {
   getBatchPresetAttributes,
   confirmImportV2,
   getBatchProductsV2,
+  importFromUrls,
   type PublishedPresetSummary,
   type PresetExplorer,
   type UploadSpreadsheetResult,
@@ -104,7 +105,7 @@ interface SampleCopy {
   metaDescription?: string;
 }
 
-type SourceMode = 'images' | 'spreadsheet' | 'both';
+type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url';
 
 interface StepDef {
   id: number;
@@ -305,6 +306,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
   const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
 
+  // Step 3 — import da URL (uno per riga).
+  const [urlText, setUrlText] = useState('');
+
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
   const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
@@ -410,6 +414,16 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 9: import + prodotti.
   useEffect(() => {
     if (stepId !== 9 || !batchId) return;
+    // Import da URL: i prodotti sono già stati creati da importFromUrls.
+    // NON rieseguire confirmImportV2 (cancellerebbe i prodotti importati).
+    if (sourceMode === 'url') {
+      setProducts(null);
+      void getBatchProductsV2({ batchId }).then((list) => {
+        if (list.ok) setProducts(list.data.products);
+        else setError(list.error);
+      });
+      return;
+    }
     setProducts(null);
     setImportSummary(null);
     const options = {
@@ -468,6 +482,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       setError('Seleziona una fonte');
       return;
     }
+    // Import da URL: flusso dedicato (crea i prodotti subito, salta la mappatura).
+    if (sourceMode === 'url') {
+      await importUrls();
+      return;
+    }
     const sourceTypes: WizardSourceType[] =
       sourceMode === 'both' ? ['spreadsheet', 'images'] : sourceMode === 'spreadsheet' ? ['spreadsheet'] : ['images'];
     setBusy(true);
@@ -479,6 +498,41 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       return;
     }
     nextStep();
+  }
+
+  async function importUrls() {
+    if (!batchId) return;
+    const urls = urlText
+      .split(/\r?\n/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+    if (urls.length === 0) {
+      setError('Incolla almeno un URL (uno per riga).');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await importFromUrls({ batchId, urls });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    if (res.data.imported === 0) {
+      setError(
+        `Nessun prodotto importato. ${res.data.failures[0]?.reason ?? 'Controlla che gli URL siano pagine prodotto pubbliche.'}`,
+      );
+      return;
+    }
+    setImportSummary({
+      imported: res.data.imported,
+      valid: res.data.imported - res.data.failed,
+      invalid: res.data.failed,
+      imageOnly: 0,
+      categoriesMatched: 0,
+      unmatchedCategories: [],
+    });
+    goTo(9);
   }
 
   async function doUploadSpreadsheet(file: File) {
@@ -723,7 +777,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 2 && <Step2 explorer={explorer} expandedCat={expandedCat} setExpandedCat={setExpandedCat} expandedAttr={expandedAttr} setExpandedAttr={setExpandedAttr} />}
 
-      {stepId === 3 && <Step3 sourceMode={sourceMode} setSourceMode={setSourceMode} />}
+      {stepId === 3 && <Step3 sourceMode={sourceMode} setSourceMode={setSourceMode} urlText={urlText} setUrlText={setUrlText} onImportUrls={importUrls} busy={busy} />}
 
       {stepId === 4 && batchId && <Step4 batchId={batchId} hasSpreadsheet={hasSpreadsheet} hasImages={hasImages} imageNamingGuide={imageNamingGuide} />}
 
@@ -788,9 +842,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         <StepPrimaryAction
           stepId={stepId}
           busy={busy}
+          step3Label={sourceMode === 'url' ? 'Importa da URL' : 'Continua'}
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
-            3: !!sourceMode,
+            3: !!sourceMode && (sourceMode !== 'url' || urlText.trim().length > 0),
             5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
             10: sampleDone,
           }}
@@ -846,6 +901,7 @@ function StepPrimaryAction({
   stepId,
   busy,
   canProceed,
+  step3Label = 'Continua',
   onStep1,
   onSources,
   onSample,
@@ -855,6 +911,7 @@ function StepPrimaryAction({
   stepId: number;
   busy: boolean;
   canProceed: Record<number, boolean>;
+  step3Label?: string;
   onStep1: () => void;
   onSources: () => void;
   onSample: () => void;
@@ -873,7 +930,7 @@ function StepPrimaryAction({
   if (stepId === 3) {
     return (
       <Button onClick={onSources} disabled={busy || !canProceed[3]}>
-        {busy ? spinner : <>Continua <ArrowRight className="h-4 w-4" /></>}
+        {busy ? spinner : <>{step3Label} <ArrowRight className="h-4 w-4" /></>}
       </Button>
     );
   }
@@ -1104,11 +1161,27 @@ const SOURCE_CARDS: SourceCard[] = [
   { mode: 'images', title: 'Solo immagini', description: 'Carichi solo le foto dei prodotti. Lo SKU viene letto dal nome del file (es. TSHIRT001_front.jpg).' },
   { mode: 'spreadsheet', title: 'CSV o Excel', description: 'Carichi un foglio con una riga per SKU e le colonne degli attributi.' },
   { mode: 'both', title: 'Immagini + CSV', description: 'Combini foglio e immagini: gli SKU della colonna SKU vengono associati al prefisso dei nomi immagine.' },
+  { mode: 'url', title: 'Da URL', description: 'Incolli i link delle pagine prodotto (le tue o del fornitore): estraiamo i dati e le foto, poi l’AI riscrive la scheda.', note: 'Novità' },
   { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true, note: 'In arrivo' },
   { mode: null, title: 'PDF', description: 'Estrazione da schede tecniche in PDF.', disabled: true, note: 'Prossimamente' },
 ];
 
-function Step3({ sourceMode, setSourceMode }: { sourceMode: SourceMode | null; setSourceMode: (m: SourceMode) => void }) {
+function Step3({
+  sourceMode,
+  setSourceMode,
+  urlText,
+  setUrlText,
+  onImportUrls,
+  busy,
+}: {
+  sourceMode: SourceMode | null;
+  setSourceMode: (m: SourceMode) => void;
+  urlText: string;
+  setUrlText: (v: string) => void;
+  onImportUrls: () => void;
+  busy: boolean;
+}) {
+  const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-500">
@@ -1140,6 +1213,41 @@ function Step3({ sourceMode, setSourceMode }: { sourceMode: SourceMode | null; s
           );
         })}
       </div>
+
+      {sourceMode === 'url' && (
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <div>
+              <Label htmlFor="url-list">Link delle pagine prodotto (uno per riga)</Label>
+              <Textarea
+                id="url-list"
+                rows={7}
+                value={urlText}
+                onChange={(e) => setUrlText(e.target.value)}
+                placeholder={'https://www.tuosito.it/prodotti/maglione-rosso\nhttps://www.fornitore.com/p/olio-evo-500ml'}
+                className="mt-1 font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {urlCount > 0 ? `${urlCount} URL pronti · ` : ''}Massimo 60 per volta. Estraiamo nome,
+                brand, prezzo, attributi e foto dai dati strutturati della pagina.
+              </p>
+            </div>
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Importa solo pagine di cui hai i diritti (tue o del tuo fornitore). L’AI riscrive una
+                scheda nuova a partire dai fatti: non copiamo il testo originale.
+              </span>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={onImportUrls} disabled={busy || urlCount === 0} data-tour="url-import">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {busy ? 'Importo…' : 'Importa e continua'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   analyzeSources,
   computeQuality,
   NON_ADDITIONAL_FIELDS,
+  extractProductFromHtml,
   type ParseResult,
   type SourceAnalysis,
   type BuiltProduct,
@@ -24,6 +25,7 @@ import type { Json } from '@app/database';
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
+import { safeFetch } from '@/lib/safe-fetch';
 
 // ---------------------------------------------------------------------------
 // Server actions del wizard "Nuovo batch" v2 (modello preset v2 + pipeline SKU).
@@ -1552,4 +1554,367 @@ export async function getBatchProductsV2(input: {
   }));
 
   return ok({ products: rows });
+}
+
+// ---------------------------------------------------------------------------
+// IMPORT DA URL (MVP: fetch + dati strutturati JSON-LD/OpenGraph).
+// Per ogni URL: scarica l'HTML (fetch SSRF-safe), estrae i FATTI (nome, brand,
+// prezzo, attributi, immagini), crea il prodotto + i product_attribute_values
+// (source_type 'url') e scarica le immagini nella stessa pipeline OCR.
+// Riusa gli helper di confirmImportV2 (categorie, eleggibilità, qualità).
+// L'AI poi RIscrive la prosa: non copiamo il testo della pagina sorgente.
+// ---------------------------------------------------------------------------
+
+const MAX_URLS_PER_IMPORT = 60;
+const URL_IMAGES_PER_PRODUCT = 6;
+const URL_FETCH_CONCURRENCY = 4;
+
+export interface UrlImportResult {
+  imported: number;
+  failed: number;
+  imagesAttached: number;
+  failures: Array<{ url: string; reason: string }>;
+}
+
+/** Esegue `fn` sugli item con al più `limit` in parallelo, preservando l'ordine. */
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i]!, i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+function extFromContentType(ct: string): string | null {
+  const t = ct.toLowerCase();
+  if (t.includes('jpeg') || t.includes('jpg')) return '.jpg';
+  if (t.includes('png')) return '.png';
+  if (t.includes('webp')) return '.webp';
+  return null;
+}
+
+function slugFromUrl(rawUrl: string, index: number): string {
+  try {
+    const u = new URL(rawUrl);
+    const seg = u.pathname.split('/').filter(Boolean).pop();
+    if (seg) {
+      const slug = seg
+        .replace(/\.[a-z0-9]{1,6}$/i, '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+      if (slug) return slug;
+    }
+  } catch {
+    /* ignore */
+  }
+  return `url-${index + 1}`;
+}
+
+export async function importFromUrls(input: {
+  batchId: string;
+  urls: string[];
+}): Promise<ActionResult<UrlImportResult>> {
+  const user = await getSessionUser();
+  if (!user) return fail('Non autenticato');
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+
+  // Normalizza gli URL: uno per riga, http(s), deduplicati, con un tetto.
+  const urls = [...new Set(
+    (input.urls ?? [])
+      .map((u) => u.trim())
+      .filter((u) => /^https?:\/\//i.test(u)),
+  )].slice(0, MAX_URLS_PER_IMPORT);
+  if (urls.length === 0) return fail('Incolla almeno un URL valido (http/https).');
+
+  // Contesto preset: settore, categorie dell'org, attributi.
+  const { data: batch } = await service
+    .from('batches')
+    .select('preset_version_id')
+    .eq('id', input.batchId)
+    .maybeSingle();
+  const presetVersionId = batch?.preset_version_id ?? null;
+  const presetAttrs = presetVersionId ? await loadPresetAttributes(service, presetVersionId) : [];
+  const attrById = new Map(presetAttrs.map((a) => [a.id, a]));
+
+  let sectorId: string | null = null;
+  const categoryIdByName = new Map<string, string>();
+  if (presetVersionId) {
+    const { data: pv } = await service.from('preset_versions').select('preset_id').eq('id', presetVersionId).maybeSingle();
+    if (pv?.preset_id) {
+      const { data: preset } = await service.from('presets').select('sector_id').eq('id', pv.preset_id).maybeSingle();
+      sectorId = preset?.sector_id ?? null;
+    }
+    if (sectorId) {
+      const { data: cats } = await service
+        .from('categories')
+        .select('id, name, owner_organization_id')
+        .eq('sector_id', sectorId)
+        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`);
+      for (const c of cats ?? []) {
+        const key = normalizeCategoryName(c.name);
+        if (!categoryIdByName.has(key) || c.owner_organization_id !== null) categoryIdByName.set(key, c.id);
+      }
+    }
+  }
+
+  // SKU già presenti nel batch: evita collisioni con l'unicità (batch, external_id).
+  const takenSkus = new Set<string>();
+  {
+    const { data: existing } = await service.from('products').select('sku').eq('batch_id', input.batchId);
+    for (const p of existing ?? []) if (p.sku) takenSkus.add(p.sku);
+  }
+
+  // Cache find-or-create attributo fattuale per nome (nel settore del preset).
+  const factCache = new Map<string, PresetAttributeOption | null>();
+  async function resolveFactAttribute(name: string): Promise<PresetAttributeOption | null> {
+    const clean = name.trim().slice(0, 120);
+    if (!clean || !sectorId) return null;
+    const cacheKey = clean.toLowerCase();
+    if (factCache.has(cacheKey)) return factCache.get(cacheKey) ?? null;
+    const { data: existing } = await service
+      .from('attributes')
+      .select('id, key, name')
+      .eq('sector_id', sectorId)
+      .eq('status', 'active')
+      .eq('name', clean)
+      .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
+      .limit(1)
+      .maybeSingle();
+    let attr = existing ?? null;
+    if (!attr) {
+      const { data: created } = await service
+        .from('attributes')
+        .insert({
+          sector_id: sectorId,
+          owner_organization_id: orgId,
+          name: clean,
+          attribute_kind: 'factual',
+          data_type: 'text',
+          default_extraction_instruction: `Estrai "${clean}" dalle fonti: solo il dato dichiarato, non stimare.`,
+          default_generation_instruction: `Usa "${clean}" nel testo solo se presente tra i fatti verificati.`,
+          is_system: false,
+          status: 'active',
+          version: 1,
+        })
+        .select('id, key, name')
+        .single();
+      attr = created ?? null;
+    }
+    const opt: PresetAttributeOption | null = attr
+      ? { id: attr.id, key: attr.key ?? null, name: attr.name, dataType: 'text', isRequired: false }
+      : null;
+    if (opt && !attrById.has(opt.id)) attrById.set(opt.id, opt);
+    factCache.set(cacheKey, opt);
+    return opt;
+  }
+
+  // Fase 1: fetch + estrazione in parallelo.
+  const extracted = await mapPool(urls, URL_FETCH_CONCURRENCY, async (url) => {
+    const res = await safeFetch(url, { maxBytes: 3_000_000, accept: 'text/html,application/xhtml+xml' });
+    if (!res.ok) return { url, error: res.error ?? 'fetch fallito' };
+    const html = new TextDecoder('utf-8').decode(res.bytes);
+    const data = extractProductFromHtml(html, res.finalUrl);
+    if (!data.name) return { url, error: 'Nessun dato prodotto riconosciuto (né JSON-LD né Open Graph).' };
+    return { url, data };
+  });
+
+  const bucket = STORAGE_BUCKETS.productAssets;
+  const failures: Array<{ url: string; reason: string }> = [];
+  let imported = 0;
+  let valid = 0;
+  let imagesAttached = 0;
+  let imageBatchSourceId: string | null = null;
+
+  // Fase 2: creazione prodotti + fatti + immagini (sequenziale per coerenza).
+  for (let i = 0; i < extracted.length; i++) {
+    const item = extracted[i]!;
+    if ('error' in item) {
+      failures.push({ url: item.url, reason: item.error ?? 'Errore sconosciuto' });
+      continue;
+    }
+    const { url, data } = item;
+
+    // SKU univoco nel batch.
+    let sku = (data.sku ? sanitizeFilename(data.sku).replace(/\.[a-z0-9]+$/i, '') : '').trim() || slugFromUrl(url, i);
+    sku = sku.slice(0, 64);
+    if (takenSkus.has(sku)) {
+      let n = 2;
+      while (takenSkus.has(`${sku}-${n}`)) n++;
+      sku = `${sku}-${n}`;
+    }
+    takenSkus.add(sku);
+
+    // Attributi/fatti → PAV + canonical.
+    const canonical: Record<string, string> = { sku };
+    const pavRows: Array<{ attribute_id: string; value: string }> = [];
+    const facts: Record<string, string> = { ...data.attributes };
+    if (data.brand) facts['Brand'] = data.brand;
+    if (data.price) facts['Prezzo'] = data.price;
+    const category: string | null = facts['Categoria'] ?? null;
+
+    for (const [name, value] of Object.entries(facts)) {
+      const v = (value ?? '').trim();
+      if (!v || name.toLowerCase() === 'categoria') continue;
+      const attr = await resolveFactAttribute(name);
+      if (!attr) continue;
+      const ck = canonicalKey(attr);
+      if (canonical[ck] !== undefined) continue;
+      canonical[ck] = v;
+      pavRows.push({ attribute_id: attr.id, value: v });
+    }
+
+    const name = data.name ?? sku;
+    const built: BuiltProduct = {
+      externalId: sku,
+      parentExternalId: null,
+      name,
+      productType: null,
+      category,
+      sku,
+      rawInput: { url },
+      canonicalAttributes: canonical,
+      facts: [],
+    };
+    const quality = computeQuality(built, { hasImages: data.imageUrls.length > 0 });
+    const additionalFacts = pavRows.filter((p) => {
+      const a = attrById.get(p.attribute_id);
+      return !a || !a.key || !NON_ADDITIONAL_FIELDS.has(a.key);
+    }).length;
+    const eligible = Boolean(sku) && additionalFacts >= 2;
+
+    let categoryId: string | null = null;
+    if (category) {
+      const matched = categoryIdByName.get(normalizeCategoryName(category));
+      if (matched) categoryId = matched;
+    }
+
+    const { data: productRow, error: pErr } = await service
+      .from('products')
+      .insert({
+        organization_id: orgId,
+        batch_id: input.batchId,
+        sku,
+        name,
+        category,
+        category_id: categoryId,
+        preset_version_id: presetVersionId,
+        external_id: sku,
+        raw_input_json: { url } as unknown as Json,
+        canonical_attributes_json: canonical as unknown as Json,
+        data_quality_score: quality.score,
+        verification_status: eligible ? 'eligible' : 'excluded',
+      })
+      .select('id')
+      .single();
+    if (pErr || !productRow) {
+      failures.push({ url, reason: `Creazione prodotto fallita: ${pErr?.message ?? 'sconosciuto'}` });
+      continue;
+    }
+    imported++;
+    if (eligible) valid++;
+
+    if (pavRows.length > 0) {
+      await service.from('product_attribute_values').insert(
+        pavRows.map((r) => ({
+          organization_id: orgId,
+          product_id: productRow.id,
+          attribute_id: r.attribute_id,
+          value_json: r.value as unknown as Json,
+          status: 'provided',
+          source_type: 'url',
+        })),
+      );
+    }
+
+    // Immagini: scarica (SSRF-safe) → storage → source_files/source_items → link.
+    for (const imgUrl of data.imageUrls.slice(0, URL_IMAGES_PER_PRODUCT)) {
+      const img = await safeFetch(imgUrl, { maxBytes: 8_000_000, accept: 'image/*' });
+      if (!img.ok || !img.contentType.toLowerCase().startsWith('image/')) continue;
+      const ext = extFromContentType(img.contentType);
+      if (!ext) continue;
+      const buf = Buffer.from(img.bytes);
+      const sha = createHash('sha256').update(buf).digest('hex');
+      const path = `${orgId}/${input.batchId}/${crypto.randomUUID()}-url${ext}`;
+      const up = await service.storage.from(bucket).upload(path, buf, { contentType: img.contentType, upsert: false });
+      if (up.error) continue;
+      if (!imageBatchSourceId) {
+        imageBatchSourceId = await getOrCreateBatchSource(service, orgId, input.batchId, IMAGE_SOURCE);
+      }
+      if (!imageBatchSourceId) continue;
+      const filename = `${sku}${ext}`;
+      const { data: sf } = await service
+        .from('source_files')
+        .insert({
+          organization_id: orgId,
+          batch_id: input.batchId,
+          storage_bucket: bucket,
+          storage_path: path,
+          original_filename: filename,
+          mime_type: img.contentType,
+          sha256: sha,
+          size_bytes: buf.byteLength,
+          status: 'ready',
+        })
+        .select('id')
+        .single();
+      if (!sf) continue;
+      const { data: si } = await service
+        .from('source_items')
+        .insert({
+          organization_id: orgId,
+          batch_source_id: imageBatchSourceId,
+          source_file_id: sf.id,
+          filename,
+          mime_type: img.contentType,
+          size_bytes: buf.byteLength,
+          detected_sku: sku,
+          status: 'valid',
+          metadata_json: { imageType: suggestImageType(filename), fromUrl: imgUrl } as unknown as Json,
+        })
+        .select('id')
+        .single();
+      if (!si) continue;
+      await service.from('product_source_links').insert({
+        organization_id: orgId,
+        product_id: productRow.id,
+        source_item_id: si.id,
+        link_type: 'sku_exact',
+      });
+      imagesAttached++;
+    }
+  }
+
+  if (imageBatchSourceId) {
+    await service.from('batch_sources').update({ status: 'ready' }).eq('id', imageBatchSourceId);
+  }
+
+  // Porta il batch in revisione dati, come confirmImportV2, così i passi
+  // successivi (campione → generazione) funzionano senza modifiche.
+  if (imported > 0) {
+    await service
+      .from('batches')
+      .update({ status: 'input_review', total_products: imported, valid_products: valid, invalid_products: imported - valid })
+      .eq('id', input.batchId);
+    await service.from('app_events').insert({
+      organization_id: orgId,
+      user_id: user.id,
+      event_name: 'url_import_confirmed',
+      batch_id: input.batchId,
+      metadata_json: { imported, valid, imagesAttached, failed: failures.length } as unknown as Json,
+    });
+  }
+
+  return ok({ imported, failed: failures.length, imagesAttached, failures: failures.slice(0, 20) });
 }
