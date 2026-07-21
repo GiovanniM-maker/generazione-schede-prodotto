@@ -488,9 +488,9 @@ export function ResultsTable({
               type="button"
               onClick={() => setFilter(t.key)}
               className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                 filter === t.key
-                  ? 'border-brand-accent bg-blue-50 text-brand-accent'
+                  ? 'border-brand-accent bg-brand-soft text-brand-accent'
                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
               )}
             >

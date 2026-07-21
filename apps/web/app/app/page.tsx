@@ -233,7 +233,7 @@ export default async function DashboardPage() {
 
       {/* Azione principale in base allo stato */}
       {!canCreateBatch && (
-        <Card className="border-brand-accent/40 bg-blue-50/40">
+        <Card className="border-brand-accent/40 bg-brand-soft/50">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-accent">

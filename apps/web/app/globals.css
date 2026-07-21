@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #fbf8f3;
+  --foreground: #17130f;
 }
 
 html {
@@ -20,6 +20,6 @@ body {
 
 /* Focus visibile per accessibilità */
 :focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #e5322d;
   outline-offset: 2px;
 }
