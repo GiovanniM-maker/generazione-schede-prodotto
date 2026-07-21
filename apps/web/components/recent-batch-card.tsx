@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Download, Trash2, Loader2 } from 'lucide-react';
+import { ArrowRight, Download, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { deleteBatchAction } from '@/lib/actions/batches';
+import { getBatchProgressAction } from '@/lib/actions/ui';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/status-badge';
 import { ConfirmDialog } from '@/components/settings/modal';
 import { formatDate } from '@/lib/utils';
+
+const IN_PROGRESS = new Set(['queued', 'processing']);
 
 export interface RecentBatch {
   id: string;
@@ -28,7 +31,37 @@ export function RecentBatchCard({ batch }: { batch: RecentBatch }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pct = batch.total > 0 ? Math.round((batch.processed / batch.total) * 100) : 0;
+  // Stato live: i batch in corso si aggiornano da soli sulla home (generazione
+  // in background via cron), con barra animata. Al termine si ricarica la pagina.
+  const [live, setLive] = useState({ status: batch.status, processed: batch.processed, total: batch.total });
+  const inProgress = IN_PROGRESS.has(live.status);
+
+  useEffect(() => {
+    if (!IN_PROGRESS.has(batch.status)) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      const res = await getBatchProgressAction(batch.id);
+      if (!active) return;
+      if (res.ok) {
+        setLive({ status: res.progress.status, processed: res.progress.processed, total: res.progress.total });
+        if (!IN_PROGRESS.has(res.progress.status)) {
+          router.refresh(); // completato/fallito: aggiorna la card (mostra Esporta)
+          return;
+        }
+      }
+      timer = setTimeout(tick, 3500);
+    };
+    timer = setTimeout(tick, 3500);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [batch.id, batch.status, router]);
+
+  const total = live.total || batch.total;
+  const processed = live.processed;
+  const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
 
   function doDelete() {
     setError(null);
@@ -49,17 +82,31 @@ export function RecentBatchCard({ batch }: { batch: RecentBatch }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate font-semibold text-gray-900">{batch.name}</h3>
-            <StatusBadge status={batch.status} />
+            <StatusBadge status={live.status} />
+            {inProgress && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-accent">
+                <Sparkles className="h-3 w-3 animate-pulse" />
+                in corso
+              </span>
+            )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-            <span>{batch.total} prodotti</span>
-            {batch.total > 0 && (
+            <span>{total} prodotti</span>
+            {total > 0 && (
               <span>
-                {batch.processed}/{batch.total} elaborati ({pct}%)
+                {processed}/{total} elaborati ({pct}%)
               </span>
             )}
             <span>Creato il {formatDate(batch.createdAt)}</span>
           </div>
+          {inProgress && (
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-brand-soft">
+              <div
+                className="h-full rounded-full bg-brand-accent transition-all duration-700"
+                style={{ width: `${Math.max(4, pct)}%` }}
+              />
+            </div>
+          )}
           {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
