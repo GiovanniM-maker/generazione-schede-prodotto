@@ -311,6 +311,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
@@ -427,15 +428,49 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     const autoAnalyze = async () => {
       if (!withImages) return;
       setAnalyzingImages(true);
+      // Totale per la barra + progresso iniziale.
+      const initial = await getBatchProductsV2({ batchId: bid });
+      const total = initial.ok ? initial.data.products.length : 0;
+      const analyzedCount = (rows: BatchProductRow[]) =>
+        rows.filter((r) => r.attributesCount > 0 || !!r.category).length;
+      setAnalyzeProgress({ done: initial.ok ? analyzedCount(initial.data.products) : 0, total });
+
+      // Polling del progresso mentre l'estrazione gira (conta i prodotti già letti).
+      let polling = true;
+      const pollLoop = async () => {
+        while (polling && !cancelled) {
+          await new Promise((r) => setTimeout(r, 2500));
+          if (!polling || cancelled) break;
+          const p = await getBatchProductsV2({ batchId: bid });
+          if (p.ok && !cancelled) setAnalyzeProgress({ done: analyzedCount(p.data.products), total });
+        }
+      };
+      const pollPromise = pollLoop();
+
+      // Estrazione: rilancia finché restano prodotti non analizzati (batch grandi).
       try {
-        await runVisualExtractionForBatch({ batchId: bid });
+        let guard = 0;
+        for (;;) {
+          const res = await runVisualExtractionForBatch({ batchId: bid });
+          if (!res.ok) break;
+          if (res.data.productsSkipped > 0 && guard++ < 30) continue;
+          break;
+        }
       } catch {
         /* non bloccare: i prodotti restano visibili, l'utente può assegnare a mano */
       }
+      polling = false;
+      await pollPromise;
       if (cancelled) return;
       const relist = await getBatchProductsV2({ batchId: bid });
-      if (!cancelled && relist.ok) setProducts(relist.data.products);
-      if (!cancelled) setAnalyzingImages(false);
+      if (!cancelled && relist.ok) {
+        setProducts(relist.data.products);
+        setAnalyzeProgress({ done: analyzedCount(relist.data.products), total });
+      }
+      if (!cancelled) {
+        setAnalyzingImages(false);
+        setAnalyzeProgress(null);
+      }
     };
 
     // Import da URL: i prodotti sono già stati creati da importFromUrls.
@@ -852,7 +887,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
 
       {stepId === 9 && batchId && (
-        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} />
+        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} />
       )}
 
       {stepId === 10 && (
@@ -1897,12 +1932,14 @@ function Step9({
   batchId,
   hasImages,
   analyzing,
+  analyzeProgress,
 }: {
   products: BatchProductRow[] | null;
   importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   batchId: string;
   hasImages: boolean;
   analyzing: boolean;
+  analyzeProgress: { done: number; total: number } | null;
 }) {
   if (products === null) {
     return (
@@ -1912,13 +1949,30 @@ function Step9({
     );
   }
   const senzaCategoria = products.filter((p) => !p.category).length;
+  const pct =
+    analyzeProgress && analyzeProgress.total > 0
+      ? Math.min(100, Math.round((analyzeProgress.done / analyzeProgress.total) * 100))
+      : null;
   return (
     <div className="space-y-4">
       {hasImages && analyzing && (
-        <div className="flex items-center gap-2 rounded-lg border border-brand-accent/20 bg-brand-soft/60 p-3 text-sm text-brand-accent" data-tour="analyze">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Analisi automatica delle foto in corso: leggo le etichette e deduco la categoria di ogni
-          prodotto…
+        <div className="space-y-2 rounded-lg border border-brand-accent/20 bg-brand-soft/60 p-3" data-tour="analyze">
+          <div className="flex items-center gap-2 text-sm font-medium text-brand-accent">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Analisi automatica delle foto: leggo le etichette e deduco la categoria…
+          </div>
+          <div className="flex items-center justify-between text-xs text-brand-accent/80">
+            <span>
+              {analyzeProgress ? `${analyzeProgress.done} / ${analyzeProgress.total} prodotti` : 'Avvio…'}
+            </span>
+            <span>{pct !== null ? `${pct}%` : ''}</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/60">
+            <div
+              className="h-full rounded-full bg-brand-accent transition-all duration-500"
+              style={{ width: `${pct ?? 5}%` }}
+            />
+          </div>
         </div>
       )}
       {hasImages && !analyzing && (
