@@ -75,8 +75,26 @@ export interface Database {
           completed_at: string | null;
           notify_email: string | null;
           notified_at: string | null;
+          doubts_generated_at: string | null;
         } & Timestamps
       >;
+      ai_doubts: T<{
+        id: string;
+        organization_id: string;
+        batch_id: string | null;
+        product_id: string | null;
+        attribute_id: string | null;
+        field_key: string;
+        field_label: string | null;
+        question: string;
+        suggested_value: string | null;
+        confidence: number | null;
+        status: string;
+        answer: string | null;
+        answered_at: string | null;
+        answered_by: string | null;
+        created_at: string;
+      }>;
       source_files: T<{
         id: string;
         organization_id: string;

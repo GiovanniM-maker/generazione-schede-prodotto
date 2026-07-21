@@ -5,9 +5,11 @@ import {
   Coins,
   LayoutDashboard,
   Settings,
+  Inbox,
 } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
 import { getCreditBalance } from '@/lib/credits';
+import { countOpenDoubtsAction } from '@/lib/actions/doubts';
 import { signOut } from '@/lib/actions/auth';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
@@ -22,6 +24,7 @@ export default async function AppLayout({
   const user = await requireUser();
   const org = await getUserOrg(user.id);
   const credits = org ? await getCreditBalance(org.organizationId) : 0;
+  const openDoubts = await countOpenDoubtsAction();
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -42,6 +45,18 @@ export default async function AppLayout({
                 <Settings className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only sm:not-sr-only">Configurazione</span>
               </Button>
+            </Link>
+
+            <Link href="/app/inbox" className="relative">
+              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+                <Inbox className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">Dubbi</span>
+              </Button>
+              {openDoubts > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                  {openDoubts > 99 ? '99+' : openDoubts}
+                </span>
+              )}
             </Link>
 
             <span
