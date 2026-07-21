@@ -881,22 +881,41 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
     }
   }
 
+  const allSelected = langs.size === LANGS.length;
+
   return (
     <div className="relative">
-      <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
+      <Button
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        className="border border-brand-accent/30 bg-brand-soft text-brand-accent hover:bg-brand-accent hover:text-white"
+        title="Traduci le schede in altre lingue"
+      >
         <Globe className="h-4 w-4" />
-        Traduci
+        Traduci in 6 lingue
       </Button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
-          <p className="text-sm font-medium text-gray-800">Traduci le schede</p>
+        <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-800">Traduci le schede</p>
+            <button
+              type="button"
+              onClick={() => setLangs(allSelected ? new Set() : new Set(LANGS.map((l) => l.code)))}
+              className="text-xs font-medium text-brand-accent hover:underline"
+            >
+              {allSelected ? 'Deseleziona tutte' : 'Seleziona tutte'}
+            </button>
+          </div>
           <p className="mt-0.5 text-xs text-gray-500">
             Circa una chiamata AI per prodotto e lingua ({productCount} prodotti). Le traduzioni
             restano fedeli al testo verificato: nessun claim aggiunto.
           </p>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             {LANGS.map((l) => (
-              <label key={l.code} className="flex items-center gap-1.5 text-sm text-gray-700">
+              <label
+                key={l.code}
+                className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-gray-700 hover:bg-gray-50"
+              >
                 <input
                   type="checkbox"
                   checked={langs.has(l.code)}
@@ -914,7 +933,7 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
             </Button>
             <Button size="sm" onClick={run} disabled={busy || langs.size === 0}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-              {busy ? 'Traduco…' : 'Avvia'}
+              {busy ? 'Traduco…' : `Avvia${langs.size ? ` (${langs.size})` : ''}`}
             </Button>
           </div>
         </div>
