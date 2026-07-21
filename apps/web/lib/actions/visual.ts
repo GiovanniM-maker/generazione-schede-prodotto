@@ -248,6 +248,36 @@ export async function runVisualExtractionForBatch(input: {
   const categoryNameById = new Map((catRows ?? []).map((c) => [c.id, c.name] as const));
   const categoryIdByNorm = new Map((catRows ?? []).map((c) => [normalizeKey(c.name), c.id] as const));
   const categoryNames = (catRows ?? []).map((c) => c.name);
+
+  // Match ROBUSTO del nome categoria restituito dall'AI verso le categorie del
+  // preset: esatto → contenimento → maggiore sovrapposizione di token. Evita che
+  // una piccola differenza ("Cioccolato" vs "Cioccolato fondente") lasci il
+  // prodotto senza categoria (deve essere a prova di errore).
+  const categoryTokensById = (catRows ?? []).map((c) => ({
+    id: c.id,
+    tokens: new Set(normalizeKey(c.name).split('_').filter(Boolean)),
+  }));
+  function matchCategoryId(raw: string): string | null {
+    const norm = normalizeKey(raw);
+    if (!norm) return null;
+    const exact = categoryIdByNorm.get(norm);
+    if (exact) return exact;
+    const valSet = new Set(norm.split('_').filter(Boolean));
+    let best: { id: string; score: number } | null = null;
+    for (const c of categoryTokensById) {
+      if (c.tokens.size === 0) continue;
+      const catNorm = [...c.tokens].join('_');
+      const contains = norm.includes(catNorm) || catNorm.includes(norm);
+      let inter = 0;
+      for (const t of valSet) if (c.tokens.has(t)) inter++;
+      const union = new Set([...valSet, ...c.tokens]).size;
+      const jaccard = union ? inter / union : 0;
+      const score = (contains ? 0.5 : 0) + jaccard;
+      if (score > 0 && (!best || score > best.score)) best = { id: c.id, score };
+    }
+    // Soglia prudente: contenimento o >=50% di token in comune.
+    return best && best.score >= 0.5 ? best.id : null;
+  }
   const categorySpec: VisualFieldSpec | null = categoryNames.length
     ? {
         key: CATEGORY_FIELD_KEY,
@@ -413,24 +443,36 @@ export async function runVisualExtractionForBatch(input: {
 
     const existing = pavByProduct.get(productId) ?? new Map<string, { id: string; status: string }>();
 
-    for (const attr of result.data.attributes) {
-      // Classificazione categoria (solo per prodotti senza categoria): imposta
-      // products.category_id scegliendo fra le categorie del preset. Non è un PAV.
-      if (attr.fieldKey === CATEGORY_FIELD_KEY) {
-        const catId = categoryIdByNorm.get(normalizeKey(attr.value));
-        if (catId) {
-          await service
-            .from('products')
-            .update({ category_id: catId, category: categoryNameById.get(catId) ?? null })
-            .eq('id', productId)
-            .is('category_id', null);
-          categoryByProduct.set(productId, catId);
-        }
-        continue;
+    // 1) Prima la CLASSIFICAZIONE della categoria: imposta products.category_id
+    //    scegliendo fra le categorie del preset. Così i fatti successivi possono
+    //    essere filtrati sui SOLI attributi di quella categoria.
+    const classification = result.data.attributes.find((a) => a.fieldKey === CATEGORY_FIELD_KEY);
+    if (classification) {
+      const catId = matchCategoryId(classification.value);
+      if (catId) {
+        await service
+          .from('products')
+          .update({ category_id: catId, category: categoryNameById.get(catId) ?? null })
+          .eq('id', productId)
+          .is('category_id', null);
+        categoryByProduct.set(productId, catId);
       }
+    }
+    // Attributi ammessi per la categoria (ora nota). Se il prodotto resta senza
+    // categoria, si accetta l'insieme globale (nessun filtro).
+    const resolvedCatId = categoryByProduct.get(productId) ?? null;
+    const allowedForCategory = resolvedCatId
+      ? new Set(keysByCategory.get(resolvedCatId) ?? [])
+      : null;
+
+    for (const attr of result.data.attributes) {
+      if (attr.fieldKey === CATEGORY_FIELD_KEY) continue; // già gestita sopra
       // I claim di MARKETING non diventano mai fatti: aiutano solo a capire, non
       // vengono scritti come attributo del prodotto.
       if (attr.kind === 'marketing') continue;
+      // Scarta i fatti che NON appartengono alla categoria dedotta: evita che un
+      // cioccolato riceva "Metodo Coltivazione" dall'insieme globale.
+      if (allowedForCategory && !allowedForCategory.has(attr.fieldKey)) continue;
       const attributeId = fieldToAttrId.get(attr.fieldKey);
       if (!attributeId) continue; // fieldKey fuori dal preset: ignora.
       const value = (attr.value ?? '').trim();

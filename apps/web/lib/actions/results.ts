@@ -36,6 +36,7 @@ async function assertProductAccess(productId: string): Promise<string> {
 }
 
 export interface ProductAttributeView {
+  attributeId: string;
   name: string;
   value: string;
   /** Da dove arriva il dato. */
@@ -87,6 +88,7 @@ export async function getProductAttributesAction(
 
   const data: ProductAttributeView[] = usableRows
     .map((r) => ({
+      attributeId: r.attribute_id,
       name: nameById.get(r.attribute_id) ?? 'attributo',
       value:
         typeof r.value_json === 'string'
@@ -102,6 +104,44 @@ export async function getProductAttributesAction(
     .filter((a) => a.value.trim() !== '')
     .sort((a, b) => a.name.localeCompare(b.name));
   return { ok: true, data };
+}
+
+/**
+ * Risolve un "dubbio" direttamente dalla tabella dei campi della scheda:
+ * conferma il valore letto (affidabilità → 100%) oppure lo corregge. Aggiorna
+ * il fatto del prodotto e chiude l'eventuale dubbio aperto nell'inbox.
+ */
+export async function confirmProductFactAction(input: {
+  productId: string;
+  attributeId: string;
+  value?: string; // se presente → correzione; altrimenti → conferma del valore attuale
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await assertProductAccess(input.productId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Non accessibile' };
+  }
+  const service = getServiceClient();
+  const patch: Record<string, unknown> = { status: 'confirmed', confidence: 1 };
+  const corrected = input.value != null ? input.value.trim() : null;
+  if (corrected !== null) patch.value_json = corrected as unknown as Json;
+  await service
+    .from('product_attribute_values')
+    .update(patch)
+    .eq('product_id', input.productId)
+    .eq('attribute_id', input.attributeId);
+  // Chiude il dubbio corrispondente (se presente) così non resta anche nell'inbox.
+  await service
+    .from('ai_doubts')
+    .update({
+      status: 'answered',
+      answer: corrected ?? 'confirm',
+      answered_at: new Date().toISOString(),
+    })
+    .eq('product_id', input.productId)
+    .eq('attribute_id', input.attributeId)
+    .eq('status', 'open');
+  return { ok: true };
 }
 
 /** Salva il testo editato SEPARATAMENTE dall'output generato originale. */
