@@ -24,6 +24,11 @@ export function backoffMs(attempt: number, baseMs = 2000, capMs = 60000, jitter 
 /** Normalizza un errore sconosciuto in un ErrorCode. */
 export function classifyError(err: unknown): ErrorCode {
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  // Credito del provider AI esaurito (es. OpenRouter 402): errore chiaro e
+  // definitivo (ritentare non aiuta finché non si ricarica).
+  if (msg.includes('insufficient credit') || (msg.includes('402') && msg.includes('credit'))) {
+    return 'AI_NO_CREDIT';
+  }
   if (msg.includes('rate limit') || msg.includes('429')) return 'AI_RATE_LIMIT';
   if (msg.includes('timeout') || msg.includes('timed out')) return 'AI_TIMEOUT';
   if (msg.includes('invalid') && msg.includes('output')) return 'AI_INVALID_OUTPUT';

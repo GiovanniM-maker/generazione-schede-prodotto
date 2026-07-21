@@ -111,6 +111,9 @@ describe('retry', () => {
     expect(classifyError(new Error('Rate limit exceeded'))).toBe('AI_RATE_LIMIT');
     expect(classifyError(new Error('request timed out'))).toBe('AI_TIMEOUT');
     expect(classifyError(new Error('boh'))).toBe('UNKNOWN_ERROR');
+    // Credito provider AI esaurito (es. OpenRouter 402): codice dedicato, non ritentabile.
+    expect(classifyError(new Error('402 Insufficient credits. Add more using ...'))).toBe('AI_NO_CREDIT');
+    expect(isRetryable('AI_NO_CREDIT')).toBe(false);
   });
 });
 

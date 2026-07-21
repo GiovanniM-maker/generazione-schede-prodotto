@@ -309,6 +309,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
 
+  // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
+  const [analyzingImages, setAnalyzingImages] = useState(false);
+
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
   const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
@@ -411,18 +414,44 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (guess) setCategoryHeader(guess);
   }, [stepId, spreadsheetResult, categoryHeader]);
 
-  // Step 9: import + prodotti.
+  // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
     if (stepId !== 9 || !batchId) return;
+    const bid = batchId;
+    let cancelled = false;
+
+    // Se il batch ha immagini, l'analisi (OCR etichette + categoria dedotta) va
+    // SEMPRE fatta: è indispensabile perché i prodotti abbiano fatti e categoria.
+    // La facciamo da soli, senza chiederlo, e poi ricarichiamo i prodotti.
+    const withImages = hasImages || sourceMode === 'url';
+    const autoAnalyze = async () => {
+      if (!withImages) return;
+      setAnalyzingImages(true);
+      try {
+        await runVisualExtractionForBatch({ batchId: bid });
+      } catch {
+        /* non bloccare: i prodotti restano visibili, l'utente può assegnare a mano */
+      }
+      if (cancelled) return;
+      const relist = await getBatchProductsV2({ batchId: bid });
+      if (!cancelled && relist.ok) setProducts(relist.data.products);
+      if (!cancelled) setAnalyzingImages(false);
+    };
+
     // Import da URL: i prodotti sono già stati creati da importFromUrls.
     // NON rieseguire confirmImportV2 (cancellerebbe i prodotti importati).
     if (sourceMode === 'url') {
       setProducts(null);
-      void getBatchProductsV2({ batchId }).then((list) => {
+      void (async () => {
+        const list = await getBatchProductsV2({ batchId: bid });
+        if (cancelled) return;
         if (list.ok) setProducts(list.data.products);
         else setError(list.error);
-      });
-      return;
+        await autoAnalyze();
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     setProducts(null);
     setImportSummary(null);
@@ -432,7 +461,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     };
     void (async () => {
       const imp = await confirmImportV2({
-        batchId,
+        batchId: bid,
         skuHeader: hasSpreadsheet ? skuHeader : '',
         attributeMapping: hasSpreadsheet ? mapping : {},
         categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
@@ -441,15 +470,21 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           : undefined,
         options,
       });
+      if (cancelled) return;
       if (!imp.ok) {
         setError(imp.error);
         return;
       }
       setImportSummary(imp.data);
-      const list = await getBatchProductsV2({ batchId });
+      const list = await getBatchProductsV2({ batchId: bid });
+      if (cancelled) return;
       if (list.ok) setProducts(list.data.products);
       else setError(list.error);
+      await autoAnalyze();
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [stepId, batchId]);
 
   // --- Azioni di transizione ---
@@ -817,7 +852,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
 
       {stepId === 9 && batchId && (
-        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} />
+        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} />
       )}
 
       {stepId === 10 && (
@@ -841,7 +876,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
         <StepPrimaryAction
           stepId={stepId}
-          busy={busy}
+          busy={busy || analyzingImages}
           step3Label={sourceMode === 'url' ? 'Importa da URL' : 'Continua'}
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
@@ -1861,48 +1896,14 @@ function Step9({
   importSummary,
   batchId,
   hasImages,
+  analyzing,
 }: {
   products: BatchProductRow[] | null;
   importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   batchId: string;
   hasImages: boolean;
+  analyzing: boolean;
 }) {
-  const [analyzing, setAnalyzing] = useState(false);
-  const [visualMsg, setVisualMsg] = useState<string | null>(null);
-  const [visualErr, setVisualErr] = useState<string | null>(null);
-
-  async function analyzeImages() {
-    setAnalyzing(true);
-    setVisualErr(null);
-    setVisualMsg(null);
-    try {
-      const res = await runVisualExtractionForBatch({ batchId });
-      if (!res.ok) {
-        setVisualErr(res.error);
-        return;
-      }
-      const warnings: string[] = [];
-      if (res.data.productsSkipped > 0) {
-        warnings.push(
-          `${res.data.productsSkipped} prodotti non sono stati analizzati (max ${res.data.maxProducts} per esecuzione): rilancia l'analisi per completarli.`,
-        );
-      }
-      if (res.data.productsWithTruncatedImages > 0) {
-        warnings.push(
-          `Per ${res.data.productsWithTruncatedImages} prodotti sono state usate solo le prime ${res.data.maxImagesPerProduct} immagini.`,
-        );
-      }
-      setVisualMsg(
-        `${res.data.productsProcessed} prodotti analizzati, ${res.data.attributesSuggested} attributi suggeriti. Conferma i suggerimenti nella revisione dei dati.` +
-          (warnings.length ? ` ${warnings.join(' ')}` : ''),
-      );
-    } catch {
-      setVisualErr('Analisi immagini non riuscita. Riprova.');
-    } finally {
-      setAnalyzing(false);
-    }
-  }
-
   if (products === null) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1910,31 +1911,30 @@ function Step9({
       </div>
     );
   }
+  const senzaCategoria = products.filter((p) => !p.category).length;
   return (
     <div className="space-y-4">
-      {hasImages && (
-        <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3" data-tour="analyze">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-600">
-              Suggerimenti visivi: verranno usati come fatti solo se li confermi. Materiali,
-              composizione e dati tecnici non sono deducibili dalle immagini.
-            </p>
-            <Button onClick={analyzeImages} disabled={analyzing} className="shrink-0">
-              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Analizza immagini
-            </Button>
-          </div>
-          {visualMsg && (
-            <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
-              {visualMsg}{' '}
-              <Link href={`/app/batches/${batchId}/input`} className="font-medium underline">
-                Vai alla revisione
-              </Link>
-            </p>
-          )}
-          {visualErr && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{visualErr}</p>
-          )}
+      {hasImages && analyzing && (
+        <div className="flex items-center gap-2 rounded-lg border border-brand-accent/20 bg-brand-soft/60 p-3 text-sm text-brand-accent" data-tour="analyze">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Analisi automatica delle foto in corso: leggo le etichette e deduco la categoria di ogni
+          prodotto…
+        </div>
+      )}
+      {hasImages && !analyzing && (
+        <p className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600">
+          Foto analizzate: i dati leggibili sull’etichetta sono stati usati come fatti. Materiali,
+          composizione e dati tecnici non deducibili dalle foto restano da inserire.
+        </p>
+      )}
+      {!analyzing && senzaCategoria > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <strong>{senzaCategoria} prodotti senza categoria.</strong> Senza categoria le schede
+            escono generiche (mancano i campi specifici del prodotto). Assegna una categoria qui
+            sotto prima di continuare.
+          </span>
         </div>
       )}
       {importSummary && (

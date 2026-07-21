@@ -11,6 +11,28 @@ export interface BatchProgress {
   needsReview: number;
   failed: number;
   status: string;
+  /** Messaggio leggibile quando ci sono fallimenti (es. credito AI esaurito). */
+  topError?: string;
+}
+
+/** Traduce il codice errore del worker in un messaggio azionabile per l'utente. */
+function friendlyError(code?: string | null): string | undefined {
+  switch (code) {
+    case 'AI_NO_CREDIT':
+      return 'Il servizio AI ha esaurito il credito. Ricarica il saldo su OpenRouter, poi rilancia la generazione (i tuoi crediti non sono stati consumati).';
+    case 'AI_RATE_LIMIT':
+      return 'Il servizio AI ha applicato un limite temporaneo. Attendi qualche minuto e rilancia.';
+    case 'AI_TIMEOUT':
+      return 'Il servizio AI non ha risposto in tempo. Riprova a lanciare la generazione.';
+    case 'AI_INVALID_OUTPUT':
+      return 'Il servizio AI ha restituito un risultato non valido. Riprova.';
+    case 'INSUFFICIENT_FACTS':
+      return 'Dati insufficienti per generare: aggiungi attributi o analizza le foto, poi riprova.';
+    default:
+      return code
+        ? 'Generazione non riuscita per alcuni prodotti. Riprova; se persiste, controlla il credito del servizio AI.'
+        : undefined;
+  }
 }
 
 export type BatchProgressResult =
@@ -43,6 +65,20 @@ export async function getBatchProgressAction(
     .eq('products.batch_id', batchId)
     .eq('status', 'needs_review');
 
+  // Se ci sono fallimenti, recupera il motivo prevalente per mostrarlo chiaro.
+  let topError: string | undefined;
+  if ((batch.failed_products ?? 0) > 0) {
+    const { data: jf } = await supabase
+      .from('job_items')
+      .select('last_error_code')
+      .eq('batch_id', batchId)
+      .eq('status', 'failed')
+      .not('last_error_code', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    topError = friendlyError(jf?.[0]?.last_error_code) ?? friendlyError('generic');
+  }
+
   return {
     ok: true,
     progress: {
@@ -51,6 +87,7 @@ export async function getBatchProgressAction(
       needsReview: needsReview ?? 0,
       failed: batch.failed_products ?? 0,
       status: batch.status ?? 'processing',
+      topError,
     },
   };
 }

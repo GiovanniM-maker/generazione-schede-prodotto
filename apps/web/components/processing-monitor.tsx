@@ -122,6 +122,14 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
             />
             <Stat label="Falliti" value={progress?.failed ?? 0} tone="red" />
           </div>
+
+          {/* Motivo del fallimento, chiaro e azionabile. */}
+          {progress?.topError && (progress?.failed ?? 0) > 0 && (
+            <div className="mt-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{progress.topError}</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
