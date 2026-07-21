@@ -796,7 +796,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         const body = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Errore nell’avvio della generazione');
       }
-      router.push(`/app/batches/${batchId}/processing`);
+      // La generazione prosegue in background (cron): riporta l'utente in home,
+      // dove il batch si aggiorna da solo con la barra di avanzamento.
+      router.push('/app');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Errore');
     } finally {
