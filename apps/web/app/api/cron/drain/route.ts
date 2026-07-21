@@ -5,6 +5,7 @@ import { queueRead, queueDelete } from '@app/database';
 import { getServerEnv } from '@/lib/env.server';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getSessionUser } from '@/lib/auth';
+import { notifyCompletedBatches } from '@/lib/notify';
 
 // Drena la coda di generazione lato serverless: fa il lavoro del worker senza
 // un processo separato.
@@ -44,6 +45,8 @@ async function drain(): Promise<{ processed: number; empty: boolean; error?: str
       return { processed, empty: false, error: err instanceof Error ? err.message : 'queue_read' };
     }
     if (messages.length === 0) {
+      // Coda vuota: buon momento per notificare i batch appena completati.
+      await notifyCompletedBatches(service);
       return { processed, empty: true };
     }
     await Promise.all(
@@ -70,6 +73,7 @@ async function drain(): Promise<{ processed: number; empty: boolean; error?: str
     processed += messages.length;
   }
 
+  await notifyCompletedBatches(service);
   return { processed, empty: false };
 }
 
