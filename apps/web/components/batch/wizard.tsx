@@ -293,6 +293,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 7
   const [skuHeader, setSkuHeader] = useState('');
   const [categoryHeader, setCategoryHeader] = useState('');
+  const [parentHeader, setParentHeader] = useState('');
   const [importOption, setImportOption] = useState<'complete' | 'includeImageOnly' | 'excludeIncomplete'>('complete');
 
   // Step 8
@@ -503,6 +504,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         skuHeader: hasSpreadsheet ? skuHeader : '',
         attributeMapping: hasSpreadsheet ? mapping : {},
         categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
+        parentHeader: hasSpreadsheet && parentHeader ? parentHeader : undefined,
         extraColumns: hasSpreadsheet
           ? Object.entries(extraCols).map(([header, name]) => ({ header, name: name || header }))
           : undefined,
@@ -888,6 +890,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           setSkuHeader={setSkuHeader}
           categoryHeader={categoryHeader}
           setCategoryHeader={setCategoryHeader}
+          parentHeader={parentHeader}
+          setParentHeader={setParentHeader}
           importOption={importOption}
           setImportOption={setImportOption}
         />
@@ -1655,6 +1659,8 @@ function Step7({
   setSkuHeader,
   categoryHeader,
   setCategoryHeader,
+  parentHeader,
+  setParentHeader,
   importOption,
   setImportOption,
 }: {
@@ -1666,6 +1672,8 @@ function Step7({
   setSkuHeader: (v: string) => void;
   categoryHeader: string;
   setCategoryHeader: (v: string) => void;
+  parentHeader: string;
+  setParentHeader: (v: string) => void;
   importOption: 'complete' | 'includeImageOnly' | 'excludeIncomplete';
   setImportOption: (v: 'complete' | 'includeImageOnly' | 'excludeIncomplete') => void;
 }) {
@@ -1710,6 +1718,31 @@ function Step7({
             tuo catalogo (nessuna AI). <strong>Decide quali attributi e istruzioni del preset vengono
             usati in generazione</strong>: un Vino riceve gli attributi del vino, non quelli della
             carne. I nomi non presenti nel catalogo verranno segnalati al passo successivo.
+          </p>
+        </div>
+      )}
+
+      {hasSpreadsheet && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <Label htmlFor="parent-header">Colonna «codice padre» — varianti colore/taglia (facoltativa)</Label>
+          <Select
+            id="parent-header"
+            value={parentHeader}
+            onChange={(e) => setParentHeader(e.target.value)}
+          >
+            <option value="">— Nessuna: ogni riga è un prodotto a sé —</option>
+            {headers.map((h) => (
+              <option key={h} value={h} disabled={h === skuHeader}>
+                {h}
+                {h === skuHeader ? ' (colonna SKU)' : ''}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1.5 text-xs text-gray-600">
+            Se il tuo file ha una colonna che indica il <strong>prodotto padre</strong> (es. il codice
+            modello condiviso da tutte le taglie/colori), selezionala qui: le righe con lo stesso
+            codice vengono <strong>raggruppate come varianti</strong> e nell’export mantengono il
+            legame padre → varianti (utile per Shopify/Woo).
           </p>
         </div>
       )}
