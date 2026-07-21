@@ -128,6 +128,8 @@ export async function planPresetAction(input: {
   presetId: string;
   request: string;
   history: { role: 'user' | 'assistant'; content: string }[];
+  /** Piano già proposto: passato quando l'utente chiede una modifica. */
+  currentPlan?: PlannedCategory[] | null;
 }): Promise<ActionResult<PresetPlanResult>> {
   const ctx = await assertPresetAccess(input.presetId);
   if (!ctx) return fail('Preset non accessibile');
@@ -181,6 +183,7 @@ export async function planPresetAction(input: {
       existingCategories: (cats ?? []).map((c) => c.name),
       existingAttributes: (attrs ?? []).map((a) => a.name),
       history: (input.history ?? []).slice(-8),
+      currentPlan: input.currentPlan ?? null,
     });
     out = res.data;
   } catch (err) {
@@ -207,6 +210,7 @@ export async function planPresetAction(input: {
           ? a.enumValues.map((v) => String(v).trim()).filter(Boolean).slice(0, 30)
           : null,
         unit: a.unit?.trim().slice(0, 40) ?? null,
+        extractionInstruction: a.extractionInstruction?.trim().slice(0, 500) ?? null,
         generationInstruction: a.generationInstruction?.trim().slice(0, 500) ?? null,
         existing: attrExisting,
       };
@@ -347,9 +351,12 @@ export async function applyPresetPlanAction(input: {
             data_type: normDataType(attr.dataType),
             unit: attr.unit ?? null,
             enum_values_json: enumJson,
-            default_extraction_instruction: `Estrai il valore di "${attrName}" dalle fonti: solo il dato dichiarato, non stimare.`,
+            default_extraction_instruction:
+              attr.extractionInstruction?.trim() ||
+              `Estrai il valore di "${attrName}" dalle fonti: solo il dato dichiarato, non stimare.`,
             default_generation_instruction:
-              attr.generationInstruction ?? `Usa "${attrName}" nel testo solo se presente tra i fatti verificati.`,
+              attr.generationInstruction?.trim() ||
+              `Usa "${attrName}" nel testo solo se presente tra i fatti verificati.`,
             is_system: false,
             status: 'active',
             version: 1,
