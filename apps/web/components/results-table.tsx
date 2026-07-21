@@ -23,6 +23,7 @@ import {
   rejectGenerationAction,
   regenerateProductAction,
   getProductAttributesAction,
+  confirmProductFactAction,
   type ProductAttributeView,
 } from '@/lib/actions/results';
 import {
@@ -952,10 +953,35 @@ const SOURCE_TONE: Record<ProductAttributeView['source'], 'green' | 'blue' | 'gr
   altro: 'gray',
 };
 
-/** Pannello "Attributi estratti": mostra i dati (peso, marchio, ecc.) con fonte e confidenza. */
+// Un campo è un "dubbio" quando è letto dalle foto con bassa sicurezza o non è
+// ancora usabile: l'AI chiede all'utente di confermarlo o correggerlo.
+const CONFIDENCE_DOUBT = 0.8;
+function isDoubt(a: ProductAttributeView): boolean {
+  if (!a.usable) return true;
+  return a.source === 'foto' && a.confidence != null && a.confidence < CONFIDENCE_DOUBT;
+}
+/** Affidabilità 0..1: i dati da Excel/manuale sono certi; le foto usano la confidenza letta. */
+function reliability(a: ProductAttributeView): number {
+  if (a.source === 'foto') return a.confidence ?? 0;
+  return a.usable ? 1 : (a.confidence ?? 0);
+}
+function reliabilityTone(r: number): { bar: string; text: string } {
+  if (r >= CONFIDENCE_DOUBT) return { bar: 'bg-emerald-500', text: 'text-emerald-700' };
+  if (r >= 0.5) return { bar: 'bg-amber-500', text: 'text-amber-700' };
+  return { bar: 'bg-red-500', text: 'text-red-700' };
+}
+
+/**
+ * Tabella "Campi e affidabilità": ogni campo della scheda con la sua % di
+ * affidabilità. I campi letti dalle foto con bassa sicurezza sono DUBBI:
+ * l'utente li conferma o corregge qui, senza passare dall'inbox.
+ */
 function ProductAttributesPanel({ productId }: { productId: string }) {
   const [attrs, setAttrs] = useState<ProductAttributeView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -973,39 +999,134 @@ function ProductAttributesPanel({ productId }: { productId: string }) {
     };
   }, [productId]);
 
+  async function resolve(a: ProductAttributeView, value?: string) {
+    setBusyId(a.attributeId);
+    try {
+      const res = await confirmProductFactAction({
+        productId,
+        attributeId: a.attributeId,
+        value,
+      });
+      if (res.ok) {
+        setAttrs((prev) =>
+          (prev ?? []).map((x) =>
+            x.attributeId === a.attributeId
+              ? { ...x, value: value ?? x.value, confidence: 1, usable: true, status: 'confirmed' }
+              : x,
+          ),
+        );
+        setEditing(null);
+      } else {
+        setError(res.error);
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const doubtCount = (attrs ?? []).filter(isDoubt).length;
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <p className="text-sm font-medium text-gray-700">Attributi estratti</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-gray-700">Campi e affidabilità</p>
+        {doubtCount > 0 && <Badge tone="amber">{doubtCount} da confermare</Badge>}
+      </div>
+      <p className="mt-0.5 text-xs text-gray-500">
+        I campi in giallo sono <strong>dubbi</strong> dell&apos;AI (letti dalle foto con bassa
+        sicurezza): confermali o correggili.
+      </p>
       {attrs === null && !error && (
         <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carico gli attributi…
+          <Loader2 className="h-4 w-4 animate-spin" /> Carico i campi…
         </div>
       )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       {attrs && attrs.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
-          Nessun attributo valorizzato. Con le sole foto vengono riempiti solo i dati leggibili sul
+          Nessun campo valorizzato. Con le sole foto vengono riempiti solo i dati leggibili sul
           pack; aggiungi un Excel per completare gli altri.
         </p>
       )}
       {attrs && attrs.length > 0 && (
         <div className="mt-2 divide-y divide-gray-100">
-          {attrs.map((a, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 py-1.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm text-gray-800">
-                  <span className="font-medium">{a.name}:</span> {a.value}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {!a.usable && <Badge tone="amber">da confermare</Badge>}
-                {a.confidence != null && a.source === 'foto' && (
-                  <span className="text-xs text-gray-400">{Math.round(a.confidence * 100)}%</span>
+          {attrs.map((a) => {
+            const rel = reliability(a);
+            const tone = reliabilityTone(rel);
+            const doubt = isDoubt(a);
+            const isEditing = editing === a.attributeId;
+            const busy = busyId === a.attributeId;
+            return (
+              <div
+                key={a.attributeId}
+                className={cn('py-2', doubt && 'rounded-md bg-amber-50/60 px-2')}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-gray-800">
+                      <span className="font-medium">{a.name}:</span>{' '}
+                      {isEditing ? null : a.value}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {/* Barra di affidabilità + % */}
+                    <div className="flex items-center gap-1.5" title={`Affidabilità ${Math.round(rel * 100)}%`}>
+                      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-gray-200">
+                        <div className={cn('h-full rounded-full', tone.bar)} style={{ width: `${Math.round(rel * 100)}%` }} />
+                      </div>
+                      <span className={cn('w-9 text-right text-xs font-medium tabular-nums', tone.text)}>
+                        {Math.round(rel * 100)}%
+                      </span>
+                    </div>
+                    <Badge tone={SOURCE_TONE[a.source]}>{a.source}</Badge>
+                  </div>
+                </div>
+                {isEditing && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={() => resolve(a, editValue)} disabled={busy}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      Salva
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(null)} disabled={busy}>
+                      Annulla
+                    </Button>
+                  </div>
                 )}
-                <Badge tone={SOURCE_TONE[a.source]}>{a.source}</Badge>
+                {doubt && !isEditing && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => resolve(a)}
+                      disabled={busy}
+                      className="h-7 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      Conferma
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditing(a.attributeId);
+                        setEditValue(a.value);
+                      }}
+                      disabled={busy}
+                      className="h-7"
+                    >
+                      <Pencil className="h-4 w-4" /> Correggi
+                    </Button>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
