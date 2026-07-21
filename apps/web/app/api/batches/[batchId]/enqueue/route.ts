@@ -11,7 +11,7 @@ export const maxDuration = 300;
 
 // POST /api/batches/[batchId]/enqueue — riserva crediti e accoda la generazione.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ batchId: string }> },
 ) {
   const { batchId } = await params;
@@ -21,8 +21,16 @@ export async function POST(
   const orgId = await assertBatchAccess(batchId);
   if (!orgId) return NextResponse.json({ error: 'Batch non accessibile' }, { status: 403 });
 
+  const body = (await request.json().catch(() => ({}))) as { notify?: boolean };
+
   const env = getServerEnv();
   const service = getServiceClient();
+
+  // Opt-in notifica email: salva il destinatario (email dell'account) sul batch.
+  // A fine generazione il drain invierà l'avviso.
+  if (body.notify && user.email) {
+    await service.from('batches').update({ notify_email: user.email, notified_at: null }).eq('id', batchId);
+  }
 
   try {
     // Estrazione visiva automatica PRIMA dell'accodamento: legge le etichette dei

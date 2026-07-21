@@ -313,6 +313,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [analyzingImages, setAnalyzingImages] = useState(false);
   const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number } | null>(null);
 
+  // Step 11 — avviso email a fine generazione (opt-in, attivo di default).
+  const [notifyByEmail, setNotifyByEmail] = useState(true);
+
   // Step 10
   const [sampleDone, setSampleDone] = useState(false);
   const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
@@ -787,7 +790,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch(`/api/batches/${batchId}/enqueue`, { method: 'POST' });
+      const r = await fetch(`/api/batches/${batchId}/enqueue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notify: notifyByEmail }),
+      });
       if (r.status === 402) {
         setError('Crediti insufficienti per generare l’intero batch. Acquista crediti dalla pagina Abbonamento.');
         return;
@@ -902,7 +909,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         />
       )}
 
-      {stepId === 11 && <Step11 importSummary={importSummary} />}
+      {stepId === 11 && <Step11 importSummary={importSummary} notifyByEmail={notifyByEmail} setNotifyByEmail={setNotifyByEmail} />}
 
       {/* Navigazione */}
       <div className="flex items-center justify-between border-t border-gray-100 pt-4">
@@ -2184,7 +2191,15 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
 // Step 11 — Conferma e avvio.
 // ---------------------------------------------------------------------------
 
-function Step11({ importSummary }: { importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null }) {
+function Step11({
+  importSummary,
+  notifyByEmail,
+  setNotifyByEmail,
+}: {
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  notifyByEmail: boolean;
+  setNotifyByEmail: (v: boolean) => void;
+}) {
   return (
     <div className="space-y-4" data-tour="launch">
       <Card>
@@ -2208,7 +2223,21 @@ function Step11({ importSummary }: { importSummary: { imported: number; valid: n
               </p>
             </div>
           )}
-          <p>Verrà riservato 1 credito per ogni prodotto idoneo. La generazione avviene in background.</p>
+          <p>Verrà riservato 1 credito per ogni prodotto idoneo. La generazione avviene in background: puoi chiudere la pagina.</p>
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <input
+              type="checkbox"
+              checked={notifyByEmail}
+              onChange={(e) => setNotifyByEmail(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300"
+            />
+            <span>
+              <span className="font-medium text-gray-800">Avvisami via email quando è pronto</span>
+              <span className="mt-0.5 block text-gray-500">
+                Ti mandiamo un’email all’indirizzo del tuo account appena la generazione finisce.
+              </span>
+            </span>
+          </label>
           <div className="flex items-center gap-2 text-gray-500">
             <ImageIcon className="h-4 w-4" /> Potrai rivedere e correggere i risultati al termine.
           </div>

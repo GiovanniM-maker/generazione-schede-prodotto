@@ -73,6 +73,8 @@ export interface Database {
           credits_reserved: number;
           started_at: string | null;
           completed_at: string | null;
+          notify_email: string | null;
+          notified_at: string | null;
         } & Timestamps
       >;
       source_files: T<{
