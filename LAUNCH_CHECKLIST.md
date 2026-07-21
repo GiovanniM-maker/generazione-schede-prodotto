@@ -18,9 +18,9 @@ Documento vivo: aggiornato man mano. `[x]` = fatto · `[ ]` = da fare.
 ## B. Roadmap prodotto (le faccio io)
 
 - [x] **#1 — Pipeline in background** (generazione via cron, home con batch live, barra analisi foto, email a fine generazione)
-- [ ] **#2 — Feedback per campo + "Migliora la pipeline"** *(in corso)*
-- [ ] **#3 — Inbox dei "dubbi" dell'AI** (notifica stile chat, l'utente risponde, migliora la pipeline)
-- [ ] **#4 — Dashboard admin per te** (consumi, utenti, spesa) + **stima costo/prodotto** + **fee di generazione**
+- [x] **#2 — Feedback per campo + "Migliora la pipeline"**
+- [x] **#3 — Inbox dei "dubbi" dell'AI** (badge notifica, l'utente risponde, il dato si corregge)
+- [ ] **#4 — Dashboard admin per te** (consumi, utenti, spesa) + **stima costo/prodotto** + **fee di generazione** *(dopo aver confermato che l'app funziona bene)*
 - [ ] Varianti colore/taglia
 - [ ] Controllo qualità immagini + suggerimento foto mancanti
 - [ ] *(opzionale)* Spostare l'analisi foto completamente in background (zero attese, ma niente revisione categorie prima di generare)
