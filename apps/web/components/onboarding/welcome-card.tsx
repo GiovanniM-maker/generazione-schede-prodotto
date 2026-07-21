@@ -29,7 +29,7 @@ export function WelcomeCard() {
   if (!visible) return null;
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-brand-accent/30 bg-gradient-to-br from-blue-50/70 to-white p-5">
+    <div className="relative overflow-hidden rounded-xl border border-brand-accent/30 bg-gradient-to-br from-brand-soft/60 to-white p-5">
       <button
         type="button"
         onClick={dismiss}

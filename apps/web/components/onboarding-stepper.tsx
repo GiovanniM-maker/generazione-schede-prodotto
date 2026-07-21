@@ -555,7 +555,7 @@ export function OnboardingStepper({
                     type="button"
                     onClick={() => setSectorId(s.id)}
                     className={cn(
-                      'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                      'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                       active
                         ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
                         : 'border-gray-200 hover:border-gray-300',
@@ -628,7 +628,7 @@ export function OnboardingStepper({
                     className={cn(
                       'rounded-lg border p-4 transition-colors',
                       active
-                        ? 'border-brand-accent bg-blue-50/40 ring-1 ring-brand-accent'
+                        ? 'border-brand-accent bg-brand-soft/50 ring-1 ring-brand-accent'
                         : 'border-gray-200',
                     )}
                   >
@@ -638,7 +638,7 @@ export function OnboardingStepper({
                           type="checkbox"
                           checked={active}
                           onChange={() => toggleCategory(c.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-blue-500"
+                          className="mt-1 h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
                         />
                         <span>
                           <span className="block font-medium text-gray-900">
@@ -761,7 +761,7 @@ export function OnboardingStepper({
                                   isRequired: ev.target.checked,
                                 })
                               }
-                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-blue-500 disabled:opacity-40"
+                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent disabled:opacity-40"
                             />
                             Obbligatorio
                           </label>
@@ -774,7 +774,7 @@ export function OnboardingStepper({
                                   enabled: ev.target.checked,
                                 })
                               }
-                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-blue-500"
+                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
                             />
                             Nel preset
                           </label>
@@ -862,7 +862,7 @@ export function OnboardingStepper({
                   type="button"
                   onClick={() => setStyle(s.value)}
                   className={cn(
-                    'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                    'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                     style === s.value
                       ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
                       : 'border-gray-200 hover:border-gray-300',

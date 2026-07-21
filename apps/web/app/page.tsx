@@ -140,7 +140,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <p className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-gray-700">
-                Con Schede AI parti dai dati che già possiedi: mappi le colonne
+                Con Verificato parti dai dati che già possiedi: mappi le colonne
                 una sola volta, definisci il tono del brand e generi tutte le
                 schede mantenendo coerenza e controllo.
               </p>
@@ -163,7 +163,7 @@ export default function LandingPage() {
               <Card key={s.title}>
                 <CardContent className="p-6 pt-6">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-brand-accent">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand-accent">
                       <s.icon className="h-5 w-5" />
                     </span>
                     <span className="text-sm font-medium text-gray-400">
@@ -330,7 +330,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <p className="text-sm text-gray-400">
-            © {new Date().getFullYear()} Schede AI
+            © {new Date().getFullYear()} Verificato
           </p>
         </div>
       </footer>

@@ -4,12 +4,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Tema "Verificato": rosso brand + neutri caldi. Il rosso è per i
+        // momenti di brand/azione; gli stati (ok/avviso/errore) restano semantici.
         brand: {
-          DEFAULT: '#0e1626',
-          muted: '#64748b',
-          accent: '#4f46e5',
-          accentHover: '#4338ca',
-          soft: '#eef2ff',
+          DEFAULT: '#17130f',
+          muted: '#6e655a',
+          accent: '#e5322d',
+          accentHover: '#c22b27',
+          soft: '#fbe7e4',
         },
       },
     },

@@ -6,7 +6,7 @@ import type { getServiceClient } from '@/lib/supabase/service';
 // un dominio su Resend, il mittente resta onboarding@resend.dev (arriva solo al
 // proprietario dell'account Resend). Con dominio verificato, imposta RESEND_FROM.
 
-const RESEND_FROM = process.env.RESEND_FROM || 'Schede AI <onboarding@resend.dev>';
+const RESEND_FROM = process.env.RESEND_FROM || 'Verificato <onboarding@resend.dev>';
 
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
@@ -74,10 +74,10 @@ export async function notifyCompletedBatches(
           failed ? ` (${failed} non riuscite)` : ''
         }.</p>`
       : `<p>La generazione del batch <strong>${b.name}</strong> non è riuscita. Apri il batch per vedere il motivo.</p>`;
-    const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#0e1626">
-      <h2 style="font-size:20px;margin:0 0 8px">Schede AI</h2>
+    const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#17130f">
+      <h2 style="font-size:20px;margin:0 0 8px;letter-spacing:-.02em">Verificato</h2>
       ${body}
-      <p style="margin:16px 0 0"><a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px">Apri i risultati</a></p>
+      <p style="margin:16px 0 0"><a href="${link}" style="display:inline-block;background:#e5322d;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:700">Apri i risultati</a></p>
     </div>`;
     if (await sendEmail(b.notify_email!, subject, html)) sent++;
   }
