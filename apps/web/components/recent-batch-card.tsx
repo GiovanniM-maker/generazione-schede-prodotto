@@ -30,6 +30,7 @@ export function RecentBatchCard({ batch }: { batch: RecentBatch }) {
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removed, setRemoved] = useState(false);
 
   // Stato live: i batch in corso si aggiornano da soli sulla home (generazione
   // in background via cron), con barra animata. Al termine si ricarica la pagina.
@@ -65,16 +66,22 @@ export function RecentBatchCard({ batch }: { batch: RecentBatch }) {
 
   function doDelete() {
     setError(null);
+    // Ottimistico: nascondi subito la card, chiudi il dialog. Se il server
+    // rifiuta, la ripristiniamo con il messaggio d'errore.
+    setConfirmOpen(false);
+    setRemoved(true);
     startTransition(async () => {
       const res = await deleteBatchAction({ batchId: batch.id });
       if (!res.ok) {
+        setRemoved(false);
         setError(res.error ?? 'Errore');
         return;
       }
-      setConfirmOpen(false);
       router.refresh();
     });
   }
+
+  if (removed) return null;
 
   return (
     <Card>

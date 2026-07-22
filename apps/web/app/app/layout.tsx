@@ -23,8 +23,11 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const org = await getUserOrg(user.id);
-  const credits = org ? await getCreditBalance(org.organizationId) : 0;
-  const openDoubts = await countOpenDoubtsAction();
+  // Indipendenti: in parallelo per non sommare le latenze di rete.
+  const [credits, openDoubts] = await Promise.all([
+    org ? getCreditBalance(org.organizationId) : Promise.resolve(0),
+    countOpenDoubtsAction(),
+  ]);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">

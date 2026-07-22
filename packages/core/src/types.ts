@@ -116,6 +116,12 @@ export interface VisualFieldSpec {
   /** valori ammessi per enum/multi_enum. */
   enumValues?: string[];
   unit?: string;
+  /**
+   * Campo di CLASSIFICAZIONE (es. categoria merceologica): va sempre compilato
+   * scegliendo il valore più adatto in base a ciò che si vede, anche se la
+   * parola non è stampata. Deroga alla regola "non dedurre".
+   */
+  classify?: boolean;
 }
 
 /** Attributi visuali estratti dalle immagini, con categoria e confidenza. */
