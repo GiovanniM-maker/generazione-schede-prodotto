@@ -76,6 +76,7 @@ export interface CopilotDraftData {
   sectorId: string | null;
   name: string | null;
   description: string | null;
+  recognitionHint: string | null;
   attributeKind: string | null;
   dataType: string | null;
   unit: string | null;
@@ -106,6 +107,7 @@ function emptyDraftData(sectorId: string | null): CopilotDraftData {
     sectorId,
     name: null,
     description: null,
+    recognitionHint: null,
     attributeKind: null,
     dataType: null,
     unit: null,
@@ -129,6 +131,7 @@ function parseDraftData(raw: Json | null | undefined): CopilotDraftData {
     sectorId: str(obj.sectorId),
     name: str(obj.name),
     description: str(obj.description),
+    recognitionHint: str(obj.recognitionHint),
     attributeKind: str(obj.attributeKind),
     dataType: str(obj.dataType),
     unit: str(obj.unit),
@@ -148,6 +151,7 @@ function mergeDraft(current: CopilotDraftData, patch: CopilotDraftPatch): Copilo
   const next: CopilotDraftData = { ...current };
   if (patch.name !== null) next.name = patch.name;
   if (patch.description !== null) next.description = patch.description;
+  if (patch.recognitionHint !== null) next.recognitionHint = patch.recognitionHint;
   if (patch.attributeKind !== null) next.attributeKind = patch.attributeKind;
   if (patch.dataType !== null) next.dataType = patch.dataType;
   if (patch.unit !== null) next.unit = patch.unit;
@@ -214,14 +218,20 @@ export async function startCopilotConversation(input: {
       if (entityType === 'category') {
         const { data: cat } = await service
           .from('categories')
-          .select('id, name, description, sector_id, owner_organization_id')
+          .select('id, name, description, recognition_hint, sector_id, owner_organization_id')
           .eq('id', input.entityId)
           .maybeSingle();
         if (!cat) return { ok: false, error: 'Categoria non trovata' };
         if (cat.owner_organization_id !== organizationId) {
           return { ok: false, error: 'Solo le categorie personalizzate sono modificabili (duplica quelle di sistema).' };
         }
-        draftData = { ...draftData, sectorId: cat.sector_id, name: cat.name, description: cat.description };
+        draftData = {
+          ...draftData,
+          sectorId: cat.sector_id,
+          name: cat.name,
+          description: cat.description,
+          recognitionHint: cat.recognition_hint,
+        };
         editEntityId = cat.id;
       } else {
         const { data: attr } = await service
@@ -600,6 +610,7 @@ export async function confirmDraft(input: {
         sector_id: data.sectorId,
         name,
         description: data.description?.trim() || null,
+        recognition_hint: data.recognitionHint?.trim() || null,
       };
       if (isEdit) {
         const { data: updated, error } = await service

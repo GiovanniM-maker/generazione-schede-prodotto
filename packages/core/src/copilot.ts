@@ -32,6 +32,8 @@ export interface CopilotInput {
 export interface CopilotDraftPatch {
   name: string | null;
   description: string | null;
+  /** Categoria: come si riconosce dalle foto (guida la classificazione). */
+  recognitionHint: string | null;
   attributeKind: string | null;
   dataType: string | null;
   unit: string | null;
@@ -57,6 +59,7 @@ export interface CopilotOutput {
 export const copilotDraftPatchSchema = z.object({
   name: z.string().nullable(),
   description: z.string().nullable(),
+  recognitionHint: z.string().nullable(),
   attributeKind: z.string().nullable(),
   dataType: z.string().nullable(),
   unit: z.string().nullable(),
@@ -97,6 +100,7 @@ export const COPILOT_JSON_SCHEMA = {
       properties: {
         name: { type: ['string', 'null'] },
         description: { type: ['string', 'null'] },
+        recognitionHint: { type: ['string', 'null'] },
         attributeKind: { type: ['string', 'null'] },
         dataType: { type: ['string', 'null'] },
         unit: { type: ['string', 'null'] },
@@ -115,6 +119,7 @@ export const COPILOT_JSON_SCHEMA = {
       required: [
         'name',
         'description',
+        'recognitionHint',
         'attributeKind',
         'dataType',
         'unit',
@@ -173,7 +178,8 @@ const COPILOT_ATTRIBUTE_RULES = [
 
 const COPILOT_CATEGORY_RULES = [
   'Stai configurando una CATEGORIA di prodotto.',
-  'Per una categoria sono rilevanti soprattutto name e description; gli altri campi restano tipicamente null.',
+  'Per una categoria sono rilevanti name, description e recognitionHint; gli altri campi restano tipicamente null.',
+  'recognitionHint è OBBLIGATORIO e importante: descrivi COME si riconosce questo tipo di prodotto DALLE FOTO (forma, colore, packaging, parole/diciture tipiche in etichetta). Serve all\'AI per classificare la categoria guardando le immagini. Es. per "Cioccolato fondente": "Tavoletta scura; in etichetta percentuale di cacao alta (70%+) e diciture come fondente/extra fondente". Proponilo sempre; se mancano dettagli, chiedili in missingInformation.',
   'Suggerisci in suggestedActions eventuali attributi tipici da associare in seguito alla categoria.',
 ];
 
