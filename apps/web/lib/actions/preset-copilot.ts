@@ -91,6 +91,8 @@ export interface PlannedAttributeView extends PlannedAttribute {
 export interface PlannedCategoryView {
   name: string;
   description: string | null;
+  /** Come si riconosce dalle foto (guida la classificazione della categoria). */
+  recognitionHint: string | null;
   /** true se la categoria è già collegata al preset (versione di lavoro). */
   existing: boolean;
   attributes: PlannedAttributeView[];
@@ -218,6 +220,7 @@ export async function planPresetAction(input: {
     return {
       name,
       description: c.description?.trim().slice(0, 500) ?? null,
+      recognitionHint: c.recognitionHint?.trim().slice(0, 500) ?? null,
       existing: catExisting,
       attributes,
     };
@@ -297,6 +300,7 @@ export async function applyPresetPlanAction(input: {
     if (!catName) continue;
     // Trova o crea la categoria.
     let categoryId = catIdByName.get(norm(catName));
+    const hint = cat.recognitionHint?.trim() || null;
     if (!categoryId) {
       const { data: created, error } = await service
         .from('categories')
@@ -305,6 +309,7 @@ export async function applyPresetPlanAction(input: {
           owner_organization_id: ctx.orgId,
           name: catName,
           description: cat.description ?? null,
+          recognition_hint: hint,
           is_system: false,
           status: 'active',
         })
@@ -314,6 +319,14 @@ export async function applyPresetPlanAction(input: {
       categoryId = created.id;
       catIdByName.set(norm(catName), categoryId);
       res.categoriesCreated++;
+    } else if (hint) {
+      // Categoria già esistente (di proprietà dell'org): aggiorna la guida di
+      // riconoscimento con quella proposta dal copilot.
+      await service
+        .from('categories')
+        .update({ recognition_hint: hint })
+        .eq('id', categoryId)
+        .eq('owner_organization_id', ctx.orgId);
     }
     // Collega la categoria al preset.
     if (!linkedCats.has(categoryId)) {

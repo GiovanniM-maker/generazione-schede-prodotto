@@ -21,6 +21,8 @@ export interface PlannedAttribute {
 export interface PlannedCategory {
   name: string;
   description: string | null;
+  /** Come si riconosce dalle foto (guida la classificazione della categoria). */
+  recognitionHint: string | null;
   attributes: PlannedAttribute[];
 }
 
@@ -54,6 +56,7 @@ export const plannedAttributeSchema = z.object({
 export const plannedCategorySchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
+  recognitionHint: z.string().nullable(),
   attributes: z.array(plannedAttributeSchema),
 });
 export const presetPlanOutputSchema = z.object({
@@ -79,6 +82,7 @@ export const PRESET_PLAN_JSON_SCHEMA = {
         properties: {
           name: { type: 'string' },
           description: { type: ['string', 'null'] },
+          recognitionHint: { type: ['string', 'null'] },
           attributes: {
             type: 'array',
             items: {
@@ -96,7 +100,7 @@ export const PRESET_PLAN_JSON_SCHEMA = {
             },
           },
         },
-        required: ['name', 'description', 'attributes'],
+        required: ['name', 'description', 'recognitionHint', 'attributes'],
       },
     },
   },
@@ -117,6 +121,7 @@ const PLAN_RULES = [
   'Per OGNI attributo fornisci SEMPRE due istruzioni CONCRETE e specifiche per quell\'attributo (mai vuote, mai null, mai generiche):',
   '- extractionInstruction: come riconoscere/estrarre quel dato dalle fonti (etichetta in foto, colonna Excel). Es. per "Peso netto": "Cerca il peso netto sull\'etichetta (es. 500 g); usa il valore dichiarato, non stimare".',
   '- generationInstruction: come usare il valore nel testo, coerente col tipo (es. boolean "cita solo se vero", percentage "esprimi con %"). Rispetta il principio "i dati posseggono i fatti": mai inventare valori non presenti.',
+  'Per OGNI categoria fornisci SEMPRE recognitionHint: come si riconosce quel tipo di prodotto DALLE FOTO (forma, colore, packaging, parole tipiche in etichetta). Serve all\'AI per classificare la categoria guardando le immagini. Es. per "Cioccolato fondente": "Tavoletta scura, in etichetta alta percentuale di cacao (70%+), diciture come fondente/extra fondente". Mai vuoto, mai null.',
   'Riusa i nomi già esistenti (existingCategories/existingAttributes) quando combaciano, invece di crearne di simili: evita duplicati.',
   'Non superare quanto richiesto: se l\'utente chiede 5 categorie e 3 attributi, restituisci esattamente quello (salvo diversa indicazione).',
   'MODIFICHE: se ti viene fornito un "Piano attuale", l\'utente sta chiedendo di MODIFICARLO. Riparti da quel piano e applica SOLO la modifica richiesta, lasciando invariato tutto il resto (stessi nomi, tipi e istruzioni per gli elementi non toccati). Restituisci il piano COMPLETO aggiornato, non solo la differenza.',
@@ -127,7 +132,7 @@ const PLAN_RULES = [
 export function buildPresetPlanSystemPrompt(): string {
   return [
     ...PLAN_RULES,
-    'Restituisci SEMPRE un JSON strict conforme allo schema: { assistantMessage, summary, categories: [{ name, description, attributes: [{ name, dataType, enumValues, unit, extractionInstruction, generationInstruction }] }] }.',
+    'Restituisci SEMPRE un JSON strict conforme allo schema: { assistantMessage, summary, categories: [{ name, description, recognitionHint, attributes: [{ name, dataType, enumValues, unit, extractionInstruction, generationInstruction }] }] }.',
   ].join('\n');
 }
 
@@ -143,7 +148,8 @@ function serializeCurrentPlan(categories: PlannedCategory[]): string {
             }] | estrazione: ${a.extractionInstruction ?? '—'} | testo: ${a.generationInstruction ?? '—'}`,
         )
         .join('\n');
-      return `• ${c.name}${c.description ? ` — ${c.description}` : ''}\n${attrs}`;
+      const hint = c.recognitionHint ? `\n  (si riconosce: ${c.recognitionHint})` : '';
+      return `• ${c.name}${c.description ? ` — ${c.description}` : ''}${hint}\n${attrs}`;
     })
     .join('\n');
 }

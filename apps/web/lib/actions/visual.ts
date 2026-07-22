@@ -243,9 +243,15 @@ export async function runVisualExtractionForBatch(input: {
   const CATEGORY_FIELD_KEY = '__product_category__';
   const catIds = [...new Set(enabledPas.map((p) => p.category_id).filter((c): c is string => !!c))];
   const { data: catRows } = catIds.length
-    ? await service.from('categories').select('id, name').in('id', catIds)
-    : { data: [] as Array<{ id: string; name: string }> };
+    ? await service.from('categories').select('id, name, recognition_hint').in('id', catIds)
+    : { data: [] as Array<{ id: string; name: string; recognition_hint: string | null }> };
   const categoryNameById = new Map((catRows ?? []).map((c) => [c.id, c.name] as const));
+  // "Come si riconosce" per categoria: guida la classificazione dalle foto.
+  const categoryHints: Record<string, string> = {};
+  for (const c of catRows ?? []) {
+    const h = c.recognition_hint?.trim();
+    if (h) categoryHints[c.name] = h;
+  }
   const categoryIdByNorm = new Map((catRows ?? []).map((c) => [normalizeKey(c.name), c.id] as const));
   const categoryNames = (catRows ?? []).map((c) => c.name);
 
@@ -285,6 +291,7 @@ export async function runVisualExtractionForBatch(input: {
         dataType: 'enum',
         enumValues: categoryNames,
         classify: true,
+        enumHints: categoryHints,
       }
     : null;
 

@@ -50,6 +50,7 @@ describe('buildPresetPlanUserPrompt — modifiche', () => {
         {
           name: 'Magliette',
           description: null,
+          recognitionHint: 'Capo in maglia, foto del busto',
           attributes: [
             { name: 'Colore', dataType: 'text', enumValues: null, unit: null, extractionInstruction: 'Leggi il colore', generationInstruction: 'Cita il colore' },
           ],
