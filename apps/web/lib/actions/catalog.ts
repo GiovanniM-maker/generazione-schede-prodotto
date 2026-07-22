@@ -194,6 +194,7 @@ export interface PresetCategoryGroup {
   categoryId: string;
   name: string;
   isSystem: boolean;
+  recognitionHint: string | null;
   displayOrder: number;
   enabled: boolean;
   attributes: PresetAttrRow[];
@@ -850,7 +851,7 @@ export async function getPresetDetail(input: {
         .order('display_order', { ascending: true }),
       service
         .from('categories')
-        .select('id, name, owner_organization_id, created_at')
+        .select('id, name, recognition_hint, owner_organization_id, created_at')
         .eq('sector_id', preset.sector_id)
         .eq('status', 'active')
         .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`),
@@ -864,11 +865,15 @@ export async function getPresetDetail(input: {
         .or(`owner_organization_id.is.null,owner_organization_id.eq.${organizationId}`),
     ]);
 
-    const catName = new Map<string, { name: string; isSystem: boolean }>();
+    const catName = new Map<
+      string,
+      { name: string; isSystem: boolean; recognitionHint: string | null }
+    >();
     for (const c of sectorCats.data ?? []) {
       catName.set(c.id, {
         name: c.name,
         isSystem: c.owner_organization_id === null,
+        recognitionHint: c.recognition_hint,
       });
     }
     const attrInfo = new Map<
@@ -937,6 +942,7 @@ export async function getPresetDetail(input: {
         categoryId: c.category_id,
         name: info?.name ?? 'Categoria',
         isSystem: info?.isSystem ?? false,
+        recognitionHint: info?.recognitionHint ?? null,
         displayOrder: c.display_order,
         enabled: c.enabled,
         attributes: attrsByCat.get(c.category_id) ?? [],
