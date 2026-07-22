@@ -281,9 +281,10 @@ export async function runVisualExtractionForBatch(input: {
   const categorySpec: VisualFieldSpec | null = categoryNames.length
     ? {
         key: CATEGORY_FIELD_KEY,
-        name: 'Categoria merceologica del prodotto: scegli quella che corrisponde a ciò che vedi',
+        name: 'Categoria merceologica del prodotto: a quale di queste categorie appartiene ciò che vedi?',
         dataType: 'enum',
         enumValues: categoryNames,
+        classify: true,
       }
     : null;
 

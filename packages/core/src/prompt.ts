@@ -157,6 +157,15 @@ export const FACT_AUDIT_PROMPT_VERSION_EXPORT = FACT_AUDIT_PROMPT_VERSION;
 function fieldSpecLine(spec: VisualFieldSpec): string {
   const parts = [`- ${spec.key} — ${spec.name}`];
   const t = spec.dataType;
+  // I campi di CLASSIFICAZIONE (categoria) vanno SEMPRE compilati scegliendo il
+  // valore più adatto: è un giudizio, non un testo da leggere sul pack.
+  if (spec.classify) {
+    const vals = spec.enumValues && spec.enumValues.length ? `: ${spec.enumValues.join(' | ')}` : '';
+    parts.push(
+      `(CLASSIFICAZIONE OBBLIGATORIA — scegli SEMPRE il valore più adatto tra${vals}, in base a ciò che vedi; anche se la parola non è stampata. Non lasciare vuoto.)`,
+    );
+    return parts.join(' ');
+  }
   if (t === 'boolean') parts.push('(sì/no: valore "sì" solo se la caratteristica è affermata sul pack)');
   else if (t === 'enum' || t === 'multi_enum') {
     const vals = spec.enumValues && spec.enumValues.length ? `: ${spec.enumValues.join(' | ')}` : '';
@@ -197,7 +206,8 @@ export function buildVisualUserPrompt(
     allowed,
     '',
     'Regole:',
-    '1) NON inventare e NON dedurre: se un dato non è leggibile sul pack, ometti quel campo. Meglio vuoto che sbagliato.',
+    '1) NON inventare e NON dedurre i DATI DI FATTO: se un dato non è leggibile sul pack, ometti quel campo. Meglio vuoto che sbagliato.',
+    '1-bis) ECCEZIONE — i campi marcati "CLASSIFICAZIONE OBBLIGATORIA" (es. la categoria merceologica) vanno SEMPRE compilati: scegli il valore più coerente con ciò che vedi, anche se la parola non è stampata sul pack. È una classificazione, non una lettura.',
     '2) Rispetta il tipo indicato (enum: usa un valore esatto dell’elenco; sì/no; numeri con unità; percentuali con %).',
     '3) Per OGNI valore indica la categoria "kind":',
     '   - "onpack_factual": dato oggettivo stampato (peso, ingredienti, valori nutrizionali, allergeni, gradazione, produttore, denominazione…).',
