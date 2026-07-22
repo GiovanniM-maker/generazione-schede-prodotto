@@ -251,6 +251,7 @@ export interface CategoryDetail {
     id: string;
     name: string;
     description: string | null;
+    recognitionHint: string | null;
     sectorId: string;
     sectorName: string;
     isSystem: boolean;
@@ -1463,7 +1464,7 @@ export async function getCategoryDetail(input: {
     const { data: cat } = await service
       .from('categories')
       .select(
-        'id, name, description, sector_id, owner_organization_id, source_category_id',
+        'id, name, description, recognition_hint, sector_id, owner_organization_id, source_category_id',
       )
       .eq('id', input.categoryId)
       .maybeSingle();
@@ -1582,6 +1583,7 @@ export async function getCategoryDetail(input: {
         id: cat.id,
         name: cat.name,
         description: cat.description,
+        recognitionHint: cat.recognition_hint,
         sectorId: cat.sector_id,
         sectorName: sectors.get(cat.sector_id) ?? '—',
         isSystem,
@@ -1613,6 +1615,30 @@ async function loadOwnedCategory(
   if (data.owner_organization_id !== organizationId)
     return { ok: false, error: 'Categoria non accessibile' };
   return { ok: true };
+}
+
+/** Aggiorna la guida "come si riconosce dalle foto" di una categoria (org). */
+export async function updateCategoryRecognitionAction(input: {
+  categoryId: string;
+  recognitionHint: string;
+}): Promise<OkVoid | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    const chk = await loadOwnedCategory(service, organizationId, input.categoryId);
+    if (!chk.ok) return chk;
+    const hint = input.recognitionHint.trim().slice(0, 500) || null;
+    const { error } = await service
+      .from('categories')
+      .update({ recognition_hint: hint })
+      .eq('id', input.categoryId)
+      .eq('owner_organization_id', organizationId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
 }
 
 export async function addAttributeToCategory(input: {

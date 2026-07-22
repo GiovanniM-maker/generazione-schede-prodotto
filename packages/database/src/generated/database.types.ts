@@ -381,6 +381,7 @@ export interface Database {
           key: string | null;
           name: string;
           description: string | null;
+          recognition_hint: string | null;
           is_system: boolean;
           status: string;
           archived_at: string | null;

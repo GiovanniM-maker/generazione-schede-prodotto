@@ -8,6 +8,7 @@ import {
   removeAttributeFromCategory,
   setCategoryAttribute,
   duplicateSystemCategory,
+  updateCategoryRecognitionAction,
   type CategoryDetail,
   type CategoryAttrRow,
 } from '@/lib/actions/catalog';
@@ -107,6 +108,13 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
         </div>
       )}
 
+      <RecognitionHintCard
+        categoryId={detail.category.id}
+        initial={detail.category.recognitionHint}
+        editable={editable}
+        onError={setError}
+      />
+
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-900">Attributi</h3>
@@ -188,6 +196,75 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
         )}
       </Modal>
     </div>
+  );
+}
+
+/** Guida "come si riconosce dalle foto": aiuta l'AI a classificare la categoria. */
+function RecognitionHintCard({
+  categoryId,
+  initial,
+  editable,
+  onError,
+}: {
+  categoryId: string;
+  initial: string | null;
+  editable: boolean;
+  onError: (msg: string | null) => void;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(initial ?? '');
+  const [saved, setSaved] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const dirty = value.trim() !== (initial ?? '').trim();
+
+  function save() {
+    onError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const res = await updateCategoryRecognitionAction({ categoryId, recognitionHint: value });
+      if (!res.ok) {
+        onError(res.error);
+        return;
+      }
+      setSaved(true);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card className="p-5">
+      <h3 className="text-base font-semibold text-gray-900">Come si riconosce dalle foto</h3>
+      <p className="mt-1 text-sm text-gray-500">
+        Aiuta l&apos;AI a capire quando un prodotto appartiene a questa categoria guardando le
+        immagini (forma, colore, packaging, parole tipiche in etichetta). Più è specifica, meglio la
+        categoria viene assegnata sui caricamenti di sole foto.
+      </p>
+      {editable ? (
+        <>
+          <Textarea
+            className="mt-3"
+            rows={3}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setSaved(false);
+            }}
+            placeholder="Es. Tavoletta scura; in etichetta alta % di cacao (70%+) e diciture come «fondente» / «extra fondente»."
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" onClick={save} disabled={pending || !dirty}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salva
+            </Button>
+            {saved && !dirty && <span className="text-sm text-emerald-600">Salvato ✓</span>}
+          </div>
+        </>
+      ) : (
+        <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          {initial?.trim() || 'Nessuna guida impostata. Duplica la categoria per personalizzarla.'}
+        </p>
+      )}
+    </Card>
   );
 }
 

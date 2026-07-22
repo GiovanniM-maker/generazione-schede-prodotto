@@ -160,9 +160,13 @@ function fieldSpecLine(spec: VisualFieldSpec): string {
   // I campi di CLASSIFICAZIONE (categoria) vanno SEMPRE compilati scegliendo il
   // valore più adatto: è un giudizio, non un testo da leggere sul pack.
   if (spec.classify) {
-    const vals = spec.enumValues && spec.enumValues.length ? `: ${spec.enumValues.join(' | ')}` : '';
+    const hints = spec.enumHints ?? {};
+    const list = (spec.enumValues ?? [])
+      .map((v) => (hints[v] ? `${v} (${hints[v]})` : v))
+      .join(' | ');
+    const vals = list ? `: ${list}` : '';
     parts.push(
-      `(CLASSIFICAZIONE OBBLIGATORIA — scegli SEMPRE il valore più adatto tra${vals}, in base a ciò che vedi; anche se la parola non è stampata. Non lasciare vuoto.)`,
+      `(CLASSIFICAZIONE OBBLIGATORIA — scegli SEMPRE il valore più adatto tra${vals}, in base a ciò che vedi; anche se la parola non è stampata. Restituisci solo il NOME della categoria, senza la spiegazione tra parentesi. Non lasciare vuoto.)`,
     );
     return parts.join(' ');
   }

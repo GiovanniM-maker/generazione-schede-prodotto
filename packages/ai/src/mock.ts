@@ -308,6 +308,7 @@ export class MockPresetPlanProvider implements PresetPlanProvider {
     const categories = Array.from({ length: nCats }, (_, i) => ({
       name: `Categoria ${i + 1}`,
       description: null,
+      recognitionHint: `Si riconosce dalle foto della Categoria ${i + 1}.`,
       attributes: Array.from({ length: nAttrs }, (_, j) => ({
         name: `Attributo ${i + 1}.${j + 1}`,
         dataType: 'text',

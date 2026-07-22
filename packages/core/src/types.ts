@@ -122,6 +122,8 @@ export interface VisualFieldSpec {
    * parola non è stampata. Deroga alla regola "non dedurre".
    */
   classify?: boolean;
+  /** Per i campi enum/classify: valore → "come si riconosce" (aiuta la scelta). */
+  enumHints?: Record<string, string>;
 }
 
 /** Attributi visuali estratti dalle immagini, con categoria e confidenza. */

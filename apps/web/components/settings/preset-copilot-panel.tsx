@@ -297,6 +297,12 @@ export function PresetCopilotPanel({
                     <Badge tone="green">nuova</Badge>
                   )}
                 </div>
+                {c.recognitionHint && (
+                  <p className="mt-1 pl-5 text-xs text-gray-500">
+                    <span className="font-medium text-gray-600">Si riconosce dalle foto:</span>{' '}
+                    {c.recognitionHint}
+                  </p>
+                )}
                 <div className="mt-1.5 space-y-1.5 pl-5">
                   {c.attributes.map((a, j) => (
                     <div
