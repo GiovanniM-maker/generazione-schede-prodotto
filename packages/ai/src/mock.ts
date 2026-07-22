@@ -212,6 +212,7 @@ export class MockCopilotProvider implements CopilotProvider {
     const draftPatch: CopilotDraftPatch = {
       name,
       description: null,
+      recognitionHint: isAttribute ? null : `Si riconosce dalle foto: prodotto tipo "${name}".`,
       attributeKind: isAttribute ? 'factual' : null,
       dataType: isAttribute ? 'text' : null,
       unit: null,

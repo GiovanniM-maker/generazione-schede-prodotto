@@ -367,7 +367,7 @@ export function CopilotPanel({
                   Descrivi come vuoi modificare questa {label}. Per esempio: «
                   {entityType === 'attribute'
                     ? 'Rinominala in Composizione e rendila un elenco'
-                    : 'Cambia il nome in Capispalla e aggiorna la descrizione'}
+                    : 'Scrivi come si riconosce dalle foto: tavoletta scura, cacao 70%+'}
                   ». Preparerò una bozza da confermare.
                 </>
               ) : (
@@ -375,7 +375,7 @@ export function CopilotPanel({
                   Descrivi la {label} che vuoi creare. Per esempio: «
                   {entityType === 'attribute'
                     ? 'Aggiungi un attributo Materiale per le magliette'
-                    : 'Crea una categoria Magliette'}
+                    : 'Crea la categoria Cioccolato fondente e spiega come si riconosce dalle foto'}
                   ». Preparerò una bozza da confermare.
                 </>
               )}
@@ -562,6 +562,9 @@ export function CopilotPanel({
             <dl className="space-y-2 text-sm">
               <DraftField label="Nome" value={data.name} />
               <DraftField label="Descrizione" value={data.description} />
+              {entityType === 'category' && (
+                <DraftField label="Come si riconosce" value={data.recognitionHint} />
+              )}
               {entityType === 'attribute' && (
                 <>
                   <DraftField label="Tipo" value={data.attributeKind} />
