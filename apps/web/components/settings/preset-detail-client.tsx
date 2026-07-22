@@ -27,6 +27,7 @@ import {
   publishPresetVersion,
   clearPresetVersion,
   ensureDraftVersion,
+  updateCategoryRecognitionAction,
   type PresetDetail,
   type PresetAttrRow,
 } from '@/lib/actions/catalog';
@@ -337,6 +338,14 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                 </div>
               </div>
 
+              <CategoryRecognitionEditor
+                key={current.categoryId}
+                categoryId={current.categoryId}
+                initial={current.recognitionHint}
+                editable={editable && !current.isSystem}
+                onError={setError}
+              />
+
               {current.attributes.length === 0 ? (
                 <p className="py-6 text-center text-sm text-gray-400">
                   Nessun attributo in questa categoria.
@@ -386,9 +395,15 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
 
           {/* Campi generati */}
           <Card className="p-5">
-            <h3 className="mb-3 text-base font-semibold text-gray-900">
+            <h3 className="text-base font-semibold text-gray-900">
               Campi generati
             </h3>
+            <p className="mb-3 mt-0.5 text-xs text-gray-500">
+              Sono i campi della <strong>scheda finale</strong> che l&apos;AI scrive (titolo,
+              descrizioni, bullet, meta). Gli <strong>attributi</strong> qui sopra sono invece i
+              <strong> fatti</strong> in ingresso che li alimentano: per questo i campi generati
+              restano pochi anche con molti attributi.
+            </p>
             <div className="flex flex-wrap gap-2">
               {detail.generatedFields.map((f) => (
                 <Badge key={f.id} tone={f.enabled ? 'green' : 'gray'}>
@@ -579,6 +594,76 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         }}
         onCancel={() => setRemoveCatTarget(null)}
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Prompt della CATEGORIA: "come si riconosce dalle foto" (classificazione)
+// ---------------------------------------------------------------------
+function CategoryRecognitionEditor({
+  categoryId,
+  initial,
+  editable,
+  onError,
+}: {
+  categoryId: string;
+  initial: string | null;
+  editable: boolean;
+  onError: (msg: string | null) => void;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(initial ?? '');
+  const [saved, setSaved] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const dirty = value.trim() !== (initial ?? '').trim();
+
+  function save() {
+    onError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const res = await updateCategoryRecognitionAction({ categoryId, recognitionHint: value });
+      if (!res.ok) {
+        onError(res.error);
+        return;
+      }
+      setSaved(true);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-brand-accent/20 bg-brand-soft/40 p-4">
+      <p className="text-sm font-semibold text-gray-900">Prompt categoria — come si riconosce dalle foto</p>
+      <p className="mt-0.5 text-xs text-gray-500">
+        Guida l&apos;AI a classificare questa categoria dalle immagini (forma, colore, packaging,
+        diciture in etichetta). Usata sui caricamenti di sole foto.
+      </p>
+      {editable ? (
+        <>
+          <Textarea
+            className="mt-2"
+            rows={2}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setSaved(false);
+            }}
+            placeholder="Es. Tavoletta scura; in etichetta % di cacao alta (70%+) e diciture come «fondente»."
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" onClick={save} disabled={pending || !dirty}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salva prompt categoria
+            </Button>
+            {saved && !dirty && <span className="text-sm text-emerald-600">Salvato ✓</span>}
+          </div>
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-gray-600">
+          {initial?.trim() || 'Nessuna guida impostata (categoria di sistema: duplicala per personalizzarla).'}
+        </p>
+      )}
     </div>
   );
 }
