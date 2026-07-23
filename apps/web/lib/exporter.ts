@@ -185,10 +185,17 @@ export async function buildBatchExport(
     `alt_text_${lang}`,
     `faq_${lang}`,
   ]);
+  // Colonne base: elimina le colonne-fatto FISSE (color, composition, material,
+  // fit, category, brand) che restano VUOTE su tutto il batch — così un export
+  // Food non mostra colonne moda (colore/taglia) senza valori.
+  const baseColSet = new Set(exportColumns(EXTRA_FACT_COLUMNS));
+  const extraFactSet = new Set(EXTRA_FACT_COLUMNS);
+  const nonEmpty = (col: string) => rows.some((r) => (r[col] ?? '').trim() !== '');
+  const baseCols = exportColumns(EXTRA_FACT_COLUMNS).filter(
+    (c) => !extraFactSet.has(c) || nonEmpty(c),
+  );
   // Colonne attributi di categoria: unione ordinata, escluse quelle già presenti
   // tra le colonne base (evita doppioni tipo marca/categoria).
-  const baseCols = exportColumns(EXTRA_FACT_COLUMNS);
-  const baseColSet = new Set(baseCols);
   const factCols = [...factColumnSet].filter((c) => !baseColSet.has(c)).sort();
   const columns = [
     ...baseCols,
