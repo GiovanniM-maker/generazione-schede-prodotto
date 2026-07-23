@@ -1019,6 +1019,8 @@ export async function confirmImportV2(input: {
   attributeMapping: Record<string, string>; // attributeId -> header
   /** Colonna del file che contiene la categoria merceologica (opzionale). */
   categoryHeader?: string;
+  /** Rimappatura manuale dei valori categoria non riconosciuti: valore file → categoryId. */
+  categoryOverrides?: Record<string, string>;
   /** Colonna del "codice padre": raggruppa le varianti (colore/taglia) di uno stesso prodotto. */
   parentHeader?: string;
   /** Colonne libere del file da importare come fatti (attributo creato al volo). */
@@ -1081,6 +1083,7 @@ export async function confirmImportV2(input: {
     }
   }
   const matchCategoryId = makeCategoryMatcher(categoryEntries);
+  const catNameById = new Map(categoryEntries.map((e) => [e.id, e.name] as const));
   let categoriesMatched = 0;
   const unmatchedCategories = new Set<string>();
 
@@ -1296,16 +1299,25 @@ export async function confirmImportV2(input: {
         continue;
       }
 
-      // Collega il prodotto alla categoria merceologica dell'org (match robusto).
+      // Collega il prodotto alla categoria merceologica dell'org. Prima la
+      // rimappatura manuale (override dell'utente), poi il match robusto.
       let categoryId: string | null = null;
       if (category) {
-        const matched = matchCategoryId(category);
-        if (matched) {
-          categoryId = matched;
+        const override = input.categoryOverrides?.[category.trim()];
+        if (override) {
+          categoryId = override;
           categoriesMatched++;
         } else {
-          unmatchedCategories.add(category.trim());
+          const matched = matchCategoryId(category);
+          if (matched) {
+            categoryId = matched;
+            categoriesMatched++;
+          } else {
+            unmatchedCategories.add(category.trim());
+          }
         }
+        // Mostra il nome del catalogo quando la categoria è stata risolta.
+        if (categoryId) category = catNameById.get(categoryId) ?? category;
       }
 
       const { data: productRow, error: pErr } = await service

@@ -31,6 +31,7 @@ import {
   getBatchPresetAttributes,
   confirmImportV2,
   getBatchProductsV2,
+  getBatchCategoryOptions,
   importFromUrls,
   type PublishedPresetSummary,
   type PresetExplorer,
@@ -294,6 +295,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 7
   const [skuHeader, setSkuHeader] = useState('');
   const [categoryHeader, setCategoryHeader] = useState('');
+  // Rimappatura manuale dei valori categoria non riconosciuti: valore file → categoryId.
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
   const [parentHeader, setParentHeader] = useState('');
   const [importOption, setImportOption] = useState<'complete' | 'includeImageOnly' | 'excludeIncomplete'>('complete');
 
@@ -480,7 +483,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       try {
         let guard = 0;
         for (;;) {
-          const res = await runVisualExtractionForBatch({ batchId: bid });
+          const res = await runVisualExtractionForBatch({
+            batchId: bid,
+            // Categoria mappata dal file → non dedurla dalle foto (solo fatti).
+            skipCategory: hasSpreadsheet && Boolean(categoryHeader),
+          });
           if (!res.ok) break;
           if (res.data.productsSkipped > 0 && guard++ < 30) continue;
           break;
@@ -529,6 +536,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         skuHeader: hasSpreadsheet ? skuHeader : '',
         attributeMapping: hasSpreadsheet ? mapping : {},
         categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
+        categoryOverrides: hasSpreadsheet && Object.keys(categoryOverrides).length > 0 ? categoryOverrides : undefined,
         parentHeader: hasSpreadsheet && parentHeader ? parentHeader : undefined,
         extraColumns: hasSpreadsheet
           ? Object.entries(extraCols).map(([header, name]) => ({ header, name: name || header }))
@@ -919,13 +927,17 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           setParentHeader={setParentHeader}
           importOption={importOption}
           setImportOption={setImportOption}
+          batchId={batchId}
+          previewRows={spreadsheetResult?.previewRows ?? []}
+          categoryOverrides={categoryOverrides}
+          setCategoryOverrides={setCategoryOverrides}
         />
       )}
 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
 
       {stepId === 9 && batchId && (
-        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} />
+        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} categoryFromFile={hasSpreadsheet && Boolean(categoryHeader)} />
       )}
 
       {stepId === 10 && (
@@ -1622,6 +1634,112 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record
   );
 }
 
+/**
+ * Verifica che i valori della colonna Categoria corrispondano a categorie del
+ * catalogo. Quelli non riconosciuti vengono elencati e si possono rimappare a
+ * mano su una categoria esistente (override passato all'import).
+ */
+function CategoryColumnValidator({
+  batchId,
+  header,
+  previewRows,
+  overrides,
+  setOverrides,
+}: {
+  batchId: string;
+  header: string;
+  previewRows: Array<Record<string, string>>;
+  overrides: Record<string, string>;
+  setOverrides: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
+}) {
+  const [cats, setCats] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    getBatchCategoryOptions({ batchId })
+      .then((r) => {
+        if (!active) return;
+        if (r.ok) setCats(r.data.categories);
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [batchId]);
+
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+
+  if (loading) return <p className="mt-2 text-xs text-gray-400">Verifico i valori della colonna…</p>;
+  if (cats.length === 0) return null;
+
+  const catByNorm = new Map(cats.map((c) => [norm(c.name), c] as const));
+  const matchOf = (value: string) => {
+    const n = norm(value);
+    const exact = catByNorm.get(n);
+    if (exact) return exact;
+    return cats.find((c) => {
+      const cn = norm(c.name);
+      return cn && (n.includes(cn) || cn.includes(n));
+    });
+  };
+
+  const values = [...new Set(previewRows.map((r) => (r[header] ?? '').trim()).filter(Boolean))];
+  const rows = values.map((v) => ({ value: v, match: matchOf(v) }));
+  const unresolved = rows.filter((r) => !r.match && !overrides[r.value]);
+  const okCount = rows.length - unresolved.length;
+
+  return (
+    <div
+      className={cn(
+        'mt-3 rounded-lg border p-3',
+        unresolved.length > 0 ? 'border-amber-300 bg-amber-50' : 'border-emerald-200 bg-emerald-50',
+      )}
+    >
+      <p className={cn('text-xs font-medium', unresolved.length > 0 ? 'text-amber-900' : 'text-emerald-800')}>
+        {unresolved.length > 0
+          ? `${unresolved.length} valore/i della colonna «${header}» non corrisponde a nessuna categoria: rimappalo qui sotto.`
+          : `Tutti i valori della colonna «${header}» corrispondono a una categoria (${okCount}/${rows.length}).`}
+      </p>
+      {unresolved.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {unresolved.map((r) => (
+            <div key={r.value} className="grid grid-cols-1 items-center gap-1.5 sm:grid-cols-2">
+              <span className="truncate text-sm text-amber-900" title={r.value}>
+                «{r.value}»
+              </span>
+              <Select
+                value={overrides[r.value] ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setOverrides((prev) => {
+                    const next = { ...prev };
+                    if (v) next[r.value] = v;
+                    else delete next[r.value];
+                    return next;
+                  });
+                }}
+              >
+                <option value="">— Scegli la categoria giusta —</option>
+                {cats.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mt-1.5 text-[11px] text-gray-500">
+        Verifica basata sull&apos;anteprima ({previewRows.length} righe). I valori nuovi che compaiono
+        oltre l&apos;anteprima potrai correggerli al passo «Verifica dati».
+      </p>
+    </div>
+  );
+}
+
 function FilesTable({ files }: { files: UploadedFileSummary[] }) {
   return (
     <Table>
@@ -1708,6 +1826,10 @@ function Step7({
   setParentHeader,
   importOption,
   setImportOption,
+  batchId,
+  previewRows,
+  categoryOverrides,
+  setCategoryOverrides,
 }: {
   analysis: AnalyzeData | null;
   hasImages: boolean;
@@ -1721,6 +1843,10 @@ function Step7({
   setParentHeader: (v: string) => void;
   importOption: 'complete' | 'includeImageOnly' | 'excludeIncomplete';
   setImportOption: (v: 'complete' | 'includeImageOnly' | 'excludeIncomplete') => void;
+  batchId: string | null;
+  previewRows: Array<Record<string, string>>;
+  categoryOverrides: Record<string, string>;
+  setCategoryOverrides: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1762,8 +1888,17 @@ function Step7({
             La categoria di ogni prodotto viene presa da questa colonna e agganciata in automatico al
             tuo catalogo (nessuna AI). <strong>Decide quali attributi e istruzioni del preset vengono
             usati in generazione</strong>: un Vino riceve gli attributi del vino, non quelli della
-            carne. I nomi non presenti nel catalogo verranno segnalati al passo successivo.
+            carne. Se scegli una colonna, l&apos;AI <strong>non deduce la categoria dalle foto</strong>.
           </p>
+          {categoryHeader && batchId && (
+            <CategoryColumnValidator
+              batchId={batchId}
+              header={categoryHeader}
+              previewRows={previewRows}
+              overrides={categoryOverrides}
+              setOverrides={setCategoryOverrides}
+            />
+          )}
         </div>
       )}
 
@@ -2059,6 +2194,7 @@ function Step9({
   hasImages,
   analyzing,
   analyzeProgress,
+  categoryFromFile,
 }: {
   products: BatchProductRow[] | null;
   importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
@@ -2066,6 +2202,7 @@ function Step9({
   hasImages: boolean;
   analyzing: boolean;
   analyzeProgress: { done: number; total: number } | null;
+  categoryFromFile: boolean;
 }) {
   if (products === null) {
     return (
@@ -2085,7 +2222,9 @@ function Step9({
         <div className="space-y-2 rounded-lg border border-brand-accent/20 bg-brand-soft/60 p-3" data-tour="analyze">
           <div className="flex items-center gap-2 text-sm font-medium text-brand-accent">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Analisi automatica delle foto: leggo le etichette e deduco la categoria…
+            {categoryFromFile
+              ? 'Analisi foto: leggo le etichette per estrarre i dati (la categoria la prendo dal file)…'
+              : 'Analisi automatica delle foto: leggo le etichette e deduco la categoria…'}
           </div>
           <div className="flex items-center justify-between text-xs text-brand-accent/80">
             <span>
