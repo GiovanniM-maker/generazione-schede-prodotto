@@ -967,11 +967,6 @@ function reliability(a: ProductAttributeView): number {
   if (a.source === 'foto') return a.confidence ?? 0;
   return a.usable ? 1 : (a.confidence ?? 0);
 }
-function reliabilityTone(r: number): { bar: string; text: string } {
-  if (r >= CONFIDENCE_DOUBT) return { bar: 'bg-emerald-500', text: 'text-emerald-700' };
-  if (r >= 0.5) return { bar: 'bg-amber-500', text: 'text-amber-700' };
-  return { bar: 'bg-red-500', text: 'text-red-700' };
-}
 
 /**
  * Tabella "Campi e affidabilità": ogni campo della scheda con la sua % di
@@ -1059,60 +1054,71 @@ function ProductAttributesPanel({
   const doubtCount = (attrs ?? []).filter(isDoubt).length;
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-gray-700">Campi e affidabilità</p>
-        {doubtCount > 0 && <Badge tone="amber">{doubtCount} da confermare</Badge>}
+        <p className="text-sm font-semibold text-gray-800">Campi e affidabilità</p>
+        {doubtCount > 0 && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+            {doubtCount} da confermare
+          </span>
+        )}
       </div>
-      <p className="mt-0.5 text-xs text-gray-500">
-        I campi in giallo sono <strong>dubbi</strong> dell&apos;AI (letti dalle foto con bassa
-        sicurezza): confermali o correggili.
+      <p className="-mt-1 text-xs text-gray-500">
+        I campi in <span className="font-semibold text-red-600">rosso</span> sono{' '}
+        <strong>dubbi</strong> dell&apos;AI (letti dalle foto con bassa sicurezza): confermali o
+        correggili.
       </p>
       {attrs === null && !error && (
-        <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex items-center gap-2 text-sm text-gray-400">
           <Loader2 className="h-4 w-4 animate-spin" /> Carico i campi…
         </div>
       )}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
       {attrs && attrs.length === 0 && (
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="text-sm text-gray-500">
           Nessun campo valorizzato. Con le sole foto vengono riempiti solo i dati leggibili sul
           pack; aggiungi un Excel per completare gli altri.
         </p>
       )}
-      {attrs && attrs.length > 0 && (
-        <div className="mt-2 divide-y divide-gray-100">
-          {attrs.map((a) => {
-            const rel = reliability(a);
-            const tone = reliabilityTone(rel);
-            const doubt = isDoubt(a);
-            const isEditing = editing === a.attributeId;
-            const busy = busyId === a.attributeId;
-            return (
-              <div
-                key={a.attributeId}
-                className={cn('py-2', doubt && 'rounded-md bg-amber-50/60 px-2')}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-gray-800">
-                      <span className="font-medium">{a.name}:</span>{' '}
-                      {isEditing ? null : a.value}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {/* Barra di affidabilità + % */}
-                    <div className="flex items-center gap-1.5" title={`Affidabilità ${Math.round(rel * 100)}%`}>
-                      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-gray-200">
-                        <div className={cn('h-full rounded-full', tone.bar)} style={{ width: `${Math.round(rel * 100)}%` }} />
-                      </div>
-                      <span className={cn('w-9 text-right text-xs font-medium tabular-nums', tone.text)}>
-                        {Math.round(rel * 100)}%
-                      </span>
-                    </div>
-                    <Badge tone={SOURCE_TONE[a.source]}>{a.source}</Badge>
-                  </div>
+      {attrs &&
+        attrs.length > 0 &&
+        attrs.map((a) => {
+          const rel = reliability(a);
+          const pct = Math.round(rel * 100);
+          const doubt = isDoubt(a);
+          const isEditing = editing === a.attributeId;
+          const busy = busyId === a.attributeId;
+          // Dubbio (confidence bassa) → rosso in grassetto. Altrimenti verde/ambra.
+          const barColor = doubt ? 'bg-red-500' : rel >= 0.8 ? 'bg-emerald-500' : 'bg-amber-500';
+          const pctColor = doubt ? 'text-red-600' : rel >= 0.8 ? 'text-emerald-700' : 'text-amber-700';
+          return (
+            <div
+              key={a.attributeId}
+              className={cn(
+                'rounded-lg border p-3',
+                doubt ? 'border-red-200 bg-red-50/50' : 'border-gray-200 bg-white',
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className={cn('text-sm', doubt ? 'font-bold text-red-700' : 'text-gray-800')}>
+                    <span className="font-medium">{a.name}:</span>{' '}
+                    {isEditing ? null : a.value}
+                  </p>
                 </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* Barra di affidabilità + % */}
+                  <div className="flex items-center gap-1.5" title={`Affidabilità ${pct}%`}>
+                    <div className="h-1.5 w-12 overflow-hidden rounded-full bg-gray-200">
+                      <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className={cn('w-9 text-right text-xs font-bold tabular-nums', pctColor)}>
+                      {pct}%
+                    </span>
+                  </div>
+                  <Badge tone={SOURCE_TONE[a.source]}>{a.source}</Badge>
+                </div>
+              </div>
                 {isEditing && (
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <Input
@@ -1191,8 +1197,6 @@ function ProductAttributesPanel({
               </div>
             );
           })}
-        </div>
-      )}
     </div>
   );
 }

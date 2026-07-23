@@ -479,7 +479,10 @@ export async function uploadBatchFiles(
 
     // Rimpiazza eventuali item precedenti dello spreadsheet (re-upload).
     await service.from('source_items').delete().eq('batch_source_id', batchSourceId);
-    await service.from('source_items').insert({
+    // status DEVE essere un valore dell'enum source_item_status ('valid', …):
+    // 'ready' NON è valido e faceva fallire l'insert IN SILENZIO, lasciando lo
+    // spreadsheet senza source_item → l'analisi non trovava gli SKU del file.
+    const { error: itemErr } = await service.from('source_items').insert({
       organization_id: orgId,
       batch_source_id: batchSourceId,
       source_file_id: persisted.id,
@@ -488,9 +491,10 @@ export async function uploadBatchFiles(
       size_bytes: buffer.byteLength,
       sha256: createHash('sha256').update(buffer).digest('hex'),
       detected_sku: null,
-      status: 'ready',
+      status: 'valid',
       metadata_json: { headers: parsed.headers, rowCount: parsed.rows.length } as unknown as Json,
     });
+    if (itemErr) return fail(`Registrazione file non riuscita: ${itemErr.message}`);
     await service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId);
 
     return ok<UploadSpreadsheetResult>({
