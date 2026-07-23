@@ -1556,25 +1556,45 @@ function Step5({
 
 function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record<string, string>> }) {
   if (rows.length === 0) return <p className="text-sm text-gray-500">Nessuna riga da mostrare.</p>;
+  const shown = rows.slice(0, 8);
   return (
-    <Table>
-      <THead>
-        <TR>
-          {headers.map((h) => (
-            <TH key={h}>{h}</TH>
-          ))}
-        </TR>
-      </THead>
-      <TBody>
-        {rows.map((r, i) => (
-          <TR key={i}>
-            {headers.map((h) => (
-              <TD key={h}>{r[h] ?? ''}</TD>
+    <div className="overflow-hidden rounded-lg border border-gray-200">
+      <div className="max-h-80 overflow-auto">
+        <table className="w-full border-collapse text-xs">
+          <thead className="sticky top-0 z-10 bg-gray-50">
+            <tr>
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="border-b border-gray-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500"
+                  title={h}
+                >
+                  <span className="block max-w-[160px] truncate">{h}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r, i) => (
+              <tr key={i} className="odd:bg-white even:bg-gray-50/50">
+                {headers.map((h) => (
+                  <td
+                    key={h}
+                    className="whitespace-nowrap border-b border-gray-100 px-3 py-1.5 text-gray-700"
+                    title={r[h] ?? ''}
+                  >
+                    <span className="block max-w-[200px] truncate">{r[h] || <span className="text-gray-300">—</span>}</span>
+                  </td>
+                ))}
+              </tr>
             ))}
-          </TR>
-        ))}
-      </TBody>
-    </Table>
+          </tbody>
+        </table>
+      </div>
+      <p className="border-t border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-400">
+        {headers.length} colonne · anteprima di {shown.length} righe {rows.length > shown.length ? `(su ${rows.length})` : ''}
+      </p>
+    </div>
   );
 }
 
@@ -1843,10 +1863,43 @@ function Step8({
       </div>
     );
   }
+  // Colonne non ancora usate (né SKU, né Categoria, né mappate a un attributo).
+  const usedHeaders = new Set<string>([skuHeader, categoryHeader, ...Object.values(mapping)].filter(Boolean));
+  const importableAll = headers.filter((h) => !usedHeaders.has(h));
+  const allImported = importableAll.length > 0 && importableAll.every((h) => h in extraCols);
+
+  function importAllAsData() {
+    setExtraCols((prev) => {
+      const next = { ...prev };
+      for (const h of importableAll) if (!(h in next)) next[h] = h;
+      return next;
+    });
+  }
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Associa ogni attributo del preset a una colonna del file. Gli attributi non associati verranno lasciati vuoti.</p>
-      <div className="space-y-2" data-tour="mapping">
+      {/* Scorciatoia consigliata: mappa solo la Categoria, il resto come dati. */}
+      <div className="rounded-lg border border-brand-accent/30 bg-brand-soft/50 p-4">
+        <p className="text-sm font-semibold text-gray-900">La mappatura è facoltativa</p>
+        <p className="mt-0.5 text-xs text-gray-600">
+          L&apos;unica cosa importante è la <strong>Categoria</strong> (già scelta al passo
+          precedente). Tutte le altre colonne puoi importarle come <strong>dati</strong> con un clic:
+          ogni colonna diventa un fatto per lo SKU (es. «prezzo», «titolo»). Meglio più informazioni
+          che meno — restano sotto l&apos;audit anti-invenzione.
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={importAllAsData} disabled={importableAll.length === 0 || allImported}>
+            <Check className="h-4 w-4" />
+            {allImported ? 'Tutte le colonne importate' : `Importa tutte le colonne come dati (${importableAll.length})`}
+          </Button>
+        </div>
+      </div>
+
+      <details className="rounded-lg border border-gray-100">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-700">
+          Mappatura avanzata (facoltativa): abbina attributi del preset a colonne
+        </summary>
+        <div className="space-y-2 p-3" data-tour="mapping">
         {attributes.map((attr) => (
           <div key={attr.id} className="grid grid-cols-1 items-center gap-2 rounded-lg border border-gray-100 p-3 sm:grid-cols-2">
             <div className="flex items-center gap-2">
@@ -1876,7 +1929,8 @@ function Step8({
             </Select>
           </div>
         ))}
-      </div>
+        </div>
+      </details>
 
       <FreeColumnsSection
         headers={headers}
