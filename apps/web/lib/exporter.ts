@@ -46,6 +46,37 @@ export async function buildBatchExport(
     .select('id, external_id, name, category, parent_external_id, canonical_attributes_json')
     .eq('batch_id', batchId);
 
+  // Attributi SPECIFICI di categoria (fatti estratti da foto/Excel): vanno
+  // esportati come colonne dinamiche, una per attributo. Prende i valori usabili
+  // (non rifiutati) dei prodotti del batch.
+  const productIds = (products ?? []).map((p) => p.id);
+  const { data: pavRows } = productIds.length
+    ? await service
+        .from('product_attribute_values')
+        .select('product_id, attribute_id, value_json, status')
+        .in('product_id', productIds)
+    : { data: [] as Array<{ product_id: string; attribute_id: string; value_json: unknown; status: string }> };
+  const pavAttrIds = [...new Set((pavRows ?? []).map((r) => r.attribute_id))];
+  const { data: attrRows } = pavAttrIds.length
+    ? await service.from('attributes').select('id, name').in('id', pavAttrIds)
+    : { data: [] as Array<{ id: string; name: string }> };
+  const attrNameById = new Map((attrRows ?? []).map((a) => [a.id, a.name] as const));
+  const pavValue = (v: unknown): string =>
+    typeof v === 'string' ? v : v == null ? '' : JSON.stringify(v);
+  // product_id → { nome attributo → valore }. Colonne = unione ordinata dei nomi.
+  const factsByProduct = new Map<string, Record<string, string>>();
+  const factColumnSet = new Set<string>();
+  for (const r of pavRows ?? []) {
+    if (r.status === 'rejected') continue;
+    const name = attrNameById.get(r.attribute_id);
+    const value = pavValue(r.value_json).trim();
+    if (!name || value === '') continue;
+    const rec = factsByProduct.get(r.product_id) ?? {};
+    rec[name] = value;
+    factsByProduct.set(r.product_id, rec);
+    factColumnSet.add(name);
+  }
+
   const rows: Array<Record<string, string>> = [];
   const items: ExportItem[] = [];
   const usedLangs = new Set<string>();
@@ -93,6 +124,13 @@ export async function buildBatchExport(
     const parentId = product.parent_external_id ?? '';
     if (parentId) hasParents = true;
     baseRow['codice_padre'] = parentId;
+    // Attributi specifici di categoria come colonne dedicate.
+    const facts = factsByProduct.get(product.id);
+    if (facts) {
+      for (const [name, value] of Object.entries(facts)) {
+        baseRow[name] = neutralizeCell(value);
+      }
+    }
     // Colonne per lingua dalle traduzioni salvate (title_en, ..., faq_en).
     const translations = ((gen.translations_json ?? {}) as TranslationsMap) || {};
     for (const [lang, t] of Object.entries(translations)) {
@@ -147,9 +185,15 @@ export async function buildBatchExport(
     `alt_text_${lang}`,
     `faq_${lang}`,
   ]);
+  // Colonne attributi di categoria: unione ordinata, escluse quelle già presenti
+  // tra le colonne base (evita doppioni tipo marca/categoria).
+  const baseCols = exportColumns(EXTRA_FACT_COLUMNS);
+  const baseColSet = new Set(baseCols);
+  const factCols = [...factColumnSet].filter((c) => !baseColSet.has(c)).sort();
   const columns = [
-    ...exportColumns(EXTRA_FACT_COLUMNS),
+    ...baseCols,
     ...(hasParents ? ['codice_padre'] : []),
+    ...factCols,
     ...langCols,
   ];
 
