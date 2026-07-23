@@ -27,7 +27,7 @@ import {
   publishPresetVersion,
   clearPresetVersion,
   ensureDraftVersion,
-  updateCategoryRecognitionAction,
+  setPresetCategoryRecognition,
   type PresetDetail,
   type PresetAttrRow,
 } from '@/lib/actions/catalog';
@@ -339,10 +339,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               </div>
 
               <CategoryRecognitionEditor
-                key={current.categoryId}
-                categoryId={current.categoryId}
+                key={current.presetCategoryId}
+                presetCategoryId={current.presetCategoryId}
                 initial={current.recognitionHint}
-                editable={editable && !current.isSystem}
+                editable={editable}
                 onError={setError}
               />
 
@@ -602,12 +602,12 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
 // Prompt della CATEGORIA: "come si riconosce dalle foto" (classificazione)
 // ---------------------------------------------------------------------
 function CategoryRecognitionEditor({
-  categoryId,
+  presetCategoryId,
   initial,
   editable,
   onError,
 }: {
-  categoryId: string;
+  presetCategoryId: string;
   initial: string | null;
   editable: boolean;
   onError: (msg: string | null) => void;
@@ -622,7 +622,7 @@ function CategoryRecognitionEditor({
     onError(null);
     setSaved(false);
     startTransition(async () => {
-      const res = await updateCategoryRecognitionAction({ categoryId, recognitionHint: value });
+      const res = await setPresetCategoryRecognition({ presetCategoryId, recognitionHint: value });
       if (!res.ok) {
         onError(res.error);
         return;
@@ -661,7 +661,7 @@ function CategoryRecognitionEditor({
         </>
       ) : (
         <p className="mt-2 text-sm text-gray-600">
-          {initial?.trim() || 'Nessuna guida impostata (categoria di sistema: duplicala per personalizzarla).'}
+          {initial?.trim() || 'Nessuna guida impostata. Crea una bozza per modificarla.'}
         </p>
       )}
     </div>

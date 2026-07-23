@@ -246,10 +246,20 @@ export async function runVisualExtractionForBatch(input: {
     ? await service.from('categories').select('id, name, recognition_hint').in('id', catIds)
     : { data: [] as Array<{ id: string; name: string; recognition_hint: string | null }> };
   const categoryNameById = new Map((catRows ?? []).map((c) => [c.id, c.name] as const));
+  // Override "come si riconosce" a livello di preset (prevale sulla guida globale).
+  const { data: presetCatRows } = presetVersionId
+    ? await service
+        .from('preset_categories')
+        .select('category_id, recognition_hint')
+        .eq('preset_version_id', presetVersionId)
+    : { data: [] as Array<{ category_id: string; recognition_hint: string | null }> };
+  const presetHintByCatId = new Map(
+    (presetCatRows ?? []).map((r) => [r.category_id, r.recognition_hint] as const),
+  );
   // "Come si riconosce" per categoria: guida la classificazione dalle foto.
   const categoryHints: Record<string, string> = {};
   for (const c of catRows ?? []) {
-    const h = c.recognition_hint?.trim();
+    const h = (presetHintByCatId.get(c.id) ?? c.recognition_hint)?.trim();
     if (h) categoryHints[c.name] = h;
   }
   const categoryIdByNorm = new Map((catRows ?? []).map((c) => [normalizeKey(c.name), c.id] as const));

@@ -13,7 +13,7 @@ import { Select } from '@/components/ui/select';
 
 // Mappatura manuale delle categorie per SKU: utile per i batch di sole foto,
 // quando l'utente preferisce assegnare le categorie a mano invece di dedurle.
-export function CategoryAssigner({ batchId }: { batchId: string }) {
+export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; reloadKey?: number }) {
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
   const [cats, setCats] = useState<Array<{ id: string; name: string }>>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -34,7 +34,9 @@ export function CategoryAssigner({ batchId }: { batchId: string }) {
     return () => {
       active = false;
     };
-  }, [batchId]);
+    // reloadKey: ricarica dopo l'analisi automatica, così il conteggio "senza
+    // categoria" combacia con quello del banner (stessi dati aggiornati).
+  }, [batchId, reloadKey]);
 
   const catIdByName = new Map(cats.map((c) => [c.name, c.id] as const));
   const withoutCategory = (products ?? []).filter((p) => !p.category).length;

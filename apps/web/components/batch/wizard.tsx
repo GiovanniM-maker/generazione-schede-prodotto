@@ -2060,7 +2060,7 @@ function Step9({
       )}
       {products.length > 0 && (
         <div data-tour="assign-categories">
-          <CategoryAssigner batchId={batchId} />
+          <CategoryAssigner batchId={batchId} reloadKey={analyzing ? (analyzeProgress?.done ?? 0) : -1} />
         </div>
       )}
       {products.length === 0 ? (

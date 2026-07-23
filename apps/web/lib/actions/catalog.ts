@@ -834,7 +834,7 @@ export async function getPresetDetail(input: {
     const [pCats, pAttrs, pFields, sectorCats, sectorAttrs] = await Promise.all([
       service
         .from('preset_categories')
-        .select('id, category_id, display_order, enabled')
+        .select('id, category_id, display_order, enabled, recognition_hint')
         .eq('preset_version_id', working.id)
         .order('display_order', { ascending: true }),
       service
@@ -942,7 +942,8 @@ export async function getPresetDetail(input: {
         categoryId: c.category_id,
         name: info?.name ?? 'Categoria',
         isSystem: info?.isSystem ?? false,
-        recognitionHint: info?.recognitionHint ?? null,
+        // Override di preset se presente, altrimenti la guida globale della categoria.
+        recognitionHint: c.recognition_hint ?? info?.recognitionHint ?? null,
         displayOrder: c.display_order,
         enabled: c.enabled,
         attributes: attrsByCat.get(c.category_id) ?? [],
@@ -1640,6 +1641,49 @@ export async function updateCategoryRecognitionAction(input: {
       .update({ recognition_hint: hint })
       .eq('id', input.categoryId)
       .eq('owner_organization_id', organizationId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: toError(err) };
+  }
+}
+
+/**
+ * Prompt "come si riconosce" a livello di PRESET (override su preset_categories):
+ * sempre modificabile, anche per categorie di sistema. Verifica che la
+ * preset_category appartenga a un preset dell'org.
+ */
+export async function setPresetCategoryRecognition(input: {
+  presetCategoryId: string;
+  recognitionHint: string;
+}): Promise<OkVoid | Fail> {
+  try {
+    const auth = await requireOrg();
+    if (!auth.ok) return auth;
+    const { service, organizationId } = auth;
+    // Ownership: preset_categories → preset_versions → presets(org).
+    const { data: pc } = await service
+      .from('preset_categories')
+      .select('id, preset_version_id')
+      .eq('id', input.presetCategoryId)
+      .maybeSingle();
+    if (!pc) return { ok: false, error: 'Categoria del preset non trovata' };
+    const { data: pv } = await service
+      .from('preset_versions')
+      .select('id, preset_id')
+      .eq('id', pc.preset_version_id)
+      .maybeSingle();
+    const { data: preset } = pv
+      ? await service.from('presets').select('id, organization_id').eq('id', pv.preset_id).maybeSingle()
+      : { data: null };
+    if (!preset || preset.organization_id !== organizationId) {
+      return { ok: false, error: 'Preset non accessibile' };
+    }
+    const hint = input.recognitionHint.trim().slice(0, 500) || null;
+    const { error } = await service
+      .from('preset_categories')
+      .update({ recognition_hint: hint })
+      .eq('id', input.presetCategoryId);
     if (error) return { ok: false, error: error.message };
     return { ok: true };
   } catch (err) {
