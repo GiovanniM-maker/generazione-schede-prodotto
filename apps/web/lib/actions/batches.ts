@@ -147,7 +147,7 @@ export async function uploadAndParseAction(formData: FormData): Promise<ParsePre
   return {
     sourceFileId: sf.id,
     headers: parsed.headers,
-    previewRows: parsed.rows.slice(0, 10),
+    previewRows: parsed.rows.slice(0, 100),
     suggestedMapping,
     duplicateFields: [...new Set(duplicateFields)],
     totalRows: parsed.rows.length,

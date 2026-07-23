@@ -496,7 +496,7 @@ export async function uploadBatchFiles(
     return ok<UploadSpreadsheetResult>({
       kind: 'spreadsheet',
       headers: parsed.headers,
-      previewRows: parsed.rows.slice(0, 10),
+      previewRows: parsed.rows.slice(0, 100),
       suggestedSkuHeader: suggestSkuHeader(parsed.headers),
       totalRows: parsed.rows.length,
       file: {
@@ -1281,12 +1281,13 @@ export async function confirmImportV2(input: {
       };
       const quality = computeQuality(built, { hasImages });
 
-      // Eleggibilità SECTOR-AGNOSTICA: SKU presente + almeno 2 fatti aggiuntivi
-      // (attributi mappati non-identificativi). Allineata al guard della pipeline,
-      // così Food/Pharma (chiavi diverse da Moda) vengono correttamente accodati.
+      // Eleggibilità SECTOR-AGNOSTICA: SKU presente + almeno 2 fatti aggiuntivi.
+      // Conta come fatto anche le COLONNE LIBERE (senza key) e gli attributi non
+      // identificativi: solo sku/nome/categoria non contano. Senza questo, un CSV
+      // con dati solo in colonne libere risultava "informazioni non sufficienti".
       const additionalFacts = pavRows.filter((p) => {
         const a = attrById.get(p.attribute_id);
-        return a && a.key && !NON_ADDITIONAL_FIELDS.has(a.key);
+        return !a || !a.key || !NON_ADDITIONAL_FIELDS.has(a.key);
       }).length;
       const eligible = Boolean(sku) && additionalFacts >= 2;
 

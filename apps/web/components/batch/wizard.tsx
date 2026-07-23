@@ -420,6 +420,30 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (guess) setCategoryHeader(guess);
   }, [stepId, spreadsheetResult, categoryHeader]);
 
+  // DEFAULT: appena il file è pronto, TUTTE le colonne vengono importate come
+  // dati (fatti per SKU). L'utente può poi ESCLUDERE quelle che non servono.
+  // Così non serve mappare nulla e la generazione ha sempre abbastanza dati.
+  useEffect(() => {
+    if (!spreadsheetResult) return;
+    setExtraCols((prev) => {
+      if (Object.keys(prev).length > 0) return prev; // non sovrascrivere le scelte
+      const next: Record<string, string> = {};
+      for (const h of spreadsheetResult.headers) next[h] = h;
+      return next;
+    });
+  }, [spreadsheetResult]);
+
+  // SKU e Categoria non sono "dati" da importare: rimuovili dai fatti.
+  useEffect(() => {
+    setExtraCols((prev) => {
+      if (!prev[skuHeader] && !prev[categoryHeader]) return prev;
+      const next = { ...prev };
+      if (skuHeader) delete next[skuHeader];
+      if (categoryHeader) delete next[categoryHeader];
+      return next;
+    });
+  }, [skuHeader, categoryHeader]);
+
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
     if (stepId !== 9 || !batchId) return;
@@ -1556,10 +1580,10 @@ function Step5({
 
 function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record<string, string>> }) {
   if (rows.length === 0) return <p className="text-sm text-gray-500">Nessuna riga da mostrare.</p>;
-  const shown = rows.slice(0, 8);
+  const shown = rows;
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200">
-      <div className="max-h-80 overflow-auto">
+      <div className="max-h-[28rem] overflow-auto">
         <table className="w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-gray-50">
             <tr>
@@ -1866,38 +1890,43 @@ function Step8({
   // Colonne non ancora usate (né SKU, né Categoria, né mappate a un attributo).
   const usedHeaders = new Set<string>([skuHeader, categoryHeader, ...Object.values(mapping)].filter(Boolean));
   const importableAll = headers.filter((h) => !usedHeaders.has(h));
-  const allImported = importableAll.length > 0 && importableAll.every((h) => h in extraCols);
-
-  function importAllAsData() {
+  const importedCount = importableAll.filter((h) => h in extraCols).length;
+  function includeAll() {
     setExtraCols((prev) => {
       const next = { ...prev };
       for (const h of importableAll) if (!(h in next)) next[h] = h;
       return next;
     });
   }
+  function excludeAll() {
+    setExtraCols((prev) => {
+      const next = { ...prev };
+      for (const h of importableAll) delete next[h];
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-4">
-      {/* Scorciatoia consigliata: mappa solo la Categoria, il resto come dati. */}
+      {/* Include/escludi: di default tutte le colonne sono dati; togli quelle inutili. */}
       <div className="rounded-lg border border-brand-accent/30 bg-brand-soft/50 p-4">
-        <p className="text-sm font-semibold text-gray-900">La mappatura è facoltativa</p>
+        <p className="text-sm font-semibold text-gray-900">Colonne importate come dati</p>
         <p className="mt-0.5 text-xs text-gray-600">
-          L&apos;unica cosa importante è la <strong>Categoria</strong> (già scelta al passo
-          precedente). Tutte le altre colonne puoi importarle come <strong>dati</strong> con un clic:
-          ogni colonna diventa un fatto per lo SKU (es. «prezzo», «titolo»). Meglio più informazioni
-          che meno — restano sotto l&apos;audit anti-invenzione.
+          Ogni colonna del file diventa un&apos;informazione per lo SKU (es. peso, descrizione): non
+          devi mappare nulla. <strong>Escludi</strong> qui sotto solo le colonne che non ti servono
+          (es. costo interno). L&apos;unica cosa da mappare è la <strong>Categoria</strong> (già
+          scelta). Le info restano sotto l&apos;audit anti-invenzione.
         </p>
-        <div className="mt-2 flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={importAllAsData} disabled={importableAll.length === 0 || allImported}>
-            <Check className="h-4 w-4" />
-            {allImported ? 'Tutte le colonne importate' : `Importa tutte le colonne come dati (${importableAll.length})`}
-          </Button>
+        <div className="mt-2 flex items-center gap-3 text-xs">
+          <span className="text-gray-500">{importedCount}/{importableAll.length} colonne incluse</span>
+          <button type="button" onClick={includeAll} className="font-medium text-brand-accent hover:underline">Includi tutte</button>
+          <button type="button" onClick={excludeAll} className="font-medium text-gray-500 hover:underline">Escludi tutte</button>
         </div>
       </div>
 
       <details className="rounded-lg border border-gray-100">
         <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-700">
-          Mappatura avanzata (facoltativa): abbina attributi del preset a colonne
+          Mappatura avanzata (facoltativa): abbina attributi del preset a colonne specifiche
         </summary>
         <div className="space-y-2 p-3" data-tour="mapping">
         {attributes.map((attr) => (
@@ -1968,11 +1997,11 @@ function FreeColumnsSection({
   if (available.length === 0) return null;
   return (
     <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4" data-tour="extra-columns">
-      <p className="text-sm font-medium text-gray-800">Altre colonne del file</p>
+      <p className="text-sm font-medium text-gray-800">Colonne da importare (togli la spunta per escludere)</p>
       <p className="mt-0.5 text-xs text-gray-600">
-        Spunta le colonne extra da importare come dato (es. «descrizione materiale», «prezzo»). Ogni
-        dato in più viene passato all’AI e resta comunque sotto l’audit anti-invenzione. Puoi
-        rinominare il campo.
+        Di default vengono importate tutte come dato. <strong>Togli la spunta</strong> a quelle che
+        non ti servono (es. «costo interno»). Puoi anche rinominare il campo. Ogni dato resta sotto
+        l’audit anti-invenzione.
       </p>
       <div className="mt-3 space-y-2">
         {available.map((h) => {
