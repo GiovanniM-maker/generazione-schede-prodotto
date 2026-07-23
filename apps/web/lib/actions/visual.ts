@@ -128,6 +128,8 @@ export async function runVisualExtractionForBatch(input: {
   force?: boolean;
   /** Se valorizzato, limita l'estrazione a questi prodotti (es. il campione). */
   productIds?: string[];
+  /** Se true, NON deduce la categoria dalle foto (quando è mappata dal file/a mano). */
+  skipCategory?: boolean;
 }): Promise<ActionResult<VisualExtractionSummary>> {
   const user = await getSessionUser();
   if (!user) return fail('Non autenticato');
@@ -294,7 +296,9 @@ export async function runVisualExtractionForBatch(input: {
     // Soglia prudente: contenimento o >=50% di token in comune.
     return best && best.score >= 0.5 ? best.id : null;
   }
-  const categorySpec: VisualFieldSpec | null = categoryNames.length
+  // Se la categoria è mappata dal file (o a mano), NON dedurla dalle foto:
+  // l'estrazione legge comunque i fatti, ma niente classificazione categoria.
+  const categorySpec: VisualFieldSpec | null = categoryNames.length && !input.skipCategory
     ? {
         key: CATEGORY_FIELD_KEY,
         name: 'Categoria merceologica del prodotto: a quale di queste categorie appartiene ciò che vedi?',
