@@ -457,6 +457,7 @@ export interface Database {
         category_id: string;
         display_order: number;
         enabled: boolean;
+        recognition_hint: string | null;
         created_at: string;
       }>;
       preset_attributes: T<{

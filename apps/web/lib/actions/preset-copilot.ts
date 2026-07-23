@@ -319,27 +319,27 @@ export async function applyPresetPlanAction(input: {
       categoryId = created.id;
       catIdByName.set(norm(catName), categoryId);
       res.categoriesCreated++;
-    } else if (hint) {
-      // Categoria già esistente (di proprietà dell'org): aggiorna la guida di
-      // riconoscimento con quella proposta dal copilot.
-      await service
-        .from('categories')
-        .update({ recognition_hint: hint })
-        .eq('id', categoryId)
-        .eq('owner_organization_id', ctx.orgId);
     }
-    // Collega la categoria al preset.
+    // Collega la categoria al preset, con il prompt "come si riconosce" come
+    // OVERRIDE di preset (sempre modificabile, anche per categorie di sistema).
     if (!linkedCats.has(categoryId)) {
       const { error } = await service.from('preset_categories').insert({
         preset_version_id: versionId,
         category_id: categoryId,
         display_order: ++catOrder,
         enabled: true,
+        recognition_hint: hint,
       });
       if (!error) {
         linkedCats.add(categoryId);
         res.categoriesAdded++;
       }
+    } else if (hint) {
+      await service
+        .from('preset_categories')
+        .update({ recognition_hint: hint })
+        .eq('preset_version_id', versionId)
+        .eq('category_id', categoryId);
     }
 
     // Attributi della categoria.
@@ -381,6 +381,10 @@ export async function applyPresetPlanAction(input: {
         attrIdByName.set(norm(attrName), attributeId);
         res.attributesCreated++;
       }
+      // Prompt proposti dal copilot salvati come OVERRIDE di preset: così valgono
+      // anche per attributi di sistema/esistenti e restano modificabili qui.
+      const extractionOverride = attr.extractionInstruction?.trim() || null;
+      const generationOverride = attr.generationInstruction?.trim() || null;
       // Collega l'attributo al preset sotto questa categoria.
       const key = `${attributeId}|${categoryId}`;
       if (!linkedAttrs.has(key)) {
@@ -391,11 +395,23 @@ export async function applyPresetPlanAction(input: {
           is_required: false,
           display_order: ++attrOrder,
           enabled: true,
+          extraction_instruction_override: extractionOverride,
+          generation_instruction_override: generationOverride,
         });
         if (!error) {
           linkedAttrs.add(key);
           res.attributesAdded++;
         }
+      } else if (extractionOverride || generationOverride) {
+        await service
+          .from('preset_attributes')
+          .update({
+            extraction_instruction_override: extractionOverride,
+            generation_instruction_override: generationOverride,
+          })
+          .eq('preset_version_id', versionId)
+          .eq('attribute_id', attributeId)
+          .eq('category_id', categoryId);
       }
     }
   }
