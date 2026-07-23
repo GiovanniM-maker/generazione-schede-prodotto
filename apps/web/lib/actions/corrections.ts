@@ -196,6 +196,66 @@ export async function saveOutputEdit(input: {
   return ok({ recorded: rows.length });
 }
 
+/** Prefisso field_key per il feedback su un ATTRIBUTO (fatto estratto). */
+const ATTR_FIELD_PREFIX = 'attr:';
+
+/**
+ * Feedback su un CAMPO ATTRIBUTO (fatto letto dalle foto/Excel): non corregge il
+ * valore (per quello c'è "Correggi"), ma spiega come l'AI dovrebbe ESTRARLO
+ * meglio. Confluisce in "Migliora la pipeline" e migliora il prompt di
+ * estrazione di quell'attributo. Gratuito: nessuna chiamata AI qui.
+ */
+export async function saveAttributeFeedbackAction(input: {
+  productId: string;
+  attributeId: string;
+  feedback: string;
+}): Promise<ActionResult<{ recorded: boolean }>> {
+  const scope = await loadProductScope(input.productId);
+  if (!scope) return fail('Prodotto non accessibile');
+  const user = await getSessionUser();
+  if (!user) return fail('Non autenticato');
+  const feedback = input.feedback.trim();
+  if (!feedback) return fail('Feedback vuoto');
+  const service = getServiceClient();
+
+  const { data: pav } = await service
+    .from('product_attribute_values')
+    .select('value_json')
+    .eq('product_id', input.productId)
+    .eq('attribute_id', input.attributeId)
+    .maybeSingle();
+  const cur = pav
+    ? typeof pav.value_json === 'string'
+      ? pav.value_json
+      : pav.value_json == null
+        ? ''
+        : JSON.stringify(pav.value_json)
+    : '';
+
+  const fieldKey = `${ATTR_FIELD_PREFIX}${input.attributeId}`;
+  // Un solo feedback in sospeso per (prodotto, attributo): sostituisci il vecchio.
+  await service
+    .from('output_corrections')
+    .delete()
+    .eq('product_id', input.productId)
+    .eq('applied_to_prompt', false)
+    .eq('field_key', fieldKey);
+  await service.from('output_corrections').insert({
+    organization_id: scope.orgId,
+    batch_id: scope.batchId,
+    product_id: input.productId,
+    generation_id: null,
+    preset_id: scope.presetId,
+    preset_version_id: scope.presetVersionId,
+    field_key: fieldKey,
+    original_value: cur.slice(0, 8000),
+    corrected_value: cur.slice(0, 8000),
+    reason: feedback.slice(0, 1000),
+    created_by: user.id,
+  });
+  return ok({ recorded: true });
+}
+
 // --- Stato + stima costo -------------------------------------------------
 
 export interface CorrectionsStatus {
@@ -361,6 +421,49 @@ export async function improvePromptFromCorrections(input: {
     instruction: v.instruction,
   }));
 
+  // Feedback sugli ATTRIBUTI (field_key "attr:<id>"): migliorano il PROMPT DI
+  // ESTRAZIONE di quell'attributo. Prepara nomi e istruzione corrente (override
+  // di preset se presente, altrimenti default dell'attributo).
+  const attrIds = [
+    ...new Set(
+      list
+        .filter((c) => c.field_key.startsWith(ATTR_FIELD_PREFIX))
+        .map((c) => c.field_key.slice(ATTR_FIELD_PREFIX.length)),
+    ),
+  ];
+  const attrLabel = new Map<string, string>();
+  const attrCurrentExtraction = new Map<string, string>();
+  if (attrIds.length > 0) {
+    const { data: attrRows } = await service
+      .from('attributes')
+      .select('id, name, default_extraction_instruction')
+      .in('id', attrIds);
+    for (const a of attrRows ?? []) {
+      attrLabel.set(a.id, a.name);
+      attrCurrentExtraction.set(a.id, a.default_extraction_instruction ?? '');
+    }
+    const { data: paRows } = await service
+      .from('preset_attributes')
+      .select('attribute_id, extraction_instruction_override')
+      .eq('preset_version_id', draftVersionId)
+      .in('attribute_id', attrIds);
+    for (const pa of paRows ?? []) {
+      if (pa.extraction_instruction_override)
+        attrCurrentExtraction.set(pa.attribute_id, pa.extraction_instruction_override);
+    }
+    for (const id of attrIds) {
+      currentInstructions.push({
+        fieldKey: `${ATTR_FIELD_PREFIX}${id}`,
+        fieldLabel: `${attrLabel.get(id) ?? 'attributo'} (estrazione dalle foto)`,
+        instruction: attrCurrentExtraction.get(id) ?? '',
+      });
+    }
+  }
+  const fieldLabelFor = (fieldKey: string): string =>
+    fieldKey.startsWith(ATTR_FIELD_PREFIX)
+      ? `${attrLabel.get(fieldKey.slice(ATTR_FIELD_PREFIX.length)) ?? 'attributo'} (estrazione)`
+      : labelByFieldKey.get(fieldKey) ?? fieldKey;
+
   // Budget totale di caratteri inviati all'AI (anti-abuso costo/latenza):
   // include solo le correzioni finché non si supera la soglia.
   const CHAR_BUDGET = 60_000;
@@ -373,7 +476,7 @@ export async function improvePromptFromCorrections(input: {
     used += size;
     corrections.push({
       fieldKey: c.field_key,
-      fieldLabel: labelByFieldKey.get(c.field_key) ?? c.field_key,
+      fieldLabel: fieldLabelFor(c.field_key),
       original: c.original_value ?? '',
       corrected: c.corrected_value ?? '',
       reason: c.reason ?? '',
@@ -433,6 +536,25 @@ export async function improvePromptFromCorrections(input: {
 
   const changes: FieldDiff[] = [];
   for (const f of improved) {
+    // Attributo: aggiorna il PROMPT DI ESTRAZIONE (override di preset) su tutte
+    // le righe di quell'attributo nella bozza.
+    if (f.fieldKey.startsWith(ATTR_FIELD_PREFIX)) {
+      const attributeId = f.fieldKey.slice(ATTR_FIELD_PREFIX.length);
+      const before = attrCurrentExtraction.get(attributeId) ?? '';
+      await service
+        .from('preset_attributes')
+        .update({ extraction_instruction_override: f.improvedInstruction })
+        .eq('preset_version_id', draftVersionId)
+        .eq('attribute_id', attributeId);
+      changes.push({
+        fieldKey: f.fieldKey,
+        label: `${attrLabel.get(attributeId) ?? 'attributo'} — estrazione`,
+        before,
+        after: f.improvedInstruction,
+        rationale: f.rationale,
+      });
+      continue;
+    }
     const before = draftInstr.get(f.fieldKey)?.instruction ?? '';
     const label = labelByFieldKey.get(f.fieldKey) ?? f.fieldKey;
     const existing = draftByKey.get(f.fieldKey);

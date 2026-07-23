@@ -28,6 +28,7 @@ import {
 } from '@/lib/actions/results';
 import {
   saveOutputEdit,
+  saveAttributeFeedbackAction,
   getCorrectionsStatus,
   improvePromptFromCorrections,
   publishImprovement,
@@ -720,6 +721,7 @@ export function ResultsTable({
           onSave={(content, changes) => saveEdit(openRow.id, content, changes)}
           onAccept={() => accept(openRow.id)}
           onReject={() => reject(openRow.id)}
+          onCorrectionsChanged={refreshCorrections}
         />
       )}
 
@@ -976,12 +978,42 @@ function reliabilityTone(r: number): { bar: string; text: string } {
  * affidabilità. I campi letti dalle foto con bassa sicurezza sono DUBBI:
  * l'utente li conferma o corregge qui, senza passare dall'inbox.
  */
-function ProductAttributesPanel({ productId }: { productId: string }) {
+function ProductAttributesPanel({
+  productId,
+  onFeedbackSaved,
+}: {
+  productId: string;
+  onFeedbackSaved?: () => void;
+}) {
   const [attrs, setAttrs] = useState<ProductAttributeView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Feedback per attributo (migliora il prompt di estrazione via "Migliora la pipeline").
+  const [fbOpen, setFbOpen] = useState<string | null>(null);
+  const [fbValue, setFbValue] = useState('');
+  const [fbBusy, setFbBusy] = useState(false);
+  const [fbDone, setFbDone] = useState<Set<string>>(new Set());
+
+  async function sendFeedback(attributeId: string) {
+    const text = fbValue.trim();
+    if (!text) return;
+    setFbBusy(true);
+    try {
+      const res = await saveAttributeFeedbackAction({ productId, attributeId, feedback: text });
+      if (res.ok) {
+        setFbDone((prev) => new Set(prev).add(attributeId));
+        setFbOpen(null);
+        setFbValue('');
+        onFeedbackSaved?.();
+      } else {
+        setError(res.error);
+      }
+    } finally {
+      setFbBusy(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -1124,6 +1156,38 @@ function ProductAttributesPanel({ productId }: { productId: string }) {
                     </Button>
                   </div>
                 )}
+                {/* Feedback sull'ESTRAZIONE del campo (migliora il prompt di
+                    estrazione via "Migliora la pipeline"). */}
+                {!isEditing &&
+                  (fbOpen === a.attributeId ? (
+                    <div className="mt-1.5 flex items-start gap-1.5">
+                      <input
+                        type="text"
+                        value={fbValue}
+                        onChange={(e) => setFbValue(e.target.value)}
+                        placeholder="Come dovrebbe leggerlo meglio? (es. «guarda sul retro, non sul fronte»)"
+                        className="h-8 flex-1 rounded-md border border-violet-200 bg-violet-50/40 px-2 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
+                        autoFocus
+                      />
+                      <Button size="sm" onClick={() => sendFeedback(a.attributeId)} disabled={fbBusy || !fbValue.trim()}>
+                        {fbBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        Invia
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setFbOpen(null); setFbValue(''); }} disabled={fbBusy}>
+                        Annulla
+                      </Button>
+                    </div>
+                  ) : fbDone.has(a.attributeId) ? (
+                    <p className="mt-1 text-xs text-emerald-600">Feedback inviato ✓ — verrà usato in «Migliora la pipeline».</p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setFbOpen(a.attributeId); setFbValue(''); }}
+                      className="mt-1 text-xs text-violet-500 hover:text-violet-700 hover:underline"
+                    >
+                      💬 Feedback sull&apos;estrazione di questo campo
+                    </button>
+                  ))}
               </div>
             );
           })}
@@ -1215,6 +1279,7 @@ function DetailDrawer({
   onSave,
   onAccept,
   onReject,
+  onCorrectionsChanged,
 }: {
   row: ResultRow;
   pending: boolean;
@@ -1222,6 +1287,7 @@ function DetailDrawer({
   onSave: (content: GenContent, changes: OutputChange[]) => void;
   onAccept: () => void;
   onReject: () => void;
+  onCorrectionsChanged?: () => void;
 }) {
   const base = row.edited ?? row.generated;
   const [title, setTitle] = useState(base?.title ?? '');
@@ -1334,7 +1400,7 @@ function DetailDrawer({
             </div>
           )}
 
-          <ProductAttributesPanel productId={row.id} />
+          <ProductAttributesPanel productId={row.id} onFeedbackSaved={onCorrectionsChanged} />
 
           <TranslationsViewer translations={row.translations} />
 
