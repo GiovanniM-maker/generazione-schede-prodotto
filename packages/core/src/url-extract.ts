@@ -232,5 +232,27 @@ export function extractProductFromHtml(html: string, baseUrl: string): UrlExtrac
     if (md) description = md;
   }
 
+  // Fallback SKU: se la pagina non lo espone (es. Eataly), ricavalo dal codice
+  // numerico in fondo all'URL (…-628795), così ogni prodotto da URL ha uno SKU.
+  if (!sku) sku = skuFromUrl(baseUrl);
+
   return { name, brand, description, price, sku, attributes, imageUrls: images, source };
+}
+
+/** Ricava uno SKU dal segmento finale dell'URL: preferisce un codice numerico. */
+function skuFromUrl(url: string): string | null {
+  try {
+    const path = new URL(url).pathname.replace(/\/+$/, '');
+    const last = path.split('/').pop() ?? '';
+    const slug = last.replace(/\.(html?|php|aspx?)$/i, '');
+    if (!slug) return null;
+    // Codice numerico finale dopo un trattino: "…-filotea-628795" → "628795".
+    const tail = /(?:^|[-_])(\d{3,})$/.exec(slug);
+    if (tail) return tail[1] ?? null;
+    // Altrimenti uno slug corto e "codice-simile" (poche lettere/numeri).
+    if (/^[a-z0-9]{3,20}$/i.test(slug) && /\d/.test(slug)) return slug;
+    return null;
+  } catch {
+    return null;
+  }
 }
