@@ -976,6 +976,43 @@ function normalizeCategoryName(s: string): string {
     .replace(/\s+/g, ' ');
 }
 
+/**
+ * Match ROBUSTO del valore categoria dal file verso le categorie del catalogo:
+ * esatto \u2192 contenimento \u2192 sovrapposizione token. Evita che "Grocery " o
+ * "Vini rossi" restino non collegati per una differenza minima.
+ */
+function makeCategoryMatcher(entries: Array<{ id: string; name: string }>) {
+  const byNorm = new Map<string, string>();
+  const toks = entries.map((e) => ({
+    id: e.id,
+    tokens: new Set(normalizeCategoryName(e.name).split(' ').filter(Boolean)),
+  }));
+  for (const e of entries) {
+    const k = normalizeCategoryName(e.name);
+    if (!byNorm.has(k)) byNorm.set(k, e.id);
+  }
+  return (raw: string): string | null => {
+    const norm = normalizeCategoryName(raw);
+    if (!norm) return null;
+    const exact = byNorm.get(norm);
+    if (exact) return exact;
+    const valSet = new Set(norm.split(' ').filter(Boolean));
+    let best: { id: string; score: number } | null = null;
+    for (const c of toks) {
+      if (c.tokens.size === 0) continue;
+      const catNorm = [...c.tokens].join(' ');
+      const contains = norm.includes(catNorm) || catNorm.includes(norm);
+      let inter = 0;
+      for (const t of valSet) if (c.tokens.has(t)) inter++;
+      const union = new Set([...valSet, ...c.tokens]).size;
+      const jaccard = union ? inter / union : 0;
+      const score = (contains ? 0.5 : 0) + jaccard;
+      if (score > 0 && (!best || score > best.score)) best = { id: c.id, score };
+    }
+    return best && best.score >= 0.5 ? best.id : null;
+  };
+}
+
 export async function confirmImportV2(input: {
   batchId: string;
   skuHeader: string;
@@ -1007,7 +1044,7 @@ export async function confirmImportV2(input: {
   // Mappa nome-categoria -> id, per collegare i prodotti alle categorie
   // merceologiche dell'organizzazione (settore del preset). I nomi non
   // riconosciuti vengono segnalati (l'utente potrà crearli dalla lista).
-  const categoryIdByName = new Map<string, string>();
+  const categoryEntries: Array<{ id: string; name: string }> = [];
   let sectorId: string | null = null;
   if (presetVersionId) {
     const { data: pv } = await service
@@ -1029,16 +1066,21 @@ export async function confirmImportV2(input: {
         .select('id, name, owner_organization_id')
         .eq('sector_id', sectorId)
         .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`);
-      for (const c of cats ?? []) {
-        const key = normalizeCategoryName(c.name);
-        // Preferisci la categoria dell'org rispetto a quella di sistema con lo
-        // stesso nome (owner non nullo vince).
-        if (!categoryIdByName.has(key) || c.owner_organization_id !== null) {
-          categoryIdByName.set(key, c.id);
-        }
+      // Preferisci la categoria dell'org rispetto a quella di sistema con lo
+      // stesso nome (owner non nullo prima).
+      const sorted = (cats ?? []).slice().sort((a, b) =>
+        a.owner_organization_id === b.owner_organization_id ? 0 : a.owner_organization_id ? -1 : 1,
+      );
+      const seen = new Set<string>();
+      for (const c of sorted) {
+        const k = normalizeCategoryName(c.name);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        categoryEntries.push({ id: c.id, name: c.name });
       }
     }
   }
+  const matchCategoryId = makeCategoryMatcher(categoryEntries);
   let categoriesMatched = 0;
   const unmatchedCategories = new Set<string>();
 
@@ -1253,10 +1295,10 @@ export async function confirmImportV2(input: {
         continue;
       }
 
-      // Collega il prodotto alla categoria merceologica dell'org (match per nome).
+      // Collega il prodotto alla categoria merceologica dell'org (match robusto).
       let categoryId: string | null = null;
       if (category) {
-        const matched = categoryIdByName.get(normalizeCategoryName(category));
+        const matched = matchCategoryId(category);
         if (matched) {
           categoryId = matched;
           categoriesMatched++;
