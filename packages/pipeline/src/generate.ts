@@ -338,13 +338,28 @@ export async function generateSample(
     .from('products')
     .select('id, canonical_attributes_json, data_quality_score, category_id')
     .eq('batch_id', batchId)
+    // Ordine DETERMINISTICO (id come tie-break): a parità di qualità — tipico
+    // dei batch di sole foto, tutti a 25 — la stessa riga viene scelta sia qui
+    // sia dalla route che estrae i fatti dalle foto prima del campione.
     .order('data_quality_score', { ascending: false })
+    .order('id', { ascending: true })
     .limit(5);
 
-  const candidate = (products ?? [])[0];
+  // Sceglie il PRIMO candidato con ≥2 fatti; ripiega sui successivi se il
+  // migliore per qualità non ha ancora abbastanza fatti letti.
+  let candidate: NonNullable<typeof products>[number] | undefined;
+  let facts: Awaited<ReturnType<typeof loadProductFactsV2>> = [];
+  for (const p of products ?? []) {
+    const f = await loadProductFactsV2(ctx.client, p.id);
+    const additional = f.filter((x) => !NON_ADDITIONAL_FIELDS.has(x.fieldKey)).length;
+    if (additional >= 2) {
+      candidate = p;
+      facts = f;
+      break;
+    }
+    if (!candidate) candidate = p; // memorizza comunque il migliore per il messaggio
+  }
   if (!candidate) throw new Error('INSUFFICIENT_FACTS: nessun prodotto disponibile');
-
-  const facts = await loadProductFactsV2(ctx.client, candidate.id);
   // Stesso guard della generazione reale: senza ≥2 fatti il campione non è
   // rappresentativo (evita di generare solo dallo SKU dando falsa sicurezza).
   const additional = facts.filter((f) => !NON_ADDITIONAL_FIELDS.has(f.fieldKey)).length;
