@@ -34,16 +34,19 @@ export async function POST(
     // ancora stato letto, l'AI legge le etichette così il campione ha dei fatti
     // da cui scrivere (anche per batch di sole foto). Best-effort e limitato al
     // solo candidato (veloce, niente timeout).
-    const { data: candidate } = await service
+    // Stesso ordine deterministico di generateSample (qualità desc, id asc): così
+    // i prodotti che l'AI legge sono ESATTAMENTE i candidati del campione. Ne
+    // leggiamo qualcuno (non solo il primo) per coprire il fallback.
+    const { data: candidates } = await service
       .from('products')
       .select('id')
       .eq('batch_id', batchId)
       .order('data_quality_score', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (candidate) {
+      .order('id', { ascending: true })
+      .limit(3);
+    for (const c of candidates ?? []) {
       try {
-        await runVisualExtractionForBatch({ batchId, productIds: [candidate.id] });
+        await runVisualExtractionForBatch({ batchId, productIds: [c.id] });
       } catch (e) {
         console.warn('[sample] estrazione visiva campione non riuscita:', e);
       }
