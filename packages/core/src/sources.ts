@@ -178,6 +178,8 @@ export interface Completeness {
   status: ProductGenerationDecision;
   missingAttributes: string[];
   usedAttributes: string[];
+  /** Spiegazione leggibile del perché è bloccata/insufficiente (null se ok). */
+  reason: string | null;
 }
 
 /**
@@ -205,7 +207,23 @@ export function computeCompleteness(input: CompletenessInput): Completeness {
     status = 'needs_review';
   }
 
-  return { status, missingAttributes: missing, usedAttributes: input.presentKeys };
+  // Spiegazione del blocco/insufficienza, così l'utente sa cosa fare.
+  let reason: string | null = null;
+  if (status === 'blocked') {
+    if (!input.hasSku) reason = 'Manca lo SKU del prodotto.';
+    else if (!input.hasAnySource) reason = 'Nessun dato di partenza leggibile (né file né foto).';
+    else if (input.hasBlockingConflict) reason = 'Conflitto tra i dati non risolto.';
+    else if (input.auditSeverity === 'high')
+      reason =
+        'L’AI ha rilevato un’affermazione non supportata dai dati (rischio invenzione): bloccata per sicurezza. Conferma/correggi i campi o rigenera.';
+    else reason = 'Dati insufficienti per una scheda affidabile.';
+  } else if (status === 'insufficient') {
+    reason =
+      'Dati troppo scarsi per una scheda affidabile' +
+      (missing.length ? `: mancano ${missing.slice(0, 6).join(', ')}.` : '.');
+  }
+
+  return { status, missingAttributes: missing, usedAttributes: input.presentKeys, reason };
 }
 
 /** Una scheda è esportabile se non è bloccata né insufficiente. */

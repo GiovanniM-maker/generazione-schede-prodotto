@@ -15,6 +15,8 @@ export interface Completeness {
   status: CompletenessStatus;
   missingAttributes: string[];
   usedAttributes: string[];
+  /** Spiegazione del blocco/insufficienza (null se non pertinente). */
+  reason: string | null;
 }
 
 const STATUSES: readonly CompletenessStatus[] = [
@@ -58,5 +60,6 @@ export function normalizeCompleteness(v: unknown): Completeness | null {
     status: o.status,
     missingAttributes: toStringArray(o.missingAttributes),
     usedAttributes: toStringArray(o.usedAttributes),
+    reason: typeof o.reason === 'string' ? o.reason : null,
   };
 }
