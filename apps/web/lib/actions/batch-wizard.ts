@@ -1350,7 +1350,10 @@ export async function confirmImportV2(input: {
       imported++;
       importedSkus.add(sku);
       newProductIdBySku.set(sku, productRow.id);
-      if (quality.eligible) valid++;
+      // Conta gli idonei con la STESSA eleggibilità usata per verification_status
+      // (sku + ≥2 fatti, incluse le colonne libere). computeQuality è tarato sui
+      // campi moda e dava 0 idonei sui cataloghi food → conteggio errato.
+      if (eligible) valid++;
       else invalid++;
 
       if (pavRows.length > 0) {

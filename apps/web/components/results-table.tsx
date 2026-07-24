@@ -1378,8 +1378,15 @@ function DetailDrawer({
                   {COMPLETENESS_LABELS[row.completeness.status]}
                 </Badge>
               </div>
-              {(row.completeness.status === 'partial' ||
+              {(row.completeness.status === 'blocked' ||
                 row.completeness.status === 'insufficient') && (
+                <p className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-sm font-medium text-red-700">
+                  {row.completeness.status === 'blocked' ? 'Bloccata: ' : 'Insufficiente: '}
+                  {row.completeness.reason ??
+                    'dati non sufficienti o affermazione non supportata dai dati. Conferma/correggi i campi qui sotto e rigenera.'}
+                </p>
+              )}
+              {row.completeness.status === 'partial' && (
                 <p className="text-sm text-amber-700">
                   Generazione parziale: i dati mancanti non sono stati inventati.
                 </p>
