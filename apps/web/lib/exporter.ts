@@ -77,18 +77,38 @@ export async function buildBatchExport(
     factColumnSet.add(name);
   }
 
+  // Generazioni di TUTTI i prodotti in UNA query (prima era una query per
+  // prodotto: su cataloghi grandi = centinaia di round-trip e timeout export).
+  // Ordinate per data: la prima incontrata per prodotto è la più recente.
+  interface GenRow {
+    product_id: string;
+    generated_content_json: Json;
+    edited_content_json: Json;
+    audit_json: Json;
+    completeness_json: Json;
+    translations_json: Json;
+    status: string;
+  }
+  const { data: allGens } = productIds.length
+    ? await service
+        .from('product_generations')
+        .select(
+          'product_id, generated_content_json, edited_content_json, audit_json, completeness_json, translations_json, status, created_at',
+        )
+        .in('product_id', productIds)
+        .order('created_at', { ascending: false })
+    : { data: [] };
+  const latestGenByProduct = new Map<string, GenRow>();
+  for (const g of (allGens ?? []) as unknown as GenRow[]) {
+    if (!latestGenByProduct.has(g.product_id)) latestGenByProduct.set(g.product_id, g);
+  }
+
   const rows: Array<Record<string, string>> = [];
   const items: ExportItem[] = [];
   const usedLangs = new Set<string>();
   let hasParents = false;
   for (const product of products ?? []) {
-    const { data: gen } = await service
-      .from('product_generations')
-      .select('generated_content_json, edited_content_json, audit_json, completeness_json, translations_json, status')
-      .eq('product_id', product.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const gen = latestGenByProduct.get(product.id);
     if (!gen) continue;
 
     const audit = (gen.audit_json ?? null) as unknown as FactAuditResult | null;

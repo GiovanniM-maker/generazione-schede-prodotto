@@ -8,6 +8,11 @@ import { getServiceClient } from '@/lib/supabase/service';
 import { checkAiRateLimit } from '@/lib/rate-limit';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 
+// Il campione legge le etichette dalle foto (vision) e poi genera il testo:
+// ben oltre il timeout predefinito (10s) → serve margine, altrimenti la
+// richiesta viene troncata e l'utente vede un errore generico.
+export const maxDuration = 300;
+
 // POST /api/batches/[batchId]/sample — genera un campione sincrono (gratuito).
 export async function POST(
   _request: Request,
