@@ -35,7 +35,17 @@ export async function parseXlsx(input: Buffer, opts?: { maxRows?: number }): Pro
   // generico di @types/node 22 e la firma di exceljs, senza usare `any`.
   const ab = input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
   await wb.xlsx.load(ab as ArrayBuffer);
-  const ws = wb.worksheets[0];
+  // Workbook con PIÙ FOGLI: se il primo è vuoto (capita spesso: "Sheet1" di
+  // servizio e i dati su un foglio successivo) si prende il primo foglio che
+  // contiene davvero righe. Senza questo l'import risultava vuoto senza motivo.
+  const countRows = (s: ExcelJS.Worksheet): number => {
+    let n = 0;
+    s.eachRow({ includeEmpty: false }, () => {
+      n++;
+    });
+    return n;
+  };
+  const ws = wb.worksheets.find((s) => countRows(s) >= 2) ?? wb.worksheets[0];
   if (!ws) {
     return {
       headers: [],

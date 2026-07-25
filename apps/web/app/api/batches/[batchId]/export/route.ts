@@ -5,6 +5,10 @@ import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
 import { buildBatchExport } from '@/lib/exporter';
 
+// L'export legge tutte le generazioni del batch e costruisce CSV/XLSX: su
+// cataloghi grandi supera il timeout predefinito (10s) → serve più margine.
+export const maxDuration = 300;
+
 // POST /api/batches/[batchId]/export  { format: 'csv' | 'xlsx' }
 export async function POST(
   request: Request,

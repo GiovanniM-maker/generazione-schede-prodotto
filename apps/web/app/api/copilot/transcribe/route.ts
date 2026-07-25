@@ -4,6 +4,10 @@ import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { checkAiRateLimit } from '@/lib/rate-limit';
 
+// La trascrizione audio può richiedere decine di secondi: oltre il timeout
+// predefinito (10s).
+export const maxDuration = 120;
+
 // POST /api/copilot/transcribe — trascrive un singolo file audio (multipart
 // form-data, campo `audio`) e restituisce il testo. NON invia mai nulla in chat
 // e NON persiste l'audio: privacy by default → trascrivi-e-scarta.

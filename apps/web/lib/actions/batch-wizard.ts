@@ -365,7 +365,9 @@ export async function setBatchSources(input: {
   if (wantImages) await getOrCreateBatchSource(service, orgId, input.batchId, IMAGE_SOURCE);
 
   const sourceType = wantSpreadsheet && wantImages ? 'mixed' : wantSpreadsheet ? 'spreadsheet' : 'images';
-  await service.from('batches').update({ source_type: sourceType, status: 'sources_selected' }).eq('id', input.batchId);
+  // NB: nessun 'sources_selected' — non esiste nell'enum batch_status e faceva
+  // fallire l'update IN SILENZIO (anche source_type non veniva salvato).
+  await service.from('batches').update({ source_type: sourceType }).eq('id', input.batchId);
 
   return ok({ sourceType });
 }
@@ -876,7 +878,9 @@ export async function analyzeBatch(input: {
   const filesWithoutSku = imageItems.filter((i) => !i.detected_sku).map((i) => i.filename);
 
   const analysis = analyzeSources({ fileSkus, imageSkus, filesWithoutSku, rowsWithoutSku });
-  await service.from('batches').update({ status: 'analysis' }).eq('id', input.batchId);
+  // 'analysis' non esiste nell'enum batch_status (update falliva in silenzio):
+  // dopo l'analisi delle sorgenti il batch è in fase di mappatura.
+  await service.from('batches').update({ status: 'mapping' }).eq('id', input.batchId);
 
   return ok({ ...analysis, suggestedSkuHeader });
 }
@@ -1089,6 +1093,8 @@ export async function confirmImportV2(input: {
   const matchCategoryId = makeCategoryMatcher(categoryEntries);
   const catNameById = new Map(categoryEntries.map((e) => [e.id, e.name] as const));
   let categoriesMatched = 0;
+  // Quanti prodotti hanno perso i fatti per un errore di scrittura (deve restare 0).
+  let factsInsertErrors = 0;
   const unmatchedCategories = new Set<string>();
 
   // Colonne LIBERE del file: importa qualsiasi campo come fatto, creando al volo
@@ -1357,7 +1363,10 @@ export async function confirmImportV2(input: {
       else invalid++;
 
       if (pavRows.length > 0) {
-        await service.from('product_attribute_values').insert(
+        // I FATTI sono il cuore della generazione: se l'insert fallisce il
+        // prodotto resta senza dati ("informazioni non sufficienti"). Logghiamo
+        // l'errore invece di perderlo in silenzio.
+        const { error: pavErr } = await service.from('product_attribute_values').insert(
           pavRows.map((r) => ({
             organization_id: orgId,
             product_id: productRow.id,
@@ -1368,6 +1377,10 @@ export async function confirmImportV2(input: {
             source_item_id: spreadsheet.sourceItemId,
           })),
         );
+        if (pavErr) {
+          console.error(`[import] fatti non salvati per SKU ${sku}: ${pavErr.message}`);
+          factsInsertErrors++;
+        }
       }
 
       // Link alle immagini con SKU corrispondente (match esatto).
@@ -1492,6 +1505,8 @@ export async function confirmImportV2(input: {
       imageOnly,
       categoriesMatched,
       unmatchedCategories: unmatched.length,
+      // Tracciato nello storico: se >0 alcuni prodotti sono senza fatti.
+      factsInsertErrors,
     },
   });
 
