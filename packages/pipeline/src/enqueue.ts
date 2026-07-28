@@ -32,14 +32,31 @@ export async function enqueueBatch(
     .single();
   if (batchErr || !batch) throw new Error('DATABASE_ERROR: batch non trovato');
 
-  // Guardia anti doppio-enqueue: se il batch è già in coda/elaborazione, o è
-  // già stato elaborato (terminale), non riservare di nuovo i crediti. Evita
-  // sia il leak di crediti riservati sia la ri-generazione dell'intero batch
-  // (con ri-addebito) a una seconda chiamata dopo il completamento.
-  const NON_ENQUEUABLE = new Set(['queued', 'processing', 'completed', 'partial_failed']);
-  if (NON_ENQUEUABLE.has(batch.status)) {
+  // Guardia anti doppio-enqueue ATOMICA: "claim" del batch con un update
+  // condizionato sullo stato. Se due richieste arrivano insieme (doppio clic,
+  // retry di rete) solo UNA ottiene la riga: l'altra esce senza riservare
+  // crediti. Un semplice controllo letto-poi-scritto lascerebbe una finestra in
+  // cui entrambe passano.
+  const NON_ENQUEUABLE = ['queued', 'processing', 'completed', 'partial_failed'];
+  if (NON_ENQUEUABLE.includes(batch.status)) {
     return { enqueued: 0, reserved: 0, skipped: 0 };
   }
+  const previousStatus = batch.status;
+  const { data: claimed } = await client
+    .from('batches')
+    .update({ status: 'queued' })
+    .eq('id', batchId)
+    .not('status', 'in', `(${NON_ENQUEUABLE.join(',')})`)
+    .select('id');
+  if (!claimed || claimed.length === 0) {
+    // Un'altra richiesta ha già preso in carico questo batch.
+    return { enqueued: 0, reserved: 0, skipped: 0 };
+  }
+  // Ripristina lo stato precedente se non si procede (niente batch "fantasma"
+  // bloccati in coda senza job).
+  const rollbackStatus = async () => {
+    await client.from('batches').update({ status: previousStatus }).eq('id', batchId);
+  };
 
   // Prodotti eleggibili: sector-agnostico. L'eleggibilità (SKU + ≥2 fatti) è
   // calcolata all'import e salvata in verification_status='eligible'.
@@ -51,6 +68,7 @@ export async function enqueueBatch(
 
   const eligible = products ?? [];
   if (eligible.length === 0) {
+    await rollbackStatus();
     return { enqueued: 0, reserved: 0, skipped: 0 };
   }
 
@@ -61,14 +79,20 @@ export async function enqueueBatch(
     ref_type: 'batch',
     ref_id: batchId,
   });
-  if (resErr) throw new Error(`DATABASE_ERROR: ${resErr.message}`);
+  if (resErr) {
+    await rollbackStatus();
+    throw new Error(`DATABASE_ERROR: ${resErr.message}`);
+  }
   if (!reserved) {
+    // Senza ripristino il batch resterebbe "in coda" per sempre, senza job.
+    await rollbackStatus();
     throw new Error('INSUFFICIENT_CREDITS: crediti insufficienti per il batch');
   }
 
+  // Lo stato è già 'queued' (claim): qui restano solo i contatori.
   await client
     .from('batches')
-    .update({ status: 'queued', credits_reserved: eligible.length, started_at: new Date().toISOString() })
+    .update({ credits_reserved: eligible.length, started_at: new Date().toISOString() })
     .eq('id', batchId);
 
   let enqueued = 0;
