@@ -76,6 +76,9 @@ export interface Database {
           notify_email: string | null;
           notified_at: string | null;
           doubts_generated_at: string | null;
+          visual_analysis_status: string | null;
+          visual_analysis_claimed_at: string | null;
+          visual_analysis_error: string | null;
         } & Timestamps
       >;
       ai_doubts: T<{

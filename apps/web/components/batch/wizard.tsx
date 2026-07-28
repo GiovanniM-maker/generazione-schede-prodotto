@@ -43,6 +43,10 @@ import {
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
+import {
+  startVisualAnalysisAction,
+  getVisualAnalysisProgressAction,
+} from '@/lib/actions/visual-background';
 import { CategoryAssigner } from '@/components/batch/category-assigner';
 import { ImageQcPanel } from '@/components/batch/image-qc-panel';
 import { GuidedTour, tourSeen, markTourSeen, type TourStep } from '@/components/onboarding/guided-tour';
@@ -457,52 +461,37 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     // SEMPRE fatta: è indispensabile perché i prodotti abbiano fatti e categoria.
     // La facciamo da soli, senza chiederlo, e poi ricarichiamo i prodotti.
     const withImages = hasImages || sourceMode === 'url';
+    // L'analisi gira ORA IN BACKGROUND (server + cron): qui la avviamo e ne
+    // seguiamo il progresso. Se l'utente chiude la pagina il lavoro continua e
+    // riprende da dove era rimasto — prima invece si fermava.
     const autoAnalyze = async () => {
       if (!withImages) return;
       setAnalyzingImages(true);
-      // Totale per la barra + progresso iniziale.
-      const initial = await getBatchProductsV2({ batchId: bid });
-      const total = initial.ok ? initial.data.products.length : 0;
-      const analyzedCount = (rows: BatchProductRow[]) =>
-        rows.filter((r) => r.attributesCount > 0 || !!r.category).length;
-      setAnalyzeProgress({ done: initial.ok ? analyzedCount(initial.data.products) : 0, total });
+      await startVisualAnalysisAction({
+        batchId: bid,
+        // Categoria mappata dal file → non dedurla dalle foto (solo fatti).
+        skipCategory: hasSpreadsheet && Boolean(categoryHeader),
+      });
+      // Dà una spinta subito (senza aspettare il giro di cron), best-effort.
+      void runVisualExtractionForBatch({
+        batchId: bid,
+        skipCategory: hasSpreadsheet && Boolean(categoryHeader),
+      }).catch(() => {});
 
-      // Polling del progresso mentre l'estrazione gira (conta i prodotti già letti).
-      let polling = true;
-      const pollLoop = async () => {
-        while (polling && !cancelled) {
-          await new Promise((r) => setTimeout(r, 2500));
-          if (!polling || cancelled) break;
-          const p = await getBatchProductsV2({ batchId: bid });
-          if (p.ok && !cancelled) setAnalyzeProgress({ done: analyzedCount(p.data.products), total });
+      while (!cancelled) {
+        const p = await getVisualAnalysisProgressAction({ batchId: bid });
+        if (cancelled) return;
+        if (p.ok) {
+          setAnalyzeProgress({ done: p.data.done, total: p.data.total });
+          if (p.data.status === 'done' || p.data.status === 'error') break;
+          // Tutti i prodotti hanno dati: non c'è altro da attendere.
+          if (p.data.total > 0 && p.data.done >= p.data.total) break;
         }
-      };
-      const pollPromise = pollLoop();
-
-      // Estrazione: rilancia finché restano prodotti non analizzati (batch grandi).
-      try {
-        let guard = 0;
-        for (;;) {
-          const res = await runVisualExtractionForBatch({
-            batchId: bid,
-            // Categoria mappata dal file → non dedurla dalle foto (solo fatti).
-            skipCategory: hasSpreadsheet && Boolean(categoryHeader),
-          });
-          if (!res.ok) break;
-          if (res.data.productsSkipped > 0 && guard++ < 30) continue;
-          break;
-        }
-      } catch {
-        /* non bloccare: i prodotti restano visibili, l'utente può assegnare a mano */
+        await new Promise((r) => setTimeout(r, 3000));
       }
-      polling = false;
-      await pollPromise;
       if (cancelled) return;
       const relist = await getBatchProductsV2({ batchId: bid });
-      if (!cancelled && relist.ok) {
-        setProducts(relist.data.products);
-        setAnalyzeProgress({ done: analyzedCount(relist.data.products), total });
-      }
+      if (!cancelled && relist.ok) setProducts(relist.data.products);
       if (!cancelled) {
         setAnalyzingImages(false);
         setAnalyzeProgress(null);
@@ -2239,6 +2228,10 @@ function Step9({
               style={{ width: `${pct ?? 5}%` }}
             />
           </div>
+          <p className="text-xs text-brand-accent/80">
+            <strong>Puoi chiudere questa pagina</strong>: l&apos;analisi prosegue da sola e riprende
+            da dove è arrivata. Resta qui solo se vuoi rivedere le categorie prima di generare.
+          </p>
         </div>
       )}
       {hasImages && !analyzing && (
