@@ -286,7 +286,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [spreadsheetResult, setSpreadsheetResult] = useState<UploadSpreadsheetResult | null>(null);
   const [imagesResult, setImagesResult] = useState<UploadImagesResult | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
-  const [skuDelimiter, setSkuDelimiter] = useState<'_' | '-' | '.' | ' '>('_');
+  const [skuDelimiter, setSkuDelimiter] = useState<'_' | '-' | '.' | ' ' | 'none'>('_');
   const [reparsing, setReparsing] = useState(false);
 
   // Step 6
@@ -776,7 +776,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     }
   }
 
-  function changeSkuDelimiter(d: '_' | '-' | '.' | ' ') {
+  function changeSkuDelimiter(d: '_' | '-' | '.' | ' ' | 'none') {
     setSkuDelimiter(d);
     if (!batchId) return;
     setError(null);
@@ -1446,8 +1446,8 @@ function Step5({
   uploadProgress: { done: number; total: number } | null;
   onUploadSpreadsheet: (file: File) => void;
   onUploadImages: (files: FileList | File[]) => void;
-  skuDelimiter: '_' | '-' | '.' | ' ';
-  onChangeDelimiter: (d: '_' | '-' | '.' | ' ') => void;
+  skuDelimiter: '_' | '-' | '.' | ' ' | 'none';
+  onChangeDelimiter: (d: '_' | '-' | '.' | ' ' | 'none') => void;
   reparsing: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
@@ -1548,6 +1548,7 @@ function Step5({
                     { d: '-' as const, label: 'trattino -' },
                     { d: '.' as const, label: 'punto .' },
                     { d: ' ' as const, label: 'spazio' },
+                    { d: 'none' as const, label: 'nessuno: il nome è lo SKU' },
                   ]).map((opt) => (
                     <button
                       key={opt.d}

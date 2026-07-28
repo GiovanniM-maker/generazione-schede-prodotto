@@ -22,7 +22,9 @@ export type ImageType = (typeof IMAGE_TYPES)[number];
 export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as const;
 
 /** Separatori ammessi fra lo SKU e il resto del nome file. */
-export const SKU_DELIMITERS = ['_', '-', '.', ' '] as const;
+/** Valore speciale: "nessun separatore, il nome del file è già lo SKU". */
+export const NO_DELIMITER = 'none';
+export const SKU_DELIMITERS = ['_', '-', '.', ' ', NO_DELIMITER] as const;
 export type SkuDelimiter = (typeof SKU_DELIMITERS)[number];
 
 /**
@@ -33,6 +35,7 @@ export type SkuDelimiter = (typeof SKU_DELIMITERS)[number];
  *   TSHIRT001_front.jpg              → "TSHIRT001"      (delim "_")
  *   ABC-123_1.webp                   → "ABC-123"        (delim "_")
  *   100356-image_IT.jpg  (delim "-") → "100356"
+ *   643.jpg              (delim "none") → "643" (il nome file È lo SKU)
  *   front.jpg                        → null    (nessun separatore)
  */
 export function extractSkuFromFilename(
@@ -50,6 +53,13 @@ export function extractSkuFromFilename(
       name = name.slice(0, name.length - ext.length);
       break;
     }
+  }
+  // 'none' = scelta ESPLICITA dell'utente: il nome del file È lo SKU, senza
+  // suffisso (es. "643.jpg"). Non è un'euristica automatica, così le foto da
+  // fotocamera ("DSC9932.jpg") non diventano SKU fasulli per sbaglio.
+  if (delimiter === NO_DELIMITER) {
+    const whole = name.trim();
+    return /^[A-Za-z0-9.-]+$/.test(whole) ? whole : null;
   }
   const idx = name.indexOf(delimiter);
   if (idx <= 0) return null; // nessun separatore o separatore iniziale
