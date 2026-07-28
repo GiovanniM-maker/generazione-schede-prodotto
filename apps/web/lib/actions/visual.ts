@@ -139,6 +139,23 @@ export async function runVisualExtractionForBatch(input: {
   const rl = await checkAiRateLimit(orgId, 'visual');
   if (!rl.allowed) return fail(rl.message);
 
+  return runVisualExtractionCore(orgId, input);
+}
+
+/**
+ * Nucleo dell'estrazione visiva, SENZA controlli di sessione: presuppone che il
+ * chiamante abbia già verificato accesso e limiti. Usato sia dall'azione utente
+ * sia dal cron (che gira senza sessione) per riprendere le analisi in background.
+ */
+export async function runVisualExtractionCore(
+  orgId: string,
+  input: {
+    batchId: string;
+    force?: boolean;
+    productIds?: string[];
+    skipCategory?: boolean;
+  },
+): Promise<ActionResult<VisualExtractionSummary>> {
   const service = getServiceClient();
 
   // 1) Preset + settore del batch.
@@ -596,9 +613,11 @@ export async function runVisualExtractionForBatch(input: {
     console.warn('[visual] ricalcolo eleggibilità non riuscito:', e);
   }
 
+  // Nel percorso cron non c'è una sessione: l'evento resta senza utente.
+  const eventUser = await getSessionUser().catch(() => null);
   await service.from('app_events').insert({
     organization_id: orgId,
-    user_id: user.id,
+    user_id: eventUser?.id ?? null,
     event_name: 'visual_extraction_run',
     batch_id: input.batchId,
     metadata_json: {
