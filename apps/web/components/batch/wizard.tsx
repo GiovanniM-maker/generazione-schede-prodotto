@@ -941,8 +941,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 11 && <Step11 importSummary={importSummary} notifyByEmail={notifyByEmail} setNotifyByEmail={setNotifyByEmail} />}
 
-      {/* Navigazione */}
-      <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+      {/* Navigazione — SEMPRE raggiungibile: su mobile resta agganciata in basso
+          (con passi lunghi altrimenti bisogna scorrere tutta la pagina). */}
+      <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:border-gray-100 sm:bg-transparent sm:px-0 sm:pt-4 sm:backdrop-blur-none">
         <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
           <ArrowLeft className="h-4 w-4" />
           Indietro

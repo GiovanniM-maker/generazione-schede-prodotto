@@ -64,11 +64,12 @@ troncate a metà, con errori generici per l'utente:
 
 ### P0 — Impatto diretto sull'uso quotidiano
 
-1. **Analisi foto in background** *(oggi è in primo piano)*
-   Con 23 prodotti l'utente aspetta minuti sul passo 9; se chiude la pagina, si perde.
-   → spostarla nella coda con barra di avanzamento, come la generazione.
+1. ~~**Analisi foto in background**~~ ✅ **FATTO** (PR #57)
+   Lo stato vive sul batch, il cron riprende ciò che manca, la pagina si può
+   chiudere senza perdere nulla. La revisione delle categorie resta possibile
+   per chi vuole aspettare.
 
-2. **Import a lotti (batch insert)**
+2. **Import a lotti (batch insert)** ← *prossimo*
    Oggi l'import fa una scrittura per prodotto: con 500+ righe rischia di superare
    il tempo massimo. → inserimenti raggruppati.
 

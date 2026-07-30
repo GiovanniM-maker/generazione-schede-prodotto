@@ -429,7 +429,7 @@ export function ResultsTable({
             aria-label="Cerca"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -584,6 +584,64 @@ export function ResultsTable({
       ) : (
         <Card>
           <CardContent className="p-0">
+            {/* MOBILE: schede al posto della tabella (8 colonne su un telefono
+                sono illeggibili e costringono a scorrere in orizzontale). */}
+            <div className="divide-y divide-gray-100 sm:hidden">
+              {filtered.map((r) => {
+                const eff = effective(r);
+                return (
+                  <div key={r.id} className="p-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(r.id)}
+                        onChange={() => toggleSelect(r.id)}
+                        aria-label={`Seleziona ${r.name}`}
+                        className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-mono text-xs text-gray-500">{r.externalId}</p>
+                        <p className="mt-0.5 font-medium text-gray-900">
+                          {eff?.title || <span className="text-gray-300">— nessun titolo —</span>}
+                        </p>
+                        {eff?.shortDescription && (
+                          <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                            {eff.shortDescription}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {r.completeness && (
+                            <Badge tone={COMPLETENESS_TONES[r.completeness.status]}>
+                              {COMPLETENESS_LABELS[r.completeness.status]}
+                            </Badge>
+                          )}
+                          <StatusBadge status={r.jobFailed ? 'failed' : r.status} />
+                          {r.hasEdited && <Badge tone="violet">Modificato</Badge>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => setOpenId(r.id)}>
+                        <Pencil className="h-4 w-4" />
+                        Rivedi
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => accept(r.id)} disabled={pending} aria-label="Accetta">
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => reject(r.id)} disabled={pending} aria-label="Rifiuta">
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => regenerate(r.id)} disabled={pending} aria-label="Rigenera">
+                        <RefreshCw className="h-4 w-4 text-gray-500" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP: tabella completa */}
+            <div className="hidden sm:block">
             <Table>
               <THead>
                 <TR>
@@ -703,6 +761,7 @@ export function ResultsTable({
                 })}
               </TBody>
             </Table>
+            </div>
             {filtered.length === 0 && (
               <div className="px-6 py-10 text-center text-sm text-gray-500">
                 Nessun risultato in questa categoria.
@@ -1143,7 +1202,7 @@ function ProductAttributesPanel({
                       size="sm"
                       onClick={() => resolve(a)}
                       disabled={busy}
-                      className="h-7 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      className="h-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50 sm:h-7"
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                       Conferma
@@ -1156,7 +1215,7 @@ function ProductAttributesPanel({
                         setEditValue(a.value);
                       }}
                       disabled={busy}
-                      className="h-7"
+                      className="h-9 sm:h-7"
                     >
                       <Pencil className="h-4 w-4" /> Correggi
                     </Button>
