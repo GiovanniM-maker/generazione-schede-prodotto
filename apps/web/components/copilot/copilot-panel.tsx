@@ -656,7 +656,7 @@ export function CopilotPanel({
 
 function DraftField({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-2">
+    <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-[110px_1fr] sm:gap-2">
       <dt className="text-gray-500">{label}</dt>
       <dd className={value ? 'text-gray-900' : 'text-gray-300'}>
         {value || '—'}

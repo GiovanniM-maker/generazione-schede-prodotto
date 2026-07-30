@@ -162,7 +162,7 @@ export function WizardGuide({ autoOpen }: { autoOpen?: boolean }) {
           type="button"
           data-tour="wizard-guide"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full bg-brand-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2"
+          className="fixed bottom-24 right-4 z-[60] flex items-center gap-2 rounded-full sm:bottom-5 sm:right-5 bg-brand-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2"
           aria-label="Apri la guida"
         >
           <LifeBuoy className="h-4 w-4" />
@@ -173,7 +173,7 @@ export function WizardGuide({ autoOpen }: { autoOpen?: boolean }) {
       {/* Pannello chat */}
       {open && (
         <div
-          className="fixed bottom-5 right-5 z-[60] flex max-h-[min(560px,80vh)] w-[min(380px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+          className="fixed bottom-24 right-4 z-[60] flex max-h-[min(560px,70vh)] sm:bottom-5 sm:right-5 sm:max-h-[min(560px,80vh)] w-[min(380px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
           role="dialog"
           aria-label="Guida del wizard"
         >
