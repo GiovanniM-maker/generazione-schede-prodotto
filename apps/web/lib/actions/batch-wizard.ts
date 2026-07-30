@@ -16,6 +16,7 @@ import {
   computeQuality,
   NON_ADDITIONAL_FIELDS,
   extractProductFromHtml,
+  chunk,
   type ParseResult,
   type SourceAnalysis,
   type BuiltProduct,
@@ -1223,6 +1224,30 @@ export async function confirmImportV2(input: {
   // sku -> id del prodotto ricreato (per ripristinare i fatti confermati).
   const newProductIdBySku = new Map<string, string>();
 
+  // -------------------------------------------------------------------------
+  // Import a LOTTI.
+  // Prima si faceva una scrittura per prodotto, più una per i fatti e una per
+  // i link immagine: su 500+ righe sono oltre 1500 round-trip e l'import
+  // superava il tempo massimo della funzione. Ora si costruisce tutto in
+  // memoria e si scrive a blocchi. Se un blocco fallisce si ripiega riga per
+  // riga, così una sola riga malformata non fa perdere le altre del blocco.
+  // -------------------------------------------------------------------------
+  // I prodotti portano i JSON grezzi della riga: blocchi più piccoli per non
+  // gonfiare la singola richiesta. Fatti e link sono righe sottili.
+  const WRITE_CHUNK = 100;
+  const THIN_CHUNK = 500;
+
+  interface PendingProduct {
+    sku: string;
+    eligible: boolean;
+    imageOnly: boolean;
+    insert: Record<string, unknown>;
+    pavRows: Array<{ attribute_id: string; value: string }>;
+    pavSourceItemId: string | null;
+    imgIds: string[];
+  }
+  const pending: PendingProduct[] = [];
+
   if (spreadsheet && input.skuHeader) {
     for (const row of spreadsheet.parsed.rows) {
       const skuRaw = row[input.skuHeader];
@@ -1240,6 +1265,15 @@ export async function confirmImportV2(input: {
       // Costruisci gli attributi canonici (bridge) e le righe PAV.
       const canonical: Record<string, string> = { sku };
       const pavRows: Array<{ attribute_id: string; value: string }> = [];
+      // Un attributo può avere un solo valore per prodotto (vincolo unico sul
+      // database): il primo trovato vince. Senza questo controllo due colonne
+      // che puntano allo stesso attributo farebbero rifiutare tutti i fatti.
+      const seenAttributes = new Set<string>();
+      const addFact = (attributeId: string, value: string) => {
+        if (seenAttributes.has(attributeId)) return;
+        seenAttributes.add(attributeId);
+        pavRows.push({ attribute_id: attributeId, value });
+      };
       let name: string | null = null;
       let category: string | null = null;
 
@@ -1250,7 +1284,7 @@ export async function confirmImportV2(input: {
         const value = (row[header] ?? '').trim();
         if (value === '') continue;
         canonical[canonicalKey(attr)] = value;
-        pavRows.push({ attribute_id: attributeId, value });
+        addFact(attributeId, value);
         if (attr.key === 'product_name' && !name) name = value;
         if (attr.key === 'category' && !category) category = value;
       }
@@ -1261,7 +1295,7 @@ export async function confirmImportV2(input: {
         const ck = canonicalKey(attr);
         if (canonical[ck] !== undefined) continue; // già valorizzato altrove
         canonical[ck] = value;
-        pavRows.push({ attribute_id: attr.id, value });
+        addFact(attr.id, value);
       }
 
       // La colonna Categoria dedicata (se scelta) ha la priorità: è il modo
@@ -1330,9 +1364,12 @@ export async function confirmImportV2(input: {
         if (categoryId) category = catNameById.get(categoryId) ?? category;
       }
 
-      const { data: productRow, error: pErr } = await service
-        .from('products')
-        .insert({
+      importedSkus.add(sku);
+      pending.push({
+        sku,
+        eligible,
+        imageOnly: false,
+        insert: {
           organization_id: orgId,
           batch_id: input.batchId,
           sku,
@@ -1346,55 +1383,12 @@ export async function confirmImportV2(input: {
           canonical_attributes_json: canonical as unknown as Json,
           data_quality_score: quality.score,
           verification_status: eligible ? 'eligible' : 'excluded',
-        })
-        .select('id')
-        .single();
-      if (pErr || !productRow) {
-        invalid++;
-        continue;
-      }
-      imported++;
-      importedSkus.add(sku);
-      newProductIdBySku.set(sku, productRow.id);
-      // Conta gli idonei con la STESSA eleggibilità usata per verification_status
-      // (sku + ≥2 fatti, incluse le colonne libere). computeQuality è tarato sui
-      // campi moda e dava 0 idonei sui cataloghi food → conteggio errato.
-      if (eligible) valid++;
-      else invalid++;
-
-      if (pavRows.length > 0) {
-        // I FATTI sono il cuore della generazione: se l'insert fallisce il
-        // prodotto resta senza dati ("informazioni non sufficienti"). Logghiamo
-        // l'errore invece di perderlo in silenzio.
-        const { error: pavErr } = await service.from('product_attribute_values').insert(
-          pavRows.map((r) => ({
-            organization_id: orgId,
-            product_id: productRow.id,
-            attribute_id: r.attribute_id,
-            value_json: r.value as unknown as Json,
-            status: 'provided',
-            source_type: 'spreadsheet',
-            source_item_id: spreadsheet.sourceItemId,
-          })),
-        );
-        if (pavErr) {
-          console.error(`[import] fatti non salvati per SKU ${sku}: ${pavErr.message}`);
-          factsInsertErrors++;
-        }
-      }
-
-      // Link alle immagini con SKU corrispondente (match esatto).
-      const imgIds = imageBySku.get(sku) ?? [];
-      if (imgIds.length > 0) {
-        await service.from('product_source_links').insert(
-          imgIds.map((id) => ({
-            organization_id: orgId,
-            product_id: productRow.id,
-            source_item_id: id,
-            link_type: 'sku_exact',
-          })),
-        );
-      }
+        },
+        pavRows,
+        pavSourceItemId: spreadsheet.sourceItemId,
+        // Link alle immagini con SKU corrispondente (match esatto).
+        imgIds: imageBySku.get(sku) ?? [],
+      });
     }
   }
 
@@ -1416,9 +1410,12 @@ export async function confirmImportV2(input: {
       };
       const quality = computeQuality(built, { hasImages: true });
 
-      const { data: productRow, error: pErr } = await service
-        .from('products')
-        .insert({
+      importedSkus.add(sku);
+      pending.push({
+        sku,
+        eligible: false,
+        imageOnly: true,
+        insert: {
           organization_id: orgId,
           batch_id: input.batchId,
           sku,
@@ -1430,24 +1427,105 @@ export async function confirmImportV2(input: {
           canonical_attributes_json: canonical as unknown as Json,
           data_quality_score: quality.score,
           verification_status: 'excluded',
-        })
-        .select('id')
-        .single();
-      if (pErr || !productRow) continue;
-      imported++;
-      imageOnly++;
-      invalid++;
-      importedSkus.add(sku);
-      newProductIdBySku.set(sku, productRow.id);
+        },
+        pavRows: [],
+        pavSourceItemId: null,
+        imgIds,
+      });
+    }
+  }
 
-      await service.from('product_source_links').insert(
-        imgIds.map((id) => ({
-          organization_id: orgId,
-          product_id: productRow.id,
-          source_item_id: id,
-          link_type: 'sku_exact',
-        })),
-      );
+  // --- Scrittura a blocchi -------------------------------------------------
+  {
+    const idBySku = new Map<string, string>();
+    for (const slice of chunk(pending, WRITE_CHUNK)) {
+      const { data, error } = await service
+        .from('products')
+        .insert(slice.map((p) => p.insert))
+        .select('id, sku');
+      if (error) {
+        // Il blocco è saltato per colpa di UNA riga: riprova una per una così
+        // le altre entrano comunque.
+        console.error(`[import] blocco prodotti rifiutato, ripiego riga per riga: ${error.message}`);
+        for (const p of slice) {
+          const { data: one } = await service
+            .from('products')
+            .insert(p.insert)
+            .select('id, sku')
+            .maybeSingle();
+          if (one?.id && one.sku) idBySku.set(one.sku, one.id);
+        }
+        continue;
+      }
+      for (const r of data ?? []) if (r.sku) idBySku.set(r.sku, r.id);
+    }
+
+    const inserted = pending.filter((p) => idBySku.has(p.sku));
+    for (const p of inserted) {
+      const id = idBySku.get(p.sku);
+      if (!id) continue;
+      imported++;
+      newProductIdBySku.set(p.sku, id);
+      // Conta gli idonei con la STESSA eleggibilità usata per verification_status
+      // (sku + ≥2 fatti, incluse le colonne libere). computeQuality è tarato sui
+      // campi moda e dava 0 idonei sui cataloghi food → conteggio errato.
+      if (p.imageOnly) {
+        imageOnly++;
+        invalid++;
+      } else if (p.eligible) {
+        valid++;
+      } else {
+        invalid++;
+      }
+    }
+    invalid += pending.length - inserted.length;
+
+    // I FATTI sono il cuore della generazione: se l'insert fallisce il prodotto
+    // resta senza dati ("informazioni non sufficienti"). Logghiamo l'errore
+    // invece di perderlo in silenzio.
+    const pavAll = inserted.flatMap((p) =>
+      p.pavRows.map((r) => ({
+        organization_id: orgId,
+        product_id: idBySku.get(p.sku) as string,
+        attribute_id: r.attribute_id,
+        value_json: r.value as unknown as Json,
+        status: 'provided',
+        source_type: 'spreadsheet',
+        source_item_id: p.pavSourceItemId,
+      })),
+    );
+    for (const slice of chunk(pavAll, THIN_CHUNK)) {
+      const { error } = await service.from('product_attribute_values').insert(slice);
+      if (!error) continue;
+      // Una riga rifiutata annulla l'intero blocco: riprova prodotto per
+      // prodotto, così resta senza fatti solo quello davvero problematico.
+      console.error(`[import] blocco fatti rifiutato, ripiego per prodotto: ${error.message}`);
+      const byProduct = new Map<string, typeof slice>();
+      for (const r of slice) {
+        const group = byProduct.get(r.product_id);
+        if (group) group.push(r);
+        else byProduct.set(r.product_id, [r]);
+      }
+      for (const [productId, rows] of byProduct) {
+        const { error: retryErr } = await service.from('product_attribute_values').insert(rows);
+        if (retryErr) {
+          console.error(`[import] fatti non salvati per il prodotto ${productId}: ${retryErr.message}`);
+          factsInsertErrors++;
+        }
+      }
+    }
+
+    const linkAll = inserted.flatMap((p) =>
+      p.imgIds.map((sourceItemId) => ({
+        organization_id: orgId,
+        product_id: idBySku.get(p.sku) as string,
+        source_item_id: sourceItemId,
+        link_type: 'sku_exact',
+      })),
+    );
+    for (const slice of chunk(linkAll, THIN_CHUNK)) {
+      const { error } = await service.from('product_source_links').insert(slice);
+      if (error) console.error(`[import] link immagini non salvati: ${error.message}`);
     }
   }
 
@@ -1455,30 +1533,47 @@ export async function confirmImportV2(input: {
   // stesso SKU. Se il re-import ha già inserito una PAV per quello stesso
   // attributo (da spreadsheet, status 'provided'), la sovrascrive con lo stato
   // più forte confermato dall'utente; altrimenti la reinserisce.
-  for (const snap of confirmedSnapshots) {
-    const newProductId = newProductIdBySku.get(snap.sku);
-    if (!newProductId) continue;
-    const { data: existing } = await service
-      .from('product_attribute_values')
-      .select('id')
-      .eq('product_id', newProductId)
-      .eq('attribute_id', snap.attribute_id)
-      .maybeSingle();
-    if (existing) {
-      await service
+  // Anche qui a lotti: una lettura sola per sapere cosa esiste già, poi un
+  // inserimento a blocchi per i mancanti (gli aggiornamenti restano puntuali,
+  // ma sono pochi: solo i fatti già riscritti dal file).
+  {
+    const restorable = confirmedSnapshots
+      .map((snap) => ({ snap, productId: newProductIdBySku.get(snap.sku) }))
+      .filter((r): r is { snap: PavSnapshot; productId: string } => Boolean(r.productId));
+
+    const existingIdByKey = new Map<string, string>();
+    const productIds = [...new Set(restorable.map((r) => r.productId))];
+    for (const slice of chunk(productIds, THIN_CHUNK)) {
+      const { data } = await service
         .from('product_attribute_values')
-        .update({ status: snap.status, value_json: snap.value_json })
-        .eq('id', existing.id);
-    } else {
-      await service.from('product_attribute_values').insert({
-        organization_id: orgId,
-        product_id: newProductId,
-        attribute_id: snap.attribute_id,
-        value_json: snap.value_json,
-        status: snap.status,
-        source_type: snap.source_type ?? 'image',
-        source_item_id: snap.source_item_id,
-      });
+        .select('id, product_id, attribute_id')
+        .in('product_id', slice);
+      for (const r of data ?? []) existingIdByKey.set(`${r.product_id}|${r.attribute_id}`, r.id);
+    }
+
+    const toInsert: Array<Record<string, unknown>> = [];
+    for (const { snap, productId } of restorable) {
+      const existingId = existingIdByKey.get(`${productId}|${snap.attribute_id}`);
+      if (existingId) {
+        await service
+          .from('product_attribute_values')
+          .update({ status: snap.status, value_json: snap.value_json })
+          .eq('id', existingId);
+      } else {
+        toInsert.push({
+          organization_id: orgId,
+          product_id: productId,
+          attribute_id: snap.attribute_id,
+          value_json: snap.value_json,
+          status: snap.status,
+          source_type: snap.source_type ?? 'image',
+          source_item_id: snap.source_item_id,
+        });
+      }
+    }
+    for (const slice of chunk(toInsert, THIN_CHUNK)) {
+      const { error } = await service.from('product_attribute_values').insert(slice);
+      if (error) console.error(`[import] fatti confermati non ripristinati: ${error.message}`);
     }
   }
 
