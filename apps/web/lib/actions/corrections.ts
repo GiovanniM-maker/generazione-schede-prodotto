@@ -151,10 +151,13 @@ export async function saveOutputEdit(input: {
   if (!gen) return fail('Nessuna generazione da modificare');
 
   // Persisti il testo editato (separato dall'output originale).
-  await mustWrite('product_generations.update', service
+  const salvato = await mustWrite('product_generations.update', service
     .from('product_generations')
     .update({ edited_content_json: input.edited as unknown as Json })
     .eq('id', gen.id));
+  // Senza questo, la modifica dell'utente sparirebbe al ricaricamento della
+  // pagina senza che nessuno lo dica.
+  if (!salvato.ok) return fail(`Modifica non salvata: ${salvato.error}`);
 
   // Limiti anti-abuso sul testo che poi confluisce nel prompt di miglioramento.
   const cap = (s: string, max: number) => (s.length > max ? s.slice(0, max) : s);
@@ -194,7 +197,11 @@ export async function saveOutputEdit(input: {
       .eq('product_id', input.productId)
       .eq('applied_to_prompt', false)
       .in('field_key', fieldKeys));
-    await mustWrite('output_corrections.insert', service.from('output_corrections').insert(rows));
+    const registrate = await mustWrite(
+      'output_corrections.insert',
+      service.from('output_corrections').insert(rows),
+    );
+    if (!registrate.ok) return fail(`Correzioni non registrate: ${registrate.error}`);
   }
   return ok({ recorded: rows.length });
 }

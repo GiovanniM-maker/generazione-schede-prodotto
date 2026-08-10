@@ -29,7 +29,7 @@ vi.mock('@/lib/auth', () => ({
   getUserOrg: async () => ({ organizationId: ORG }),
 }));
 vi.mock('@/lib/ownership', () => ({ assertBatchAccess: async () => ORG }));
-vi.mock('@/lib/actions/visual', () => ({
+vi.mock('@/lib/visual-core', () => ({
   runVisualExtractionCore: async (orgId: string, input: { batchId: string }) => {
     estrazioni.push(input.batchId);
     if (esplodeCon) {
@@ -42,8 +42,10 @@ vi.mock('@/lib/actions/visual', () => ({
   },
 }));
 
-const { resumeVisualAnalysis, startVisualAnalysisAction, getVisualAnalysisProgressAction } =
-  await import('../actions/visual-background.js');
+const { resumeVisualAnalysis } = await import('../visual-analysis-resume.js');
+const { startVisualAnalysisAction, getVisualAnalysisProgressAction } = await import(
+  '../actions/visual-background.js'
+);
 
 function nuovoDb() {
   return new FakeDb({
@@ -82,8 +84,8 @@ describe('ripresa dell’analisi foto', () => {
     const res = await resumeVisualAnalysis(db as never, { deadline: traUnMinuto() });
     expect(res.batchesTouched).toBe(1);
     expect(estrazioni).toEqual(['b1']);
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('done');
-    expect(db.rows('batches')[0].visual_analysis_claimed_at).toBeNull();
+    expect(db.row('batches').visual_analysis_status).toBe('done');
+    expect(db.row('batches').visual_analysis_claimed_at).toBeNull();
   });
 
   it('due esecuzioni in parallelo lavorano il batch UNA volta sola', async () => {
@@ -112,37 +114,37 @@ describe('ripresa dell’analisi foto', () => {
     });
     await resumeVisualAnalysis(db as never, { deadline: traUnMinuto() });
     expect(estrazioni).toEqual(['b1']);
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('done');
+    expect(db.row('batches').visual_analysis_status).toBe('done');
   });
 
   it('se restano prodotti da analizzare lascia il lavoro in attesa, non lo chiude', async () => {
     seedBatch();
     esito = { ok: true, productsSkipped: 3 };
     await resumeVisualAnalysis(db as never, { deadline: Date.now() + 5 });
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('pending');
-    expect(db.rows('batches')[0].visual_analysis_claimed_at).toBeNull();
+    expect(db.row('batches').visual_analysis_status).toBe('pending');
+    expect(db.row('batches').visual_analysis_claimed_at).toBeNull();
   });
 
   it('un errore dell’estrazione finisce sul batch, visibile all’utente', async () => {
     seedBatch();
     esito = { ok: false, error: 'quota AI esaurita' };
     await resumeVisualAnalysis(db as never, { deadline: traUnMinuto() });
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('error');
-    expect(db.rows('batches')[0].visual_analysis_error).toBe('quota AI esaurita');
+    expect(db.row('batches').visual_analysis_status).toBe('error');
+    expect(db.row('batches').visual_analysis_error).toBe('quota AI esaurita');
   });
 
   it('un’eccezione non lascia il batch bloccato in "running"', async () => {
     seedBatch();
     esplodeCon = 'rete caduta';
     await resumeVisualAnalysis(db as never, { deadline: traUnMinuto() });
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('error');
-    expect(db.rows('batches')[0].visual_analysis_error).toContain('rete caduta');
+    expect(db.row('batches').visual_analysis_status).toBe('error');
+    expect(db.row('batches').visual_analysis_error).toContain('rete caduta');
   });
 
   it('un batch senza organizzazione va in errore, non in crash', async () => {
     seedBatch({ organization_id: null });
     await resumeVisualAnalysis(db as never, { deadline: traUnMinuto() });
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('error');
+    expect(db.row('batches').visual_analysis_status).toBe('error');
     expect(estrazioni).toEqual([]);
   });
 
@@ -167,7 +169,7 @@ describe('avvio e progresso', () => {
     seedBatch({ visual_analysis_status: 'error', visual_analysis_error: 'vecchio errore' });
     const res = await startVisualAnalysisAction({ batchId: 'b1' });
     expect(res.ok).toBe(true);
-    const b = db.rows('batches')[0];
+    const b = db.row('batches');
     expect(b.visual_analysis_status).toBe('pending');
     expect(b.visual_analysis_error).toBeNull();
     expect(b.visual_analysis_claimed_at).toBeNull();
@@ -180,7 +182,7 @@ describe('avvio e progresso', () => {
       .update({ visual_analysis_status: 'in_corso' })
       .eq('id', 'b1');
     expect(error).not.toBeNull();
-    expect(db.rows('batches')[0].visual_analysis_status).toBe('pending');
+    expect(db.row('batches').visual_analysis_status).toBe('pending');
   });
 
   it('il progresso conta come analizzato chi ha una categoria o un fatto da foto', async () => {
@@ -204,7 +206,7 @@ describe('avvio e progresso', () => {
 
   it('uno stato sconosciuto sul batch viene riportato come "idle", non propagato', async () => {
     seedBatch();
-    db.rows('batches')[0].visual_analysis_status = null;
+    db.row('batches').visual_analysis_status = null;
     const res = await getVisualAnalysisProgressAction({ batchId: 'b1' });
     if (!res.ok) throw new Error(res.error);
     expect(res.data.status).toBe('idle');

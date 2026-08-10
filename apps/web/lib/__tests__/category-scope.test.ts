@@ -72,14 +72,14 @@ describe('categorie disponibili in un batch', () => {
   });
 
   it('esclude le categorie disattivate nel preset', async () => {
-    db.rows('preset_categories').find((r) => r.id === 'pc1')!.enabled = false;
+    db.byId('preset_categories', 'pc1').enabled = false;
     const res = await getBatchCategoryOptions({ batchId: 'b1' });
     if (!res.ok) throw new Error(res.error);
     expect(res.data.categories.map((c) => c.name)).toEqual(['Formaggi']);
   });
 
   it('esclude le categorie non più attive nel catalogo', async () => {
-    db.rows('categories').find((r) => r.id === 'c-form')!.status = 'archived';
+    db.byId('categories', 'c-form').status = 'archived';
     const res = await getBatchCategoryOptions({ batchId: 'b1' });
     if (!res.ok) throw new Error(res.error);
     expect(res.data.categories.map((c) => c.name)).toEqual(['Olio EVO']);
@@ -108,7 +108,7 @@ describe('categorie disponibili in un batch', () => {
     if (!res.ok) throw new Error(res.error);
     const olio = res.data.categories.filter((c) => c.name === 'Olio EVO');
     expect(olio).toHaveLength(1);
-    expect(olio[0].id).toBe('c-olio');
+    expect(olio[0]?.id).toBe('c-olio');
   });
 
   it('preset senza categorie: ripiega sul settore e lo DICHIARA', async () => {
@@ -120,7 +120,7 @@ describe('categorie disponibili in un batch', () => {
   });
 
   it('batch senza preset: nessuna categoria, nessun ripiego', async () => {
-    db.rows('batches')[0].preset_version_id = null;
+    db.row('batches').preset_version_id = null;
     const res = await getBatchCategoryOptions({ batchId: 'b1' });
     if (!res.ok) throw new Error(res.error);
     expect(res.data.categories).toEqual([]);
@@ -128,7 +128,7 @@ describe('categorie disponibili in un batch', () => {
   });
 
   it('preset di un’altra organizzazione: nessuna categoria', async () => {
-    db.rows('presets')[0].organization_id = OTHER_ORG;
+    db.row('presets').organization_id = OTHER_ORG;
     const res = await getBatchCategoryOptions({ batchId: 'b1' });
     if (!res.ok) throw new Error(res.error);
     expect(res.data.categories).toEqual([]);
@@ -181,16 +181,16 @@ describe('assegnazione manuale della categoria', () => {
   });
 
   it('azzerare la categoria è sempre permesso', async () => {
-    db.rows('products')[0].category_id = 'c-olio';
-    db.rows('products')[0].category = 'Olio EVO';
+    db.row('products').category_id = 'c-olio';
+    db.row('products').category = 'Olio EVO';
     const res = await setProductsCategoryAction({
       batchId: 'b1',
       productIds: ['prod-1'],
       categoryId: null,
     });
     expect(res.ok).toBe(true);
-    expect(db.rows('products')[0].category_id).toBeNull();
-    expect(db.rows('products')[0].category).toBeNull();
+    expect(db.row('products').category_id).toBeNull();
+    expect(db.row('products').category).toBeNull();
   });
 
   it('non tocca i prodotti di un altro batch', async () => {

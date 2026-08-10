@@ -6,8 +6,8 @@ import { getServerEnv } from '@/lib/env.server';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getSessionUser } from '@/lib/auth';
 import { notifyCompletedBatches } from '@/lib/notify';
-import { finalizeDoubtsForCompletedBatches } from '@/lib/actions/doubts';
-import { resumeVisualAnalysis } from '@/lib/actions/visual-background';
+import { finalizeDoubtsForCompletedBatches } from '@/lib/doubts-core';
+import { resumeVisualAnalysis } from '@/lib/visual-analysis-resume';
 
 // Drena la coda di generazione lato serverless: fa il lavoro del worker senza
 // un processo separato.
