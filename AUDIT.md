@@ -1,104 +1,110 @@
-# Audit approfondito del progetto
+# Stato del progetto
 
-Analisi su **codice + database di produzione + configurazione**.
-Metodo: scansione sistematica del codice, query sul DB reale, verifica degli enum,
-controllo di sicurezza su ogni azione server e route API.
+Documento vivo. Aggiornato con dati verificati su **codice + database di produzione**,
+non a memoria.
 
 ---
 
-## 1. Correzioni già fatte e in produzione
+## 1. Dove siamo
 
-### Fallimenti silenziosi (la classe di bug più pericolosa)
-Il codice scriveva valori **non validi** per gli enum del database. Postgres rifiuta
-la scrittura, ma l'errore non veniva controllato → **l'operazione falliva senza che
-nessuno se ne accorgesse**.
+**90 commit, 64 pull request. L'applicazione è in produzione e risponde.**
 
-| Dove | Valore scritto | Effetto reale (verificato sul DB) |
+| | |
+|---|---|
+| Test | **338**, verdi |
+| Typecheck / lint | puliti su tutto il repo |
+| Build | OK |
+| Job falliti in coda | 0 |
+| Analisi foto in sospeso | 0 |
+| Ledger crediti | in pari (100.009 accreditati, 209 consumati) |
+
+Sul database di produzione: 3 organizzazioni, 11 preset, 51 categorie,
+201 attributi, 4 batch, 49 prodotti, 26 schede generate, 372 fatti estratti.
+
+---
+
+## 2. Copertura dei test, per strato
+
+| strato | test | note |
 |---|---|---|
-| `source_items.status` | `'ready'` | Excel caricato ma **mai collegato al batch** → "solo immagini" |
-| `batches.status` | `'sources_selected'` | `source_type` **NULL su tutti i batch** |
-| `batches.status` | `'analysis'` | stato del batch mai aggiornato |
+| `packages/core` | 210 | logica pura: SKU, qualità, prompt, export, sicurezza URL |
+| `apps/web` | 98 | **server action** — a inizio agosto erano 0 |
+| `packages/ai` | 14 | provider, traduzioni, miglioramento prompt |
+| `packages/pipeline` | 11 | accodamento e crediti |
+| `apps/worker` | 5 | fallimenti e retry |
 
-Ora i valori sono corretti e **gli errori vengono controllati**: un problema del
-genere non può più passare inosservato.
+Le tre funzioni più rischiose del prodotto sono coperte end-to-end:
 
-### Timeout delle API (default Vercel: 10 secondi)
-Tre route facevano lavoro lungo **senza dichiarare `maxDuration`** → venivano
-troncate a metà, con errori generici per l'utente:
+- **import** (`confirmImportV2`) — 39 test
+- **export** (`buildBatchExport`) — 21 test
+- **generazione** — coperta da `core` + `pipeline`, con la garanzia che una scheda
+  non salvata fa fallire il job invece di consumare il credito
 
-- `/sample` → analisi foto + generazione (30s+) — **causa di fallimenti del campione**
-- `/export` → costruzione CSV/XLSX su cataloghi grandi
-- `/copilot/transcribe` → trascrizione audio
-
-### Performance
-- **Export N+1**: una query per prodotto → **una sola query** per l'intero batch.
-
-### Robustezza import
-- **Excel multi-foglio**: veniva letto solo il primo foglio. Con un `Sheet1` di
-  servizio e i dati sul secondo, l'import risultava vuoto **senza spiegazione**.
-  Ora viene scelto il primo foglio che contiene davvero righe.
-
-### Conteggi e messaggi
-- "**0 idonei alla generazione**": il contatore usava una regola tarata sui campi
-  moda; su cataloghi food dava 0 pur essendo i prodotti generabili.
-- **Schede bloccate**: ora spiegano **perché** (manca SKU / nessun dato / conflitto /
-  affermazione non supportata dai dati).
+I test sono stati verificati **a rovescio**: rompendo apposta il codice di
+produzione, devono diventare rossi. Due volte il test è sopravvissuto alla
+mutazione — ed era il test a essere debole, non il codice. Entrambi corretti.
 
 ---
 
-## 2. Verifiche superate (nessuna azione richiesta)
+## 3. Le difese strutturali
 
-- **181 test** verdi, typecheck e lint puliti su tutti i pacchetti, build OK.
-- **Sicurezza**
-  - RLS attivo su **tutte** le tabelle.
-  - **Nessuna azione server priva di controllo di proprietà** (verificate una per una).
-  - Webhook Stripe: firma verificata. `/reanalyze`: protetto (auth + proprietà + rate limit).
-  - Fetch da URL protetto da SSRF (blocco IP interni, redirect manuali, timeout, cap byte).
-- **Dati**: ledger crediti bilanciato (232 riservati → 232 rilasciati, 208 consumati);
-  nessun job bloccato o fallito; indici sulle foreign key presenti.
-- **Configurazione**: validazione delle variabili d'ambiente con messaggi chiari all'avvio.
+Non correzioni sul posto: meccanismi che impediscono a un'intera famiglia di
+bug di ripresentarsi.
+
+### Scritture al database che non possono più fallire in silenzio
+Cinque volte lo stesso guaio (valore non valido → Postgres rifiuta → errore mai
+letto → l'app dice "fatto"). Ora:
+
+- una **regola di lint** segnala ogni scrittura il cui esito viene scartato —
+  cerca la write in qualsiasi punto dell'espressione, non solo in coda;
+- tre helper rendono esplicita la scelta: `mustWrite` (conta, riporta l'esito),
+  `writeOrThrow` (interrompe, per le action in try/catch), `logWrite` (telemetria);
+- la generazione **fallisce e ritenta** se la scheda non viene salvata, con il
+  controllo prima del consumo del credito.
+
+### Guardia sugli endpoint
+In Next ogni funzione esportata da un file `'use server'` è raggiungibile dalla
+rete. Un nucleo interno era esposto così: riceveva l'organizzazione come
+parametro e usava il client di servizio, che scavalca le regole di accesso al
+database. **Chiusa.** Sette test verificano ora che nessuna azione riceva il
+client o l'organizzazione da fuori, e che ognuna faccia un controllo di identità.
+
+### Il preset è il vocabolario
+Le categorie di un batch sono quelle del preset scelto, non quelle del settore.
+Prima un preset con 17 categorie ne offriva 31, e i prodotti finivano in
+categorie senza attributi — quindi senza niente da estrarre.
+
+### I vincoli dello schema in un posto solo
+Enum, unicità e cancellazioni a cascata sono definiti una volta e condivisi dai
+test. Ripeterli file per file è il modo in cui in questo progetto sono già nati
+dei bug: la stessa regola scritta due volte, e le due copie che divergono.
 
 ---
 
-## 3. Piano — cosa resta, in ordine di priorità
+## 4. Cosa resta
 
-### P0 — Impatto diretto sull'uso quotidiano
+### P1 — Robustezza
 
-1. ~~**Analisi foto in background**~~ ✅ **FATTO** (PR #57)
-   Lo stato vive sul batch, il cron riprende ciò che manca, la pagina si può
-   chiudere senza perdere nulla. La revisione delle categorie resta possibile
-   per chi vuole aspettare.
+1. **Scritture ancora solo loggate** (~40). Sono telemetria e stati intermedi del
+   cron, dove il log è la scelta giusta — ma vanno riviste una per una per
+   confermarlo.
+2. **Selettore del foglio Excel.** Il ripiego automatico c'è; manca la scelta
+   esplicita quando i fogli sono più d'uno.
+3. **Test end-to-end con AI reale** su ogni sorgente (Excel, foto, URL, misto).
+   Oggi la generazione è provata con un modello finto.
+4. **`apps/worker` e `packages/ai`** restano a 5 e 14 test. La logica vera sta in
+   `core` e `pipeline`, ora coperti — ma la copertura qui è sottile.
 
-2. ~~**Import a lotti (batch insert)**~~ ✅ **FATTO** (PR #59)
-   Da tre scritture per prodotto a blocchi da 100 (prodotti) e 500 (fatti e link).
-   Misurato sul DB reale: 250 prodotti in 3 richieste, meno di un secondo — al
-   posto di ~183 ms per singola scrittura. Se un blocco viene rifiutato si ripiega
-   riga per riga, così una riga malformata non fa perdere le altre.
+### P2 — Prodotto
 
-3. **Mobile** ✅ **FATTO** (PR #58)
-   Barra di navigazione fissa nel wizard, schede al posto della tabella nei
-   risultati, aree di tocco a norma.
-
-### P1 — Robustezza e fiducia
-
-4. **Helper obbligatorio per le scritture DB**
-   Restano ~40 scritture senza controllo dell'errore (per lo più log best-effort).
-   → helper `mustInsert/mustUpdate` che logga sempre + regola di lint che lo impone.
-   È la difesa strutturale contro la classe di bug trovata quattro volte.
-
-5. **Selettore del foglio Excel**
-   Il fallback automatico c'è; manca la scelta esplicita quando i fogli sono più d'uno.
-
-6. **Test end-to-end con AI reale** su ogni sorgente (Excel, foto, URL, misto).
-
-### P2 — Prodotto (le "rifiniture" che fanno la differenza)
-
-7. **Dashboard admin**: consumi, costo per prodotto, spesa AI, utenti.
-8. **Azioni in blocco** nei risultati: accetta tutte le complete, rigenera le fallite.
-9. **Ricerca e filtri** più forti sui risultati (per categoria, per campo mancante).
-10. **Storico versioni** della scheda + ripristino di una versione precedente.
-11. **Anteprima dell'export** prima del download.
-12. **Duplica batch** / rigenera solo un sottoinsieme.
+5. **Seconda vista dei risultati**, più comoda di una tabella per chi non è
+   pratico di Excel. ← *concordata come prossimo passo*
+6. **Dashboard admin**: consumi, costo per prodotto, spesa AI, utenti.
+7. **Azioni in blocco** nei risultati: accetta tutte le complete, rigenera le fallite.
+8. **Ricerca e filtri** sui risultati (per categoria, per campo mancante).
+9. **Storico versioni** della scheda + ripristino.
+10. **Anteprima dell'export** prima del download.
+11. **Duplica batch** / rigenera solo un sottoinsieme.
 
 ### P3 — Dipende da te (accessi esterni)
 
@@ -109,10 +115,24 @@ troncate a metà, con errori generici per l'utente:
 
 ---
 
-## 4. Limite dichiarato
+## 5. Osservazioni sui dati reali
+
+- **23 prodotti su 49 non hanno categoria.** Vengono dal batch di luglio, creato
+  prima della correzione sulle categorie: non è un problema attivo, ma quel batch
+  andrebbe re-importato per allinearlo.
+- **17 dubbi dell'AI aperti** in attesa di risposta nell'inbox.
+- **0 schede accettate.** Le schede vengono generate ma non ancora confermate:
+  atteso, finché il flusso di revisione non viene usato davvero.
+- `batches.source_type` è NULL su tutti i batch. Il percorso di scrittura è
+  corretto e ora controllato; nessun punto del codice legge quel campo. È un
+  residuo storico su una colonna di fatto inutilizzata.
+
+---
+
+## 6. Limite dichiarato
 
 In questo ambiente **non posso pilotare un browser** (il proxy blocca Chromium):
-niente screenshot dei flussi come farebbe un umano. Posso invece: testare la logica
-reale con dati veri, interrogare il DB di produzione, e fare chiamate API autenticate.
-L'estrazione da URL è stata verificata su **pagine reali Eataly** (nome, brand,
-descrizione, prezzo, immagine scaricata).
+niente prove dei flussi come li farebbe una persona davanti allo schermo. Posso
+invece testare la logica reale con dati veri, interrogare il database di
+produzione e fare chiamate API autenticate. I bug di interfaccia continuano a
+emergere dall'uso, non dalle mie verifiche: è il buco più grande che resta.
