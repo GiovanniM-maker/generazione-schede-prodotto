@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FakeDb } from './fake-supabase.js';
+import { FakeDb, SCHEMA_APP } from './fake-supabase.js';
 
 // ---------------------------------------------------------------------------
 // Analisi foto in background: il claim atomico.
@@ -15,7 +15,6 @@ import { FakeDb } from './fake-supabase.js';
 // ---------------------------------------------------------------------------
 
 const ORG = 'org-1';
-const STATI_ANALISI = ['pending', 'running', 'done', 'error'] as const;
 
 let db: FakeDb;
 let estrazioni: string[];
@@ -48,11 +47,8 @@ const { startVisualAnalysisAction, getVisualAnalysisProgressAction } = await imp
 );
 
 function nuovoDb() {
-  return new FakeDb({
-    schema: {
-      batches: { enums: { visual_analysis_status: STATI_ANALISI } },
-    },
-  });
+  // Gli stessi vincoli del database vero, definiti in un posto solo.
+  return new FakeDb({ schema: SCHEMA_APP });
 }
 
 beforeEach(() => {
