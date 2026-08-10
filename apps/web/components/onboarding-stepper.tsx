@@ -464,7 +464,7 @@ export function OnboardingStepper({
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Es. Atelier Milano S.r.l."
+                  placeholder="Es. Cascina Verde S.r.l."
                   autoFocus
                 />
               </div>
@@ -474,7 +474,7 @@ export function OnboardingStepper({
                   id="brand"
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  placeholder="Es. Atelier Milano"
+                  placeholder="Es. Cascina Verde"
                 />
               </div>
               <div>

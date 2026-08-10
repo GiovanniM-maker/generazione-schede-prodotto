@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:ui": "playwright test e2e/interfaccia.spec.ts"
+    "test:ui": "playwright test e2e/interfaccia.spec.ts",
+    "test:auth": "playwright test e2e/autenticato.spec.ts"
   },
   "dependencies": {
     "@app/ai": "workspace:*",
