@@ -721,7 +721,10 @@ function AttributeEditor({
           <span className="text-xs text-gray-400">{attr.dataType}</span>
         </div>
         <div className="flex items-center gap-1">
-          <label className="mr-2 flex items-center gap-1.5 text-sm text-gray-600">
+          <label
+            className="mr-2 flex items-center gap-1.5 text-sm text-gray-600"
+            title="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato."
+          >
             <input
               type="checkbox"
               checked={attr.isRequired}

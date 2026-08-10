@@ -17,6 +17,9 @@ import {
   NON_ADDITIONAL_FIELDS,
   extractProductFromHtml,
   chunk,
+  pickCategoryVocabulary,
+  normalizeCategoryName,
+  type CategoryRow,
   type ParseResult,
   type SourceAnalysis,
   type BuiltProduct,
@@ -975,16 +978,6 @@ export interface ImportResultV2 {
   unmatchedCategories: string[];
 }
 
-/** Normalizza un nome di categoria per il match (case/accenti/spazi). */
-function normalizeCategoryName(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
 /**
  * Match ROBUSTO del valore categoria dal file verso le categorie del catalogo:
  * esatto \u2192 contenimento \u2192 sovrapposizione token. Evita che "Grocery " o
@@ -1022,6 +1015,90 @@ function makeCategoryMatcher(entries: Array<{ id: string; name: string }>) {
   };
 }
 
+export interface PresetCategoryScope {
+  entries: Array<{ id: string; name: string }>;
+  sectorId: string | null;
+  /** true = sono le categorie del preset; false = ripiego sul settore. */
+  fromPreset: boolean;
+}
+
+/**
+ * Categorie utilizzabili in un batch: SOLO quelle del preset scelto.
+ *
+ * Prima si prendevano tutte le categorie del SETTORE (quelle di sistema più
+ * quelle dell'organizzazione). Risultato: chi sceglieva un preset con il
+ * proprio vocabolario ("Ciocc/Caffè", "Panett/Gastr") si vedeva comunque
+ * proporre — e assegnare — le categorie di base del settore ("Pasta e riso",
+ * "Vini", "Snack"), che in quel preset non esistono e non hanno attributi.
+ *
+ * Il preset è il vocabolario del batch: se una categoria non è nel preset non
+ * deve comparire. Unico ripiego: preset senza categorie configurate, dove
+ * senza elenco l'utente non potrebbe mappare nulla.
+ */
+async function loadPresetCategoryScope(
+  service: ReturnType<typeof getServiceClient>,
+  orgId: string,
+  presetVersionId: string | null,
+): Promise<PresetCategoryScope> {
+  if (!presetVersionId) return { entries: [], sectorId: null, fromPreset: false };
+
+  const { data: pv } = await service
+    .from('preset_versions')
+    .select('preset_id')
+    .eq('id', presetVersionId)
+    .maybeSingle();
+  if (!pv?.preset_id) return { entries: [], sectorId: null, fromPreset: false };
+
+  const { data: preset } = await service
+    .from('presets')
+    .select('sector_id, organization_id')
+    .eq('id', pv.preset_id)
+    .maybeSingle();
+  if (!preset || preset.organization_id !== orgId) {
+    return { entries: [], sectorId: null, fromPreset: false };
+  }
+  const sectorId = preset.sector_id ?? null;
+  const toRows = (
+    rows: Array<{ id: string; name: string; owner_organization_id: string | null }> | null,
+  ): CategoryRow[] =>
+    (rows ?? []).map((c) => ({ id: c.id, name: c.name, ownerOrganizationId: c.owner_organization_id }));
+
+  const { data: presetCats } = await service
+    .from('preset_categories')
+    .select('category_id, enabled')
+    .eq('preset_version_id', presetVersionId);
+  const ids = (presetCats ?? [])
+    .filter((c) => c.enabled !== false)
+    .map((c) => c.category_id)
+    .filter((id): id is string => Boolean(id));
+
+  const { data: fromPresetRows } = ids.length
+    ? await service
+        .from('categories')
+        .select('id, name, owner_organization_id')
+        .in('id', ids)
+        .eq('status', 'active')
+    : { data: null };
+
+  // Il ripiego sul settore serve solo se il preset non ha categorie: evita di
+  // caricarlo quando non serve.
+  const needSectorFallback = (fromPresetRows ?? []).length === 0 && Boolean(sectorId);
+  const { data: sectorRows } = needSectorFallback
+    ? await service
+        .from('categories')
+        .select('id, name, owner_organization_id')
+        .eq('sector_id', sectorId as string)
+        .eq('status', 'active')
+        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
+    : { data: null };
+
+  const vocabulary = pickCategoryVocabulary({
+    presetCategories: toRows(fromPresetRows),
+    sectorCategories: toRows(sectorRows),
+  });
+  return { ...vocabulary, sectorId };
+}
+
 export async function confirmImportV2(input: {
   batchId: string;
   skuHeader: string;
@@ -1055,42 +1132,9 @@ export async function confirmImportV2(input: {
   // Mappa nome-categoria -> id, per collegare i prodotti alle categorie
   // merceologiche dell'organizzazione (settore del preset). I nomi non
   // riconosciuti vengono segnalati (l'utente potrà crearli dalla lista).
-  const categoryEntries: Array<{ id: string; name: string }> = [];
-  let sectorId: string | null = null;
-  if (presetVersionId) {
-    const { data: pv } = await service
-      .from('preset_versions')
-      .select('preset_id')
-      .eq('id', presetVersionId)
-      .maybeSingle();
-    if (pv?.preset_id) {
-      const { data: preset } = await service
-        .from('presets')
-        .select('sector_id')
-        .eq('id', pv.preset_id)
-        .maybeSingle();
-      sectorId = preset?.sector_id ?? null;
-    }
-    if (sectorId) {
-      const { data: cats } = await service
-        .from('categories')
-        .select('id, name, owner_organization_id')
-        .eq('sector_id', sectorId)
-        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`);
-      // Preferisci la categoria dell'org rispetto a quella di sistema con lo
-      // stesso nome (owner non nullo prima).
-      const sorted = (cats ?? []).slice().sort((a, b) =>
-        a.owner_organization_id === b.owner_organization_id ? 0 : a.owner_organization_id ? -1 : 1,
-      );
-      const seen = new Set<string>();
-      for (const c of sorted) {
-        const k = normalizeCategoryName(c.name);
-        if (seen.has(k)) continue;
-        seen.add(k);
-        categoryEntries.push({ id: c.id, name: c.name });
-      }
-    }
-  }
+  const categoryScope = await loadPresetCategoryScope(service, orgId, presetVersionId);
+  const categoryEntries = categoryScope.entries;
+  const sectorId = categoryScope.sectorId;
   const matchCategoryId = makeCategoryMatcher(categoryEntries);
   const catNameById = new Map(categoryEntries.map((e) => [e.id, e.name] as const));
   let categoriesMatched = 0;
@@ -1630,10 +1674,12 @@ export interface BatchProductRow {
   status: string;
 }
 
-/** Categorie disponibili per il settore del preset del batch (per la mappatura manuale). */
+/** Categorie del preset del batch (per la mappatura manuale). */
 export async function getBatchCategoryOptions(input: {
   batchId: string;
-}): Promise<ActionResult<{ categories: Array<{ id: string; name: string }> }>> {
+}): Promise<
+  ActionResult<{ categories: Array<{ id: string; name: string }>; fromPreset: boolean }>
+> {
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
   const service = getServiceClient();
@@ -1642,27 +1688,11 @@ export async function getBatchCategoryOptions(input: {
     .select('preset_version_id')
     .eq('id', input.batchId)
     .maybeSingle();
-  if (!batch?.preset_version_id) return ok({ categories: [] });
-  const { data: pv } = await service
-    .from('preset_versions')
-    .select('preset_id')
-    .eq('id', batch.preset_version_id)
-    .maybeSingle();
-  if (!pv?.preset_id) return ok({ categories: [] });
-  const { data: preset } = await service
-    .from('presets')
-    .select('sector_id')
-    .eq('id', pv.preset_id)
-    .maybeSingle();
-  if (!preset?.sector_id) return ok({ categories: [] });
-  const { data: cats } = await service
-    .from('categories')
-    .select('id, name')
-    .eq('sector_id', preset.sector_id)
-    .eq('status', 'active')
-    .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
-    .order('name', { ascending: true });
-  return ok({ categories: (cats ?? []).map((c) => ({ id: c.id, name: c.name })) });
+  const scope = await loadPresetCategoryScope(service, orgId, batch?.preset_version_id ?? null);
+  const categories = scope.entries
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  return ok({ categories, fromPreset: scope.fromPreset });
 }
 
 /** Assegna manualmente una categoria a uno o più prodotti (deterministico). */
@@ -1678,12 +1708,17 @@ export async function setProductsCategoryAction(input: {
 
   let categoryName: string | null = null;
   if (input.categoryId) {
-    const { data: cat } = await service
-      .from('categories')
-      .select('id, name')
-      .eq('id', input.categoryId)
+    // La categoria deve appartenere al preset del batch: altrimenti il prodotto
+    // finirebbe in una categoria senza attributi, e la generazione non avrebbe
+    // nulla da estrarre.
+    const { data: batch } = await service
+      .from('batches')
+      .select('preset_version_id')
+      .eq('id', input.batchId)
       .maybeSingle();
-    if (!cat) return fail('Categoria non valida');
+    const scope = await loadPresetCategoryScope(service, orgId, batch?.preset_version_id ?? null);
+    const cat = scope.entries.find((c) => c.id === input.categoryId);
+    if (!cat) return fail('Categoria non presente nel preset di questo batch');
     categoryName = cat.name;
   }
 
@@ -1830,26 +1865,11 @@ export async function importFromUrls(input: {
   const presetAttrs = presetVersionId ? await loadPresetAttributes(service, presetVersionId) : [];
   const attrById = new Map(presetAttrs.map((a) => [a.id, a]));
 
-  let sectorId: string | null = null;
-  const categoryIdByName = new Map<string, string>();
-  if (presetVersionId) {
-    const { data: pv } = await service.from('preset_versions').select('preset_id').eq('id', presetVersionId).maybeSingle();
-    if (pv?.preset_id) {
-      const { data: preset } = await service.from('presets').select('sector_id').eq('id', pv.preset_id).maybeSingle();
-      sectorId = preset?.sector_id ?? null;
-    }
-    if (sectorId) {
-      const { data: cats } = await service
-        .from('categories')
-        .select('id, name, owner_organization_id')
-        .eq('sector_id', sectorId)
-        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`);
-      for (const c of cats ?? []) {
-        const key = normalizeCategoryName(c.name);
-        if (!categoryIdByName.has(key) || c.owner_organization_id !== null) categoryIdByName.set(key, c.id);
-      }
-    }
-  }
+  const urlCategoryScope = await loadPresetCategoryScope(service, orgId, presetVersionId);
+  const sectorId = urlCategoryScope.sectorId;
+  const categoryIdByName = new Map(
+    urlCategoryScope.entries.map((c) => [normalizeCategoryName(c.name), c.id] as const),
+  );
 
   // SKU già presenti nel batch: evita collisioni con l'unicità (batch, external_id).
   const takenSkus = new Set<string>();
