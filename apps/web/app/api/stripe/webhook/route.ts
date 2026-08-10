@@ -3,6 +3,10 @@ import type Stripe from 'stripe';
 import { getServerEnv } from '@/lib/env.server';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getStripe, packForPriceId } from '@/lib/stripe';
+import {
+  logWrite,
+  mustWrite,
+} from '@app/core';
 
 // POST /api/stripe/webhook — body RAW, firma verificata, idempotente.
 export const dynamic = 'force-dynamic';
@@ -94,26 +98,26 @@ export async function POST(request: Request) {
               stripe_event: eventUuid,
               price_key: packKey,
             });
-            await service.from('app_events').insert({
+            await logWrite('app_events.insert', service.from('app_events').insert({
               organization_id: orgId,
               event_name: 'payment_completed',
               metadata_json: { packKey, credits: product.credits },
-            });
+            }));
           }
         }
       }
     }
 
-    await service
+    await mustWrite('stripe_events.update', service
       .from('stripe_events')
       .update({ status: 'processed', processed_at: new Date().toISOString() })
-      .eq('stripe_event_id', event.id);
+      .eq('stripe_event_id', event.id));
   } catch (err) {
     // Segna l'errore per un retry sicuro (l'evento resta registrato).
-    await service
+    await mustWrite('stripe_events.update', service
       .from('stripe_events')
       .update({ status: 'failed', error_message: err instanceof Error ? err.message : 'errore' })
-      .eq('stripe_event_id', event.id);
+      .eq('stripe_event_id', event.id));
     return NextResponse.json({ error: 'Elaborazione fallita' }, { status: 500 });
   }
 

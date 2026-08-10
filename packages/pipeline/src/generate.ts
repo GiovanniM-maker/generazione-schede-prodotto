@@ -1,17 +1,18 @@
 import {
+  MODA_PRESET_VERSION,
+  NON_ADDITIONAL_FIELDS,
+  PRODUCT_COPY_PROMPT_VERSION,
+  computeCompleteness,
   computeInputHash,
   deterministicAudit,
   mergeAudits,
+  mustWrite,
   statusFromAudit,
-  NON_ADDITIONAL_FIELDS,
-  MODA_PRESET_VERSION,
-  PRODUCT_COPY_PROMPT_VERSION,
-  computeCompleteness,
   type BrandProfile,
-  type FactAttribute,
-  type ProductCopy,
-  type FactAuditResult,
   type Completeness,
+  type FactAttribute,
+  type FactAuditResult,
+  type ProductCopy,
 } from '@app/core';
 import type { AiProviders } from '@app/ai';
 import { sectorSafetyRules, sectorSensitiveClaims, type ServerEnv } from '@app/config';
@@ -469,7 +470,7 @@ export async function runProductGeneration(
     // Non ereditare uno stato 'accepted' altrui: questo prodotto non è stato
     // revisionato. Clampa a needs_review/generated.
     const cachedStatus = cached.status === 'accepted' ? 'generated' : cached.status;
-    await client.from('product_generations').insert({
+    const cachedWrite = await mustWrite('product_generations.insert', client.from('product_generations').insert({
       organization_id: job.organization_id,
       product_id: job.product_id,
       generation_run_id: await createRun(ctx, job.organization_id, job.batch_id, model, 'cache', 0, 0),
@@ -478,15 +479,19 @@ export async function runProductGeneration(
       audit_json: cached.audit_json,
       completeness_json: cached.completeness_json,
       status: cachedStatus,
-    });
-    await client
+    }));
+    // La scheda DEVE finire a database. Se non ci va, il job fallisce ed entra
+    // nel giro di retry: meglio riprovare che dichiarare completato un prodotto
+    // che non ha nessuna scheda. Qui il credito è ancora riservato.
+    if (!cachedWrite.ok) throw new Error(`Scheda non salvata: ${cachedWrite.error}`);
+    await mustWrite('products.update', client
       .from('products')
       .update({ input_hash: inputHash, verification_status: cachedStatus })
-      .eq('id', job.product_id);
-    await client
+      .eq('id', job.product_id));
+    await mustWrite('job_items.update', client
       .from('job_items')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', jobItemId);
+      .eq('id', jobItemId));
     // Cache hit: rilascia il credito riservato (nessun consumo).
     await client.rpc('release_credits', {
       org: job.organization_id,
@@ -511,7 +516,7 @@ export async function runProductGeneration(
     usage.outputTokens,
   );
 
-  await client.from('product_generations').insert({
+  const genWrite = await mustWrite('product_generations.insert', client.from('product_generations').insert({
     organization_id: job.organization_id,
     product_id: job.product_id,
     generation_run_id: runId,
@@ -520,12 +525,16 @@ export async function runProductGeneration(
     audit_json: audit as unknown as Json,
     completeness_json: completeness as unknown as Json,
     status: genStatus,
-  });
+  }));
+  // Stessa regola del ramo cache: senza scheda salvata il job va ritentato.
+  // Questo controllo sta PRIMA di consume_reserved_credit, quindi un
+  // fallimento non brucia il credito.
+  if (!genWrite.ok) throw new Error(`Scheda non salvata: ${genWrite.error}`);
 
-  await client
+  await mustWrite('products.update', client
     .from('products')
     .update({ input_hash: inputHash, verification_status: genStatus })
-    .eq('id', job.product_id);
+    .eq('id', job.product_id));
 
   // Consuma definitivamente il credito riservato.
   await client.rpc('consume_reserved_credit', {
@@ -535,10 +544,10 @@ export async function runProductGeneration(
   });
 
   const jobStatus = genStatus === 'needs_review' || genStatus === 'rejected' ? 'needs_review' : 'completed';
-  await client
+  await mustWrite('job_items.update', client
     .from('job_items')
     .update({ status: jobStatus, completed_at: new Date().toISOString() })
-    .eq('id', jobItemId);
+    .eq('id', jobItemId));
 
   await updateBatchProgress(client, job.batch_id);
   return { outcome: 'completed', status: genStatus, creditConsumed: true };
@@ -602,5 +611,5 @@ export async function updateBatchProgress(client: TypedClient, batchId: string):
     update.status = status;
     update.completed_at = new Date().toISOString();
   }
-  await client.from('batches').update(update).eq('id', batchId);
+  await mustWrite('batches.update', client.from('batches').update(update).eq('id', batchId));
 }

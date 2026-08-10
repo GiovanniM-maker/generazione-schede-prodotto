@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "pnpm -r --filter=./packages/* build && pnpm --filter web build && pnpm --filter worker build",
-    "lint": "pnpm -r lint",
+    "lint": "eslint apps packages",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

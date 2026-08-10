@@ -3,12 +3,14 @@
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
 import {
+  buildProducts,
+  computeQuality,
+  groupVariants,
+  logWrite,
+  matchHeaders,
+  mustWrite,
   parseCsv,
   parseXlsx,
-  matchHeaders,
-  buildProducts,
-  groupVariants,
-  computeQuality,
   type ColumnMapping,
 } from '@app/core';
 import { STORAGE_BUCKETS } from '@app/config';
@@ -57,12 +59,12 @@ export async function createBatchAction(input: {
     .single();
   if (error || !data) throw new Error(`Creazione batch fallita: ${error?.message}`);
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: input.organizationId,
     user_id: user.id,
     event_name: 'batch_created',
     batch_id: data.id,
-  });
+  }));
   return { batchId: data.id };
 }
 
@@ -132,17 +134,17 @@ export async function uploadAndParseAction(formData: FormData): Promise<ParsePre
     }
   }
 
-  await service
+  await mustWrite('batches.update', service
     .from('batches')
     .update({ status: 'mapping', source_type: ext === '.csv' ? 'csv' : 'xlsx' })
-    .eq('id', batchId);
-  await service.from('app_events').insert({
+    .eq('id', batchId));
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'file_uploaded',
     batch_id: batchId,
     metadata_json: { filename: file.name, rows: parsed.rows.length },
-  });
+  }));
 
   return {
     sourceFileId: sf.id,
@@ -193,7 +195,7 @@ export async function confirmMappingAndImportAction(input: {
   const groups = groupVariants(built);
 
   // Pulisci import precedenti dello stesso batch (re-import).
-  await service.from('products').delete().eq('batch_id', input.batchId);
+  await mustWrite('products.delete', service.from('products').delete().eq('batch_id', input.batchId));
 
   let valid = 0;
   let invalid = 0;
@@ -227,7 +229,7 @@ export async function confirmMappingAndImportAction(input: {
 
     // Evidenza per ogni fatto (provenienza).
     if (p.facts.length > 0) {
-      await service.from('attribute_evidence').insert(
+      await mustWrite('attribute_evidence.insert', service.from('attribute_evidence').insert(
         p.facts.map((f) => ({
           organization_id: orgId,
           product_id: productRow.id,
@@ -237,12 +239,12 @@ export async function confirmMappingAndImportAction(input: {
           source_file_id: input.sourceFileId,
           status: 'provided' as const,
         })),
-      );
+      ));
     }
 
     // Varianti.
     if (group.variants.length > 0) {
-      await service.from('product_variants').insert(
+      await mustWrite('product_variants.insert', service.from('product_variants').insert(
         group.variants.map((v) => ({
           product_id: productRow.id,
           external_id: v.externalId,
@@ -251,11 +253,11 @@ export async function confirmMappingAndImportAction(input: {
           size: v.canonicalAttributes['sizes'] ?? null,
           variant_attributes_json: v.canonicalAttributes,
         })),
-      );
+      ));
     }
   }
 
-  await service
+  await mustWrite('batches.update', service
     .from('batches')
     .update({
       status: 'input_review',
@@ -263,23 +265,23 @@ export async function confirmMappingAndImportAction(input: {
       valid_products: valid,
       invalid_products: invalid,
     })
-    .eq('id', input.batchId);
+    .eq('id', input.batchId));
 
-  await service.from('batch_imports').insert({
+  await mustWrite('batch_imports.insert', service.from('batch_imports').insert({
     batch_id: input.batchId,
     source_file_id: input.sourceFileId,
     detected_headers_json: parsed.headers,
     confirmed_mapping_json: input.mapping,
     parse_summary_json: parsed.summary,
-  });
+  }));
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'mapping_confirmed',
     batch_id: input.batchId,
     metadata_json: { imported, valid, invalid },
-  });
+  }));
 
   return { imported, valid, invalid };
 }
@@ -318,11 +320,11 @@ export async function deleteBatchAction(input: {
   const { error } = await service.from('batches').delete().eq('id', input.batchId);
   if (error) return { ok: false, error: error.message };
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'batch_deleted',
     metadata_json: {},
-  });
+  }));
   return { ok: true };
 }

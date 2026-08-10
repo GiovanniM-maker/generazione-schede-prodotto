@@ -3,6 +3,10 @@ import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getStripe, priceIdForPack } from '@/lib/stripe';
+import {
+  logWrite,
+  mustWrite,
+} from '@app/core';
 
 // POST /api/stripe/checkout  { packKey: 'pack_50' | 'pack_200' | 'pack_500' }
 // Non si fida MAI di prezzo/crediti inviati dal client: risolve tutto server-side.
@@ -38,12 +42,12 @@ export async function POST(request: Request) {
       stripe_event: fakeEventId,
       price_key: packKey,
     });
-    await service.from('app_events').insert({
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: org.organizationId,
       user_id: user.id,
       event_name: 'payment_completed',
       metadata_json: { packKey, credits: product.credits, mock: true },
-    });
+    }));
     return NextResponse.json({
       url: `${env.NEXT_PUBLIC_APP_URL}/app/billing?success=1&mock=1`,
       mock: true,
@@ -69,10 +73,10 @@ export async function POST(request: Request) {
       metadata: { organization_id: org.organizationId },
     });
     customerId = customer.id;
-    await service
+    await mustWrite('organizations.update', service
       .from('organizations')
       .update({ stripe_customer_id: customerId })
-      .eq('id', org.organizationId);
+      .eq('id', org.organizationId));
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -84,12 +88,12 @@ export async function POST(request: Request) {
     metadata: { organization_id: org.organizationId, pack_key: packKey },
   });
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: org.organizationId,
     user_id: user.id,
     event_name: 'checkout_started',
     metadata_json: { packKey },
-  });
+  }));
 
   return NextResponse.json({ url: session.url });
 }

@@ -25,4 +25,39 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // -----------------------------------------------------------------------
+    // Scritture al database: l'errore NON si butta via.
+    //
+    // Cinque volte lo stesso guaio: un valore non valido per lo schema, Postgres
+    // che rifiuta, l'errore mai letto e l'app che dice "fatto". Sintomi diversi
+    // ogni volta (Excel mai collegato, source_type NULL su tutti i batch,
+    // crediti non accreditati), causa identica.
+    //
+    // Il selettore prende solo il caso pericoloso: `await x.insert(...)` come
+    // istruzione a sé, con il risultato scartato. Se assegni il risultato
+    // (`const { error } = await ...`) il nodo padre non è più un
+    // ExpressionStatement e la regola non scatta.
+    //
+    // Per le scritture davvero best-effort (log, telemetria) usa `logWrite(...)`
+    // da @app/core: dice a voce alta che l'errore è accettato.
+    // -----------------------------------------------------------------------
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/__tests__/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          // La scrittura quasi mai è l'ultima chiamata della catena: la forma
+          // vera è `.update({...}).eq('id', x)`. Quindi si cerca la write in
+          // QUALSIASI punto dell'espressione attesa — compresa dentro un
+          // Promise.all — e si esclude solo ciò che passa già dagli helper.
+          selector:
+            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite)$/])) CallExpression[callee.property.name=/^(insert|update|upsert|delete)$/]",
+          message:
+            "Scrittura al database con l'errore ignorato. Usa `const { error } = await ...` e controllalo, oppure `mustWrite`/`writeOrThrow`/`logWrite` da @app/core.",
+        },
+      ],
+    },
+  },
 );

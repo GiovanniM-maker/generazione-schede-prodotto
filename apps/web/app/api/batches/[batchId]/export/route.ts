@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
 import { buildBatchExport } from '@/lib/exporter';
+import { logWrite, mustWrite } from '@app/core';
 
 // L'export legge tutte le generazioni del batch e costruisce CSV/XLSX: su
 // cataloghi grandi supera il timeout predefinito (10s) → serve più margine.
@@ -41,7 +42,7 @@ export async function POST(
   // exports.format è un enum (csv/xlsx): gli export piattaforma sono file CSV,
   // la piattaforma va in mapping_json.
   const storedFormat = result.extension === 'xlsx' ? 'xlsx' : 'csv';
-  await service.from('exports').insert({
+  await mustWrite('exports.insert', service.from('exports').insert({
     organization_id: orgId,
     batch_id: batchId,
     format: storedFormat,
@@ -49,19 +50,19 @@ export async function POST(
     storage_bucket: STORAGE_BUCKETS.exports,
     storage_path: path,
     row_count: result.rowCount,
-  });
+  }));
 
   const { data: signed } = await service.storage
     .from(STORAGE_BUCKETS.exports)
     .createSignedUrl(path, 3600);
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'export_created',
     batch_id: batchId,
     metadata_json: { format, rowCount: result.rowCount },
-  });
+  }));
 
   return NextResponse.json({ url: signed?.signedUrl, rowCount: result.rowCount });
 }

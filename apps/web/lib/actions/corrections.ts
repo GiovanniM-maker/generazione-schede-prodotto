@@ -2,7 +2,10 @@
 
 import { createAiProviders } from '@app/ai';
 import {
+  writeOrThrow,
   OUTPUT_COPY_FIELDS,
+  logWrite,
+  mustWrite,
   type FieldInstruction,
   type ProductCopy,
   type PromptCorrection,
@@ -148,10 +151,10 @@ export async function saveOutputEdit(input: {
   if (!gen) return fail('Nessuna generazione da modificare');
 
   // Persisti il testo editato (separato dall'output originale).
-  await service
+  await mustWrite('product_generations.update', service
     .from('product_generations')
     .update({ edited_content_json: input.edited as unknown as Json })
-    .eq('id', gen.id);
+    .eq('id', gen.id));
 
   // Limiti anti-abuso sul testo che poi confluisce nel prompt di miglioramento.
   const cap = (s: string, max: number) => (s.length > max ? s.slice(0, max) : s);
@@ -185,13 +188,13 @@ export async function saveOutputEdit(input: {
     // (prodotto, campo): teniamo solo l'ultima, così ri-modifiche successive
     // non accumulano duplicati (BUG audit #1, difesa lato server).
     const fieldKeys = [...new Set(rows.map((r) => r.field_key))];
-    await service
+    await mustWrite('output_corrections.delete', service
       .from('output_corrections')
       .delete()
       .eq('product_id', input.productId)
       .eq('applied_to_prompt', false)
-      .in('field_key', fieldKeys);
-    await service.from('output_corrections').insert(rows);
+      .in('field_key', fieldKeys));
+    await mustWrite('output_corrections.insert', service.from('output_corrections').insert(rows));
   }
   return ok({ recorded: rows.length });
 }
@@ -234,13 +237,13 @@ export async function saveAttributeFeedbackAction(input: {
 
   const fieldKey = `${ATTR_FIELD_PREFIX}${input.attributeId}`;
   // Un solo feedback in sospeso per (prodotto, attributo): sostituisci il vecchio.
-  await service
+  await mustWrite('output_corrections.delete', service
     .from('output_corrections')
     .delete()
     .eq('product_id', input.productId)
     .eq('applied_to_prompt', false)
-    .eq('field_key', fieldKey);
-  await service.from('output_corrections').insert({
+    .eq('field_key', fieldKey));
+  await mustWrite('output_corrections.insert', service.from('output_corrections').insert({
     organization_id: scope.orgId,
     batch_id: scope.batchId,
     product_id: input.productId,
@@ -252,7 +255,7 @@ export async function saveAttributeFeedbackAction(input: {
     corrected_value: cur.slice(0, 8000),
     reason: feedback.slice(0, 1000),
     created_by: user.id,
-  });
+  }));
   return ok({ recorded: true });
 }
 
@@ -541,11 +544,11 @@ export async function improvePromptFromCorrections(input: {
     if (f.fieldKey.startsWith(ATTR_FIELD_PREFIX)) {
       const attributeId = f.fieldKey.slice(ATTR_FIELD_PREFIX.length);
       const before = attrCurrentExtraction.get(attributeId) ?? '';
-      await service
+      await writeOrThrow('preset_attributes.update', service
         .from('preset_attributes')
         .update({ extraction_instruction_override: f.improvedInstruction })
         .eq('preset_version_id', draftVersionId)
-        .eq('attribute_id', attributeId);
+        .eq('attribute_id', attributeId));
       changes.push({
         fieldKey: f.fieldKey,
         label: `${attrLabel.get(attributeId) ?? 'attributo'} — estrazione`,
@@ -560,17 +563,17 @@ export async function improvePromptFromCorrections(input: {
     const existing = draftByKey.get(f.fieldKey);
     if (existing) {
       const cfg = (existing.config_json ?? {}) as Record<string, unknown>;
-      await service
+      await writeOrThrow('preset_generated_fields.update', service
         .from('preset_generated_fields')
         .update({ config_json: { ...cfg, instruction: f.improvedInstruction } as unknown as Json })
-        .eq('id', existing.id);
+        .eq('id', existing.id));
     } else {
-      await service.from('preset_generated_fields').insert({
+      await writeOrThrow('preset_generated_fields.insert', service.from('preset_generated_fields').insert({
         preset_version_id: draftVersionId,
         field_key: f.fieldKey,
         label,
         config_json: { instruction: f.improvedInstruction } as unknown as Json,
-      });
+      }));
     }
     changes.push({
       fieldKey: f.fieldKey,
@@ -584,10 +587,10 @@ export async function improvePromptFromCorrections(input: {
   // "Prenota" le correzioni usate collegandole a questa bozza (SENZA marcarle
   // applied): solo QUESTE verranno assorbite alla pubblicazione, non quelle
   // create nel frattempo (BUG #2/#6). Se l'utente scarta, restano in sospeso.
-  await service
+  await writeOrThrow('output_corrections.update', service
     .from('output_corrections')
     .update({ improvement_version_id: draftVersionId })
-    .in('id', usedIds);
+    .in('id', usedIds));
 
   return ok({
     presetId: input.presetId,
@@ -648,7 +651,7 @@ export async function publishImprovement(input: {
   // Storico: registra il miglioramento del prompt pubblicato.
   const user = await getSessionUser();
   try {
-    await service.from('app_events').insert({
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: ctx.orgId,
       user_id: user?.id ?? null,
       event_name: 'prompt_improved',
@@ -658,7 +661,7 @@ export async function publishImprovement(input: {
         correctionsApplied: (applied ?? []).length,
         versionId: preset?.active_version_id ?? null,
       } as unknown as Json,
-    });
+    }));
   } catch {
     // storico best-effort
   }

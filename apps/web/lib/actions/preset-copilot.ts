@@ -7,6 +7,10 @@ import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getServerEnv } from '@/lib/env.server';
 import { checkAiRateLimit } from '@/lib/rate-limit';
+import {
+  logWrite,
+  mustWrite,
+} from '@app/core';
 
 // ---------------------------------------------------------------------------
 // "Costruttore di preset" via Copilot: una chiamata AI progetta l'intero preset
@@ -335,11 +339,11 @@ export async function applyPresetPlanAction(input: {
         res.categoriesAdded++;
       }
     } else if (hint) {
-      await service
+      await mustWrite('preset_categories.update', service
         .from('preset_categories')
         .update({ recognition_hint: hint })
         .eq('preset_version_id', versionId)
-        .eq('category_id', categoryId);
+        .eq('category_id', categoryId));
     }
 
     // Attributi della categoria.
@@ -403,7 +407,7 @@ export async function applyPresetPlanAction(input: {
           res.attributesAdded++;
         }
       } else if (extractionOverride || generationOverride) {
-        await service
+        await mustWrite('preset_attributes.update', service
           .from('preset_attributes')
           .update({
             extraction_instruction_override: extractionOverride,
@@ -411,19 +415,19 @@ export async function applyPresetPlanAction(input: {
           })
           .eq('preset_version_id', versionId)
           .eq('attribute_id', attributeId)
-          .eq('category_id', categoryId);
+          .eq('category_id', categoryId));
       }
     }
   }
 
   try {
     const user = await getSessionUser();
-    await service.from('app_events').insert({
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: ctx.orgId,
       user_id: user?.id ?? null,
       event_name: 'preset_built_ai',
       metadata_json: res as unknown as Json,
-    });
+    }));
   } catch {
     /* storico best-effort */
   }

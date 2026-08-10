@@ -12,6 +12,7 @@ import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { checkAiRateLimit } from '@/lib/rate-limit';
+import { writeOrThrow } from '@app/core';
 
 // =====================================================================
 // Server actions per il "Copilot di Configurazione".
@@ -429,7 +430,7 @@ export async function sendCopilotMessage(input: {
     if (upErr) return { ok: false, error: upErr.message };
 
     // Salva il turno utente + il turno assistente.
-    await service.from('configuration_messages').insert([
+    await writeOrThrow('configuration_messages.insert', service.from('configuration_messages').insert([
       { conversation_id: conversation.id, role: 'user', content: message },
       {
         conversation_id: conversation.id,
@@ -445,7 +446,7 @@ export async function sendCopilotMessage(input: {
           existingSimilar,
         } as unknown as Json,
       },
-    ]);
+    ]));
 
     const draft: CopilotDraftView = {
       id: draftRow.id,
@@ -538,10 +539,10 @@ export async function confirmDraft(input: {
       };
     }
     const rollbackClaim = async () => {
-      await service
+      await writeOrThrow('configuration_drafts.update', service
         .from('configuration_drafts')
         .update({ status: draftRow.status })
-        .eq('id', draftRow.id);
+        .eq('id', draftRow.id));
     };
 
     let entityId: string;
@@ -595,14 +596,14 @@ export async function confirmDraft(input: {
           ? await resolveCategoryIds(service, organizationId, data.sectorId, data.categoryKeys)
           : [];
         if (catIds.length > 0) {
-          await service.from('category_attributes').insert(
+          await writeOrThrow('category_attributes.insert', service.from('category_attributes').insert(
             catIds.map((category_id, i) => ({
               category_id,
               attribute_id: entityId,
               is_required: data.isRequired ?? false,
               display_order: i + 1,
             })),
-          );
+          ));
         }
       }
     } else {
@@ -640,7 +641,7 @@ export async function confirmDraft(input: {
     }
 
     const now = new Date().toISOString();
-    await service
+    await writeOrThrow('configuration_drafts.update', service
       .from('configuration_drafts')
       .update({
         status: 'published',
@@ -648,13 +649,13 @@ export async function confirmDraft(input: {
         confirmed_at: now,
         published_at: now,
       })
-      .eq('id', draftRow.id);
+      .eq('id', draftRow.id));
 
     // Chiudi la conversazione collegata, se presente.
-    await service
+    await writeOrThrow('configuration_conversations.update', service
       .from('configuration_conversations')
       .update({ status: 'completed', completed_at: now })
-      .eq('entity_draft_id', draftRow.id);
+      .eq('entity_draft_id', draftRow.id));
 
     return { ok: true, entityId };
   } catch (err) {

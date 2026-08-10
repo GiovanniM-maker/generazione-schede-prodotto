@@ -5,6 +5,10 @@ import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
+import {
+  logWrite,
+  mustWrite,
+} from '@app/core';
 
 // L'estrazione visiva può leggere fino a 50 prodotti: diamo tempo alla funzione.
 export const maxDuration = 300;
@@ -29,7 +33,7 @@ export async function POST(
   // Opt-in notifica email: salva il destinatario (email dell'account) sul batch.
   // A fine generazione il drain invierà l'avviso.
   if (body.notify && user.email) {
-    await service.from('batches').update({ notify_email: user.email, notified_at: null }).eq('id', batchId);
+    await mustWrite('batches.update', service.from('batches').update({ notify_email: user.email, notified_at: null }).eq('id', batchId));
   }
 
   try {
@@ -64,7 +68,7 @@ export async function POST(
         );
       }
       // Genuinamente 0 eleggibili pre-elaborazione: torna alla verifica dati.
-      await service.from('batches').update({ status: 'input_review' }).eq('id', batchId);
+      await mustWrite('batches.update', service.from('batches').update({ status: 'input_review' }).eq('id', batchId));
       return NextResponse.json(
         {
           error:
@@ -77,13 +81,13 @@ export async function POST(
 
     // Evento storico best-effort: non deve far scattare il rollback del catch.
     try {
-      await service.from('app_events').insert({
+      await logWrite('app_events.insert', service.from('app_events').insert({
         organization_id: orgId,
         user_id: user.id,
         event_name: 'generation_started',
         batch_id: batchId,
         metadata_json: { enqueued: result.enqueued },
-      });
+      }));
     } catch {
       /* storico accessorio */
     }
@@ -92,7 +96,7 @@ export async function POST(
     const message = err instanceof Error ? err.message : 'Errore';
     const status = message.startsWith('INSUFFICIENT_CREDITS') ? 402 : 500;
     // Ripristina lo stato per consentire un nuovo tentativo.
-    await service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId);
+    await mustWrite('batches.update', service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId));
     return NextResponse.json({ error: message }, { status });
   }
 }

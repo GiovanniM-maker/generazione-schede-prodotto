@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
 import { runVisualExtractionCore } from '@/lib/actions/visual';
+import { mustWrite } from '@app/core';
 
 // ---------------------------------------------------------------------------
 // Analisi foto in BACKGROUND.
@@ -137,40 +138,40 @@ export async function resumeVisualAnalysis(
 
     touched++;
     if (!batch.organization_id) {
-      await service
+      await mustWrite('batches.update', service
         .from('batches')
         .update({ visual_analysis_status: 'error', visual_analysis_error: 'Organizzazione mancante' })
-        .eq('id', batch.id);
+        .eq('id', batch.id));
       continue;
     }
     try {
       const res = await runVisualExtractionCore(batch.organization_id, { batchId: batch.id });
       if (!res.ok) {
-        await service
+        await mustWrite('batches.update', service
           .from('batches')
           .update({ visual_analysis_status: 'error', visual_analysis_error: res.error })
-          .eq('id', batch.id);
+          .eq('id', batch.id));
         continue;
       }
       // Restano prodotti non analizzati → lascia 'pending': il prossimo giro
       // del cron continua. Altrimenti chiudi.
       const finished = res.data.productsSkipped === 0;
-      await service
+      await mustWrite('batches.update', service
         .from('batches')
         .update({
           visual_analysis_status: finished ? 'done' : 'pending',
           visual_analysis_claimed_at: null,
         })
-        .eq('id', batch.id);
+        .eq('id', batch.id));
       if (finished) continue;
     } catch (e) {
-      await service
+      await mustWrite('batches.update', service
         .from('batches')
         .update({
           visual_analysis_status: 'error',
           visual_analysis_error: e instanceof Error ? e.message : 'Errore analisi foto',
         })
-        .eq('id', batch.id);
+        .eq('id', batch.id));
     }
   }
 
