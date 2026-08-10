@@ -503,7 +503,8 @@ export async function uploadBatchFiles(
       metadata_json: { headers: parsed.headers, rowCount: parsed.rows.length } as unknown as Json,
     });
     if (itemErr) return fail(`Registrazione file non riuscita: ${itemErr.message}`);
-    await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
+    const pronta = await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
+    if (!pronta.ok) return fail(`Sorgente non collegata al batch: ${pronta.error}`);
 
     return ok<UploadSpreadsheetResult>({
       kind: 'spreadsheet',
@@ -573,7 +574,7 @@ export async function uploadBatchFiles(
       }
 
       const status = sku ? 'valid' : 'missing_sku';
-      await mustWrite('source_items.insert', service.from('source_items').insert({
+      const reg = await mustWrite('source_items.insert', service.from('source_items').insert({
         organization_id: orgId,
         batch_source_id: batchSourceId,
         source_file_id: persisted.id,
@@ -585,6 +586,9 @@ export async function uploadBatchFiles(
         status,
         metadata_json: { imageType: suggestImageType(file.name) } as unknown as Json,
       }));
+      // Se l'immagine non viene registrata, il file e' su storage ma il batch non
+      // lo vede: e' esattamente il guasto che produceva "solo immagini".
+      if (!reg.ok) return fail(`Registrazione immagine "${file.name}" non riuscita: ${reg.error}`);
 
       if (sku) validCount++;
       else invalidCount++;
@@ -596,7 +600,8 @@ export async function uploadBatchFiles(
       });
     }
 
-    await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
+    const pronta = await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
+    if (!pronta.ok) return fail(`Sorgente non collegata al batch: ${pronta.error}`);
 
     return ok<UploadImagesResult>({ kind: 'images', files: summaries, validCount, invalidCount });
   }
@@ -733,9 +738,11 @@ export async function registerUploadedImages(input: {
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (itemRows.length > 0) {
-    await mustWrite('source_items.insert', service.from('source_items').insert(itemRows));
+    const reg = await mustWrite('source_items.insert', service.from('source_items').insert(itemRows));
+    if (!reg.ok) return fail(`Registrazione delle immagini non riuscita: ${reg.error}`);
   }
-  await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
+  const pronta = await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
+  if (!pronta.ok) return fail(`Sorgente non collegata al batch: ${pronta.error}`);
 
   return ok({ kind: 'images', files: summaries, validCount, invalidCount });
 }

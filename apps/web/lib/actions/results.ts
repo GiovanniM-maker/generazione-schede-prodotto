@@ -5,9 +5,7 @@ import type { ProductCopy } from '@app/core';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
-import { mustWrite,
-  writeOrThrow,
-} from '@app/core';
+import { writeOrThrow } from '@app/core';
 
 // Azioni sulla pagina risultati: edit (salvato separato), accetta, rifiuta, rigenera.
 
@@ -156,7 +154,7 @@ export async function saveEditAction(input: {
   const genId = await latestGenerationId(input.productId);
   if (!genId) throw new Error('Nessuna generazione da modificare');
   const service = getServiceClient();
-  await mustWrite('product_generations.update', service
+  await writeOrThrow('product_generations.update', service
     .from('product_generations')
     .update({ edited_content_json: input.edited as unknown as Json })
     .eq('id', genId));
@@ -167,7 +165,7 @@ export async function acceptGenerationAction(productId: string): Promise<void> {
   const genId = await latestGenerationId(productId);
   if (!genId) throw new Error('Nessuna generazione');
   const service = getServiceClient();
-  await mustWrite('product_generations.update', service
+  await writeOrThrow('product_generations.update', service
     .from('product_generations')
     .update({ status: 'accepted', accepted_at: new Date().toISOString() })
     .eq('id', genId));
@@ -178,7 +176,7 @@ export async function rejectGenerationAction(productId: string): Promise<void> {
   const genId = await latestGenerationId(productId);
   if (!genId) throw new Error('Nessuna generazione');
   const service = getServiceClient();
-  await mustWrite('product_generations.update', service.from('product_generations').update({ status: 'rejected' }).eq('id', genId));
+  await writeOrThrow('product_generations.update', service.from('product_generations').update({ status: 'rejected' }).eq('id', genId));
 }
 
 /**

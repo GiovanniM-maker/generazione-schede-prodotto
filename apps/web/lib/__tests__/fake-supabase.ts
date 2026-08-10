@@ -60,6 +60,23 @@ export class FakeDb {
     return this.tables[table] ?? [];
   }
 
+  /**
+   * La riga in posizione `i`, o un errore parlante se non c'e'.
+   * Meglio fallire qui con "riga assente" che con un "undefined" tre righe dopo.
+   */
+  row(table: string, i = 0): Row {
+    const r = this.rows(table)[i];
+    if (!r) throw new Error(`FakeDb: nessuna riga ${i} in "${table}"`);
+    return r;
+  }
+
+  /** La riga con quell'id, o un errore parlante. */
+  byId(table: string, id: string): Row {
+    const r = this.rows(table).find((x) => x.id === id);
+    if (!r) throw new Error(`FakeDb: nessuna riga con id "${id}" in "${table}"`);
+    return r;
+  }
+
   /** Violazioni di schema, come le riporterebbe Postgres. */
   private validate(table: string, row: Row): string | null {
     const spec = this.schema[table];
@@ -127,7 +144,7 @@ export class FakeDb {
       if (bad) return { data: null, error: { message: bad } };
       updated.push(next);
     }
-    matched.forEach((r, i) => Object.assign(r, updated[i]));
+    matched.forEach((r, i) => Object.assign(r, updated[i] ?? {}));
     this.calls.push({ table, op: 'update', rows: matched.length });
     return { data: matched.map((r) => ({ ...r })), error: null };
   }
@@ -144,9 +161,10 @@ export class FakeDb {
   _select(table: string, filters: Filter[], order?: { col: string; asc: boolean }, limit?: number) {
     let out = (this.tables[table] ?? []).filter((r) => filters.every((f) => f(r)));
     if (order) {
+      const col = order.col;
       out = [...out].sort((a, b) => {
-        const av = a[order.col] as never;
-        const bv = b[order.col] as never;
+        const av = a[col] as never;
+        const bv = b[col] as never;
         if (av === bv) return 0;
         return (av < bv ? -1 : 1) * (order.asc ? 1 : -1);
       });
@@ -219,6 +237,7 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     this.filters.push((r) =>
       parts.some((p) => {
         const [col, op, val] = p.split('.');
+        if (!col) return false;
         if (op === 'is') return (r[col] ?? null) === null;
         if (op === 'eq') return String(r[col]) === val;
         return false;
@@ -257,7 +276,7 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     if (!res.data || res.data.length !== 1) {
       return { data: null, error: { message: 'JSON object requested, multiple (or no) rows returned' } };
     }
-    return { data: res.data[0], error: null };
+    return { data: res.data[0] ?? null, error: null };
   }
 
   then<A, B = never>(
