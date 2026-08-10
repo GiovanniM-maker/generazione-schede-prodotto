@@ -20,3 +20,7 @@ supabase/.env
 playwright-report/
 test-results/
 .vitest/
+
+# Esiti dei test con browser
+apps/web/test-results/
+apps/web/playwright-report/

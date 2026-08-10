@@ -37,7 +37,7 @@ export function CookieBanner() {
           Usiamo solo cookie tecnici essenziali per il funzionamento e
           l'autenticazione. Continuando accetti l'uso di questi cookie. Maggiori
           dettagli nella{' '}
-          <Link href="/cookie" className="font-medium text-brand-accent underline underline-offset-2">
+          <Link href="/cookie" className="inline-block py-1 font-medium text-brand-accent underline underline-offset-2">
             Cookie Policy
           </Link>
           .

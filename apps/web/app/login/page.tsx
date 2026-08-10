@@ -148,7 +148,7 @@ export default function LoginPage({
           <div className="mt-6 text-center">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
+              className="inline-flex items-center gap-1.5 py-2 text-sm text-gray-500 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Torna alla home
