@@ -194,6 +194,11 @@ export function buildVisualUserPrompt(
 ): string {
   const sector = sectorName ? `Settore: ${sectorName}.` : '';
   const specByKey = new Map((fieldSpecs ?? []).map((s) => [s.key, s] as const));
+  // L'eccezione al divieto di deduzione ha senso solo se esiste davvero un campo
+  // di classificazione. Altrimenti è una regola che parla di un marcatore che
+  // non compare da nessuna parte: rumore, e il tipo di scollamento fra regole e
+  // campi che ha già prodotto un bug.
+  const hasClassify = allowedFields.some((f) => specByKey.get(f)?.classify);
   const allowed = allowedFields.length
     ? allowedFields
         .map((f) => {
@@ -211,7 +216,9 @@ export function buildVisualUserPrompt(
     '',
     'Regole:',
     '1) NON inventare e NON dedurre i DATI DI FATTO: se un dato non è leggibile sul pack, ometti quel campo. Meglio vuoto che sbagliato.',
-    '1-bis) ECCEZIONE — i campi marcati "CLASSIFICAZIONE OBBLIGATORIA" (es. la categoria merceologica) vanno SEMPRE compilati: scegli il valore più coerente con ciò che vedi, anche se la parola non è stampata sul pack. È una classificazione, non una lettura.',
+    hasClassify
+      ? '1-bis) ECCEZIONE — i campi marcati "CLASSIFICAZIONE OBBLIGATORIA" (es. la categoria merceologica) vanno SEMPRE compilati: scegli il valore più coerente con ciò che vedi, anche se la parola non è stampata sul pack. È una classificazione, non una lettura.'
+      : null,
     '2) Rispetta il tipo indicato (enum: usa un valore esatto dell’elenco; sì/no; numeri con unità; percentuali con %).',
     '3) Per OGNI valore indica la categoria "kind":',
     '   - "onpack_factual": dato oggettivo stampato (peso, ingredienti, valori nutrizionali, allergeni, gradazione, produttore, denominazione…).',
@@ -222,6 +229,6 @@ export function buildVisualUserPrompt(
     '',
     'Restituisci SOLO JSON: { "attributes": [{ "fieldKey", "value", "confidence", "kind" }] }.',
   ]
-    .filter((l) => l !== undefined && l !== null)
+    .filter((l): l is string => l !== undefined && l !== null)
     .join('\n');
 }
