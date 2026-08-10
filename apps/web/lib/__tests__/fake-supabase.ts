@@ -24,6 +24,12 @@ export interface TableSpec {
   unique?: readonly (readonly string[])[];
   /** Colonne NOT NULL. */
   required?: readonly string[];
+  /**
+   * Righe che spariscono insieme a questa (ON DELETE CASCADE nel database vero).
+   * Senza questo un test puo' vedere "orfani" che in produzione non esistono —
+   * o, peggio, non vederli quando ci sono davvero.
+   */
+  cascadeTo?: readonly { table: string; column: string }[];
 }
 
 export interface FakeDbOptions {
@@ -52,9 +58,32 @@ export class FakeDb {
     this.newId = opts.newId ?? (() => `id-${++this.seq}`);
   }
 
+  /** File finti su storage: `bucket/percorso` → contenuto. */
+  private readonly files = new Map<string, Buffer>();
+
   seed(table: string, rows: Row[]): void {
     this.tables[table] = [...(this.tables[table] ?? []), ...rows.map((r) => ({ ...r }))];
   }
+
+  /** Mette un file su storage, come farebbe un upload. */
+  seedFile(bucket: string, path: string, contenuto: string | Buffer): void {
+    this.files.set(`${bucket}/${path}`, Buffer.from(contenuto));
+  }
+
+  /** Solo `download`: e' l'unica operazione che l'import usa in lettura. */
+  readonly storage = {
+    from: (bucket: string) => ({
+      download: async (path: string) => {
+        const buf = this.files.get(`${bucket}/${path}`);
+        this.calls.push({ table: `storage:${bucket}`, op: 'download', rows: buf ? 1 : 0 });
+        if (!buf) return { data: null, error: { message: `Object not found: ${path}` } };
+        return {
+          data: { arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) },
+          error: null,
+        };
+      },
+    }),
+  };
 
   rows(table: string): Row[] {
     return this.tables[table] ?? [];
@@ -151,10 +180,15 @@ export class FakeDb {
 
   _delete(table: string, filters: Filter[]): Postgrestish<Row[] | null> {
     const target = (this.tables[table] ??= []);
-    const kept = target.filter((r) => !filters.every((f) => f(r)));
-    const removed = target.length - kept.length;
-    this.tables[table] = kept;
-    this.calls.push({ table, op: 'delete', rows: removed });
+    const rimosse = target.filter((r) => filters.every((f) => f(r)));
+    this.tables[table] = target.filter((r) => !filters.every((f) => f(r)));
+    this.calls.push({ table, op: 'delete', rows: rimosse.length });
+    // ON DELETE CASCADE, ricorsivo come in Postgres.
+    for (const fk of this.schema[table]?.cascadeTo ?? []) {
+      const ids = new Set(rimosse.map((r) => r.id));
+      if (ids.size === 0) continue;
+      this._delete(fk.table, [(r) => ids.has(r[fk.column])]);
+    }
     return { data: [], error: null };
   }
 
@@ -286,3 +320,43 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     return Promise.resolve(this.run()).then(onOk, onErr);
   }
 }
+
+// ---------------------------------------------------------------------------
+// I vincoli VERI dello schema, in un posto solo.
+//
+// Ripeterli in ogni test li farebbe divergere dal database — ed e' esattamente
+// il modo in cui in questo progetto sono gia' nati dei bug: la stessa regola
+// scritta due volte, e le due copie che si allontanano.
+// ---------------------------------------------------------------------------
+export const SCHEMA_APP: Record<string, TableSpec> = {
+  batches: {
+    enums: { visual_analysis_status: ['pending', 'running', 'done', 'error'] },
+    cascadeTo: [
+      { table: 'products', column: 'batch_id' },
+      { table: 'batch_sources', column: 'batch_id' },
+      { table: 'job_items', column: 'batch_id' },
+    ],
+  },
+  products: {
+    unique: [['batch_id', 'external_id']],
+    cascadeTo: [
+      { table: 'product_attribute_values', column: 'product_id' },
+      { table: 'product_source_links', column: 'product_id' },
+      { table: 'product_generations', column: 'product_id' },
+      { table: 'product_variants', column: 'product_id' },
+    ],
+  },
+  batch_sources: {
+    cascadeTo: [{ table: 'source_items', column: 'batch_source_id' }],
+  },
+  source_items: {
+    enums: { status: ['pending', 'valid', 'missing_sku', 'invalid', 'duplicate'] },
+    cascadeTo: [{ table: 'product_source_links', column: 'source_item_id' }],
+  },
+  product_attribute_values: {
+    unique: [['product_id', 'attribute_id']],
+  },
+  product_source_links: {
+    unique: [['product_id', 'source_item_id']],
+  },
+};
