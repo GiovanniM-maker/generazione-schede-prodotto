@@ -21,7 +21,16 @@ import type { BrowserContext, Cookie } from '@playwright/test';
 // QA_ALLOW_WRITES. Senza, i test si saltano da soli.
 // ---------------------------------------------------------------------------
 
-export const EMAIL_DI_PROVA = 'qa+claude@example.invalid';
+/**
+ * Un'email per ogni esecuzione parallela.
+ *
+ * Con un indirizzo unico i due profili (desktop e telefono) si contendevano lo
+ * stesso utente: uno lo cancellava mentre l'altro lo stava usando, e meta' dei
+ * test falliva senza motivo apparente.
+ */
+export function emailDiProva(suffisso = process.env.TEST_PARALLEL_INDEX ?? '0'): string {
+  return `qa+claude-${suffisso}@example.invalid`;
+}
 
 /** Perche' i test non possono girare, o null se possono. */
 export function motivoPerSaltare(): string | null {
@@ -59,9 +68,10 @@ interface UtenteDiProva {
  * Se l'utente esiste gia', ne cambia la password: cosi' il test non dipende
  * da una password memorizzata da qualche parte.
  */
-export async function creaUtenteDiProva(): Promise<UtenteDiProva> {
+export async function creaUtenteDiProva(suffisso?: string): Promise<UtenteDiProva> {
   const { url, service, anon } = config();
   const password = passwordUsaEGetta();
+  const email = emailDiProva(suffisso);
   const admin = (path: string, init?: RequestInit) =>
     fetch(`${url}/auth/v1/${path}`, {
       ...init,
@@ -75,7 +85,7 @@ export async function creaUtenteDiProva(): Promise<UtenteDiProva> {
 
   const risposta = await admin('admin/users', {
     method: 'POST',
-    body: JSON.stringify({ email: EMAIL_DI_PROVA, password, email_confirm: true }),
+    body: JSON.stringify({ email, password, email_confirm: true }),
   });
   let utente = (await risposta.json()) as { id?: string; email?: string };
 
@@ -84,7 +94,7 @@ export async function creaUtenteDiProva(): Promise<UtenteDiProva> {
     const elenco = (await (await admin('admin/users?page=1&per_page=200')).json()) as {
       users?: Array<{ id: string; email: string }>;
     };
-    const trovato = (elenco.users ?? []).find((u) => u.email === EMAIL_DI_PROVA);
+    const trovato = (elenco.users ?? []).find((u) => u.email === email);
     if (!trovato) throw new Error(`Utente di prova non creabile: ${JSON.stringify(utente)}`);
     await admin(`admin/users/${trovato.id}`, {
       method: 'PUT',
@@ -97,7 +107,7 @@ export async function creaUtenteDiProva(): Promise<UtenteDiProva> {
   const tokenRes = await fetch(`${url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: anon, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: EMAIL_DI_PROVA, password }),
+    body: JSON.stringify({ email, password }),
   });
   const sessione = (await tokenRes.json()) as { access_token?: string; refresh_token?: string };
   if (!sessione.access_token || !sessione.refresh_token) {
@@ -126,7 +136,7 @@ export async function creaUtenteDiProva(): Promise<UtenteDiProva> {
 
   return {
     id: utente.id,
-    email: EMAIL_DI_PROVA,
+    email,
     cookies: raccolti.map((c) => ({
       name: c.name,
       value: c.value,

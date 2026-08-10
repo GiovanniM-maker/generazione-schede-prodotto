@@ -597,7 +597,7 @@ export function ResultsTable({
                         checked={selected.has(r.id)}
                         onChange={() => toggleSelect(r.id)}
                         aria-label={`Seleziona ${r.name}`}
-                        className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300"
+                        className="mt-0.5 h-6 w-6 shrink-0 rounded border-gray-300"
                       />
                       <div className="min-w-0 flex-1">
                         <p className="font-mono text-xs text-gray-500">{r.externalId}</p>
@@ -651,7 +651,7 @@ export function ResultsTable({
                       checked={allSelected}
                       onChange={toggleSelectAll}
                       aria-label="Seleziona tutti"
-                      className="h-5 w-5 rounded border-gray-300"
+                      className="h-6 w-6 rounded border-gray-300"
                     />
                   </TH>
                   <TH>ID</TH>
@@ -674,7 +674,7 @@ export function ResultsTable({
                           checked={selected.has(r.id)}
                           onChange={() => toggleSelect(r.id)}
                           aria-label={`Seleziona ${r.name}`}
-                          className="h-5 w-5 rounded border-gray-300"
+                          className="h-6 w-6 rounded border-gray-300"
                         />
                       </TD>
                       <TD className="font-mono text-xs text-gray-600">
