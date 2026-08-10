@@ -17,6 +17,9 @@ import {
   Wand2,
   ArrowRight,
   Globe,
+  Rows3,
+  BookOpen,
+  ChevronDown,
 } from 'lucide-react';
 import {
   acceptGenerationAction,
@@ -120,6 +123,12 @@ const COMPLETENESS_FILTER: Partial<Record<Filter, CompletenessStatus>> = {
   bloccati: 'blocked',
 };
 
+/** I due modi di guardare i risultati. */
+type Vista = 'tabella' | 'lettura';
+
+/** La scelta della vista resta fra una visita e l'altra: e' una preferenza. */
+const CHIAVE_VISTA = 'verificato:vista-risultati';
+
 function effective(row: ResultRow): GenContent | null {
   if (row.edited) return row.edited;
   return row.generated;
@@ -151,6 +160,10 @@ export function ResultsTable({
 }) {
   const [rows, setRows] = useState<ResultRow[]>(initialRows);
   const [filter, setFilter] = useState<Filter>('tutti');
+  // Due modi di guardare gli stessi risultati. La tabella serve a confrontare
+  // in fretta molte righe; la lettura serve a chi la scheda la deve LEGGERE,
+  // come apparira' sul sito, senza niente troncato.
+  const [vista, setVista] = useState<Vista>('tabella');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
@@ -168,6 +181,18 @@ export function ResultsTable({
     correctionsUsed: number;
     draftVersionId: string;
   } | null>(null);
+
+  // Ripristina la vista scelta l'ultima volta. Si legge dopo il montaggio:
+  // il server non conosce le preferenze del browser.
+  useEffect(() => {
+    const salvata = window.localStorage.getItem(CHIAVE_VISTA);
+    if (salvata === 'lettura' || salvata === 'tabella') setVista(salvata);
+  }, []);
+
+  function cambiaVista(v: Vista) {
+    setVista(v);
+    window.localStorage.setItem(CHIAVE_VISTA, v);
+  }
 
   const refreshCorrections = useCallback(() => {
     if (!presetId) return;
@@ -509,12 +534,15 @@ export function ResultsTable({
             </button>
           ))}
         </div>
-        {selected.size > 0 && (
-          <Button size="sm" onClick={acceptSelected} disabled={pending}>
-            <Check className="h-4 w-4" />
-            Accetta selezionati ({selected.size})
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {selected.size > 0 && (
+            <Button size="sm" onClick={acceptSelected} disabled={pending}>
+              <Check className="h-4 w-4" />
+              Accetta selezionati ({selected.size})
+            </Button>
+          )}
+          <SelettoreVista vista={vista} onChange={cambiaVista} />
+        </div>
       </div>
 
       {error && (
@@ -584,9 +612,28 @@ export function ResultsTable({
       ) : (
         <Card>
           <CardContent className="p-0">
+            {/* LETTURA: una colonna, niente troncato, uguale su ogni schermo. */}
+            {vista === 'lettura' && (
+              <div className="divide-y divide-gray-100">
+                {filtered.map((r) => (
+                  <SchedaLettura
+                    key={r.id}
+                    riga={r}
+                    selezionata={selected.has(r.id)}
+                    onSeleziona={() => toggleSelect(r.id)}
+                    onRivedi={() => setOpenId(r.id)}
+                    onAccetta={() => accept(r.id)}
+                    onRifiuta={() => reject(r.id)}
+                    onRigenera={() => regenerate(r.id)}
+                    inCorso={pending}
+                  />
+                ))}
+              </div>
+            )}
+
             {/* MOBILE: schede al posto della tabella (8 colonne su un telefono
                 sono illeggibili e costringono a scorrere in orizzontale). */}
-            <div className="divide-y divide-gray-100 sm:hidden">
+            <div className={cn('divide-y divide-gray-100 sm:hidden', vista === 'lettura' && 'hidden')}>
               {filtered.map((r) => {
                 const eff = effective(r);
                 return (
@@ -641,7 +688,7 @@ export function ResultsTable({
             </div>
 
             {/* DESKTOP: tabella completa */}
-            <div className="hidden sm:block">
+            <div className={cn('hidden sm:block', vista === 'lettura' && 'sm:hidden')}>
             <Table>
               <THead>
                 <TR>
@@ -795,6 +842,220 @@ export function ResultsTable({
           onClose={() => setImprovement(null)}
         />
       )}
+    </div>
+  );
+}
+
+
+/**
+ * Scelta fra le due viste.
+ *
+ * Non e' una preferenza estetica: sono due mestieri diversi. La tabella serve a
+ * scorrere in fretta cinquanta righe e trovare quella storta. La lettura serve
+ * a chi la scheda la deve leggere davvero — come apparira' sul sito — e a chi
+ * con le tabelle non se la cava.
+ */
+/**
+ * Vista LETTURA: una scheda per prodotto, in colonna, niente troncato.
+ *
+ * La tabella e' fatta per confrontare; questa e' fatta per leggere. Il testo
+ * appare come apparira' sul sito — titolo grande, descrizione respirata, punti
+ * elenco veri — e la descrizione lunga e le domande frequenti si aprono solo se
+ * servono, per non trasformare la pagina in un muro.
+ *
+ * Stessa forma su telefono e su schermo grande: una colonna di lettura non ha
+ * bisogno di due versioni.
+ */
+function SchedaLettura({
+  riga,
+  selezionata,
+  onSeleziona,
+  onRivedi,
+  onAccetta,
+  onRifiuta,
+  onRigenera,
+  inCorso,
+}: {
+  riga: ResultRow;
+  selezionata: boolean;
+  onSeleziona: () => void;
+  onRivedi: () => void;
+  onAccetta: () => void;
+  onRifiuta: () => void;
+  onRigenera: () => void;
+  inCorso: boolean;
+}) {
+  const [espansa, setEspansa] = useState(false);
+  const eff = effective(riga);
+  const haApprofondimento = Boolean(eff?.longDescription || eff?.faq?.length);
+
+  return (
+    <article className="px-4 py-6 sm:px-6">
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={selezionata}
+          onChange={onSeleziona}
+          aria-label={`Seleziona ${riga.name}`}
+          className="mt-1 h-6 w-6 shrink-0 rounded border-gray-300"
+        />
+        <div className="min-w-0 flex-1">
+          {/* Occhiello discreto: identificativo e categoria non rubano la scena. */}
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-400">
+            <span className="font-mono">{riga.externalId}</span>
+            {riga.category && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{riga.category}</span>
+              </>
+            )}
+          </p>
+
+          {eff?.title ? (
+            <h3 className="mt-1 text-lg font-semibold leading-snug text-gray-900 sm:text-xl">
+              {eff.title}
+            </h3>
+          ) : (
+            <h3 className="mt-1 text-lg font-semibold italic text-gray-300">
+              nessun titolo generato
+            </h3>
+          )}
+
+          {eff?.shortDescription && (
+            <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-gray-600">
+              {eff.shortDescription}
+            </p>
+          )}
+
+          {eff?.bullets && eff.bullets.length > 0 && (
+            <ul className="mt-3 max-w-prose space-y-1.5">
+              {eff.bullets.map((b, i) => (
+                <li key={i} className="flex gap-2 text-sm text-gray-700">
+                  <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {haApprofondimento && (
+            <>
+              <button
+                type="button"
+                onClick={() => setEspansa((v) => !v)}
+                aria-expanded={espansa}
+                className="mt-3 inline-flex items-center gap-1 rounded py-1 text-sm font-medium text-brand-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent"
+              >
+                <ChevronDown
+                  className={cn('h-4 w-4 transition-transform', espansa && 'rotate-180')}
+                />
+                {espansa ? 'Mostra meno' : 'Leggi tutto'}
+              </button>
+
+              {espansa && (
+                <div className="mt-3 space-y-4 border-l-2 border-gray-100 pl-4">
+                  {eff?.longDescription && (
+                    <p className="max-w-prose whitespace-pre-line text-sm leading-relaxed text-gray-700">
+                      {eff.longDescription}
+                    </p>
+                  )}
+                  {eff?.faq && eff.faq.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Domande frequenti
+                      </p>
+                      <dl className="mt-2 max-w-prose space-y-2">
+                        {eff.faq.map((f, i) => (
+                          <div key={i}>
+                            <dt className="text-sm font-medium text-gray-900">{f.question}</dt>
+                            <dd className="text-sm text-gray-600">{f.answer}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {riga.completeness && (
+              <Badge tone={COMPLETENESS_TONES[riga.completeness.status]}>
+                {COMPLETENESS_LABELS[riga.completeness.status]}
+              </Badge>
+            )}
+            <StatusBadge status={riga.jobFailed ? 'failed' : riga.status} />
+            {riga.hasEdited && <Badge tone="violet">Modificato</Badge>}
+          </div>
+
+          {/* Il motivo del blocco si legge qui: e' la domanda che uno si fa
+              guardando una scheda che non va avanti. */}
+          {riga.completeness?.reason && (
+            <p className="mt-2 max-w-prose text-sm text-amber-700">
+              {riga.completeness.reason}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onRivedi}>
+              <Pencil className="h-4 w-4" />
+              Rivedi
+            </Button>
+            <Button variant="outline" size="sm" onClick={onAccetta} disabled={inCorso}>
+              <Check className="h-4 w-4 text-emerald-600" />
+              Accetta
+            </Button>
+            <Button variant="outline" size="sm" onClick={onRifiuta} disabled={inCorso}>
+              <X className="h-4 w-4 text-red-600" />
+              Rifiuta
+            </Button>
+            <Button variant="outline" size="sm" onClick={onRigenera} disabled={inCorso}>
+              <RefreshCw className="h-4 w-4 text-gray-500" />
+              Rigenera
+            </Button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SelettoreVista({
+  vista,
+  onChange,
+}: {
+  vista: Vista;
+  onChange: (v: Vista) => void;
+}) {
+  const opzioni: Array<{ chiave: Vista; etichetta: string; Icona: typeof Rows3 }> = [
+    { chiave: 'tabella', etichetta: 'Tabella', Icona: Rows3 },
+    { chiave: 'lettura', etichetta: 'Lettura', Icona: BookOpen },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Come guardare i risultati"
+      className="inline-flex shrink-0 rounded-lg border border-gray-200 bg-white p-0.5"
+    >
+      {opzioni.map(({ chiave, etichetta, Icona }) => (
+        <button
+          key={chiave}
+          type="button"
+          role="radio"
+          aria-checked={vista === chiave}
+          onClick={() => onChange(chiave)}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
+            vista === chiave
+              ? 'bg-brand-soft text-brand-accent'
+              : 'text-gray-500 hover:text-gray-800',
+          )}
+        >
+          <Icona className="h-4 w-4" />
+          {etichetta}
+        </button>
+      ))}
     </div>
   );
 }

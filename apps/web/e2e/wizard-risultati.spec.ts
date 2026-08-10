@@ -131,6 +131,85 @@ test.describe('risultati su telefono', () => {
   });
 });
 
+
+test.describe('risultati · vista lettura', () => {
+  test('si può scegliere fra tabella e lettura', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await expect(page.getByRole('radio', { name: /tabella/i })).toBeVisible();
+    await expect(page.getByRole('radio', { name: /lettura/i })).toBeVisible();
+    // Si parte dalla tabella: e' la vista che c'era prima, nessuno viene spostato.
+    await expect(page.getByRole('radio', { name: /tabella/i })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  test('in lettura il testo non è troncato e la tabella sparisce', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+
+    const tabellaVisibile = await page.evaluate(() => {
+      const t = document.querySelector('table');
+      if (!t) return false;
+      const r = t.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    });
+    expect(tabellaVisibile).toBe(false);
+
+    // I titoli sono interi: nella tabella erano tagliati a meta'.
+    await expect(
+      page.getByRole('heading', { name: /pomodori pelati san marzano 220 g/i }),
+    ).toBeVisible();
+  });
+
+  test('«Leggi tutto» apre descrizione lunga e domande frequenti', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+
+    const apri = page.getByRole('button', { name: /leggi tutto/i }).first();
+    await expect(apri).toHaveAttribute('aria-expanded', 'false');
+    await apri.click();
+    await expect(page.getByText(/domande frequenti/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /mostra meno/i }).first()).toBeVisible();
+  });
+
+  test('la scelta della vista resta al ricaricamento', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+    await page.reload({ waitUntil: 'networkidle' });
+    // E' una preferenza: sceglierla a ogni visita sarebbe una seccatura.
+    await expect(page.getByRole('radio', { name: /lettura/i })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  test('ogni scheda conserva le sue azioni', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+    for (const azione of [/rivedi/i, /accetta/i, /rifiuta/i, /rigenera/i]) {
+      expect(await page.getByRole('button', { name: azione }).count()).toBeGreaterThanOrEqual(
+        scenario.sku.length,
+      );
+    }
+  });
+
+  test('non scorre in orizzontale e i comandi si toccano', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+    const eccesso = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(eccesso).toBeLessThanOrEqual(0);
+    expect(await comandiTroppoPiccoli(page)).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 test.describe('wizard nuovo batch', () => {
