@@ -708,8 +708,26 @@ export function OnboardingStepper({
               </h2>
               <p className="mt-1 text-sm text-gray-500">
                 Questi sono gli attributi iniziali suggeriti per le categorie
-                selezionate. Puoi disattivarne alcuni o cambiarne l&apos;obbligatorietà.
+                selezionate.
               </p>
+              <dl className="mt-3 space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs">
+                <div className="flex gap-2">
+                  <dt className="w-24 shrink-0 font-medium text-gray-900">Attivo</dt>
+                  <dd className="text-gray-600">
+                    L&apos;attributo fa parte del preset: viene cercato nei tuoi dati e nelle
+                    foto, finisce nella scheda e nell&apos;export. Se lo spegni, è come se non
+                    esistesse.
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="w-24 shrink-0 font-medium text-gray-900">Obbligatorio</dt>
+                  <dd className="text-gray-600">
+                    Serve a giudicare la scheda, non a forzarla: se ci sono tutti gli
+                    obbligatori la scheda risulta <strong>completa</strong>, se ne manca
+                    qualcuno <strong>parziale</strong>. Non fa mai inventare un dato mancante.
+                  </dd>
+                </div>
+              </dl>
             </div>
             {selectedCategories.map((cat) => (
               <div
@@ -750,8 +768,30 @@ export function OnboardingStepper({
                             </p>
                           )}
                         </div>
+                        {/* Prima "Attivo": è l'interruttore. "Obbligatorio" ha
+                            senso solo se l'attributo è attivo, per questo si
+                            disabilita da solo. */}
                         <div className="flex shrink-0 items-center gap-4 text-sm">
-                          <label className="flex items-center gap-1.5 text-gray-600">
+                          <label
+                            className="flex items-center gap-1.5 text-gray-600"
+                            title="Se spento, l'attributo non viene estratto né generato né esportato."
+                          >
+                            <input
+                              type="checkbox"
+                              checked={e.enabled}
+                              onChange={(ev) =>
+                                setOverride(cat, attr, {
+                                  enabled: ev.target.checked,
+                                })
+                              }
+                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
+                            />
+                            Attivo
+                          </label>
+                          <label
+                            className="flex items-center gap-1.5 text-gray-600"
+                            title="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato."
+                          >
                             <input
                               type="checkbox"
                               checked={e.isRequired}
@@ -764,19 +804,6 @@ export function OnboardingStepper({
                               className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent disabled:opacity-40"
                             />
                             Obbligatorio
-                          </label>
-                          <label className="flex items-center gap-1.5 text-gray-600">
-                            <input
-                              type="checkbox"
-                              checked={e.enabled}
-                              onChange={(ev) =>
-                                setOverride(cat, attr, {
-                                  enabled: ev.target.checked,
-                                })
-                              }
-                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
-                            />
-                            Nel preset
                           </label>
                         </div>
                       </li>

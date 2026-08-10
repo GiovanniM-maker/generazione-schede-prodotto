@@ -1644,6 +1644,7 @@ function CategoryColumnValidator({
   setOverrides: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
 }) {
   const [cats, setCats] = useState<Array<{ id: string; name: string }>>([]);
+  const [fromPreset, setFromPreset] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1651,7 +1652,10 @@ function CategoryColumnValidator({
     getBatchCategoryOptions({ batchId })
       .then((r) => {
         if (!active) return;
-        if (r.ok) setCats(r.data.categories);
+        if (r.ok) {
+          setCats(r.data.categories);
+          setFromPreset(r.data.fromPreset);
+        }
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -1724,6 +1728,8 @@ function CategoryColumnValidator({
         </div>
       )}
       <p className="mt-1.5 text-[11px] text-gray-500">
+        Confronto con le {cats.length} categorie{' '}
+        {fromPreset ? 'del preset scelto' : 'del settore (il preset non ne ha nessuna configurata)'}.
         Verifica basata sull&apos;anteprima ({previewRows.length} righe). I valori nuovi che compaiono
         oltre l&apos;anteprima potrai correggerli al passo «Verifica dati».
       </p>
