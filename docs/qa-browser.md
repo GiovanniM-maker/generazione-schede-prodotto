@@ -101,7 +101,10 @@ toccarla.
 
 `e2e/semina.ts` scrive direttamente lo stato finale: preset Food con tre
 categorie, un batch con tre prodotti e le loro schede già generate, di cui una
-con confidenza bassa apposta (la revisione deve segnalarla).
+con confidenza bassa apposta (la revisione deve segnalarla). Ogni prodotto ha
+anche **una foto vera** caricata su Storage: un PNG costruito byte per byte
+(nessuna dipendenza da immagini di prova esterne) nel percorso che le regole di
+accesso pretendono, `<organizzazione>/<batch>/<sku>.png`.
 
 Percorrere sette passi di onboarding, caricare un file e aspettare la
 generazione a ogni test costerebbe minuti e chiamate all'AI. La semina usa la
@@ -134,6 +137,18 @@ Sulla misura delle aree di tocco due accortezze, imparate sbagliando:
   risulta alto quanto una riga di testo, ma il bottone dentro è grande.
 
 Entrambi avrebbero prodotto falsi allarmi.
+
+---
+
+## Il limite di rete del container
+
+Chromium qui **non raggiunge host esterni**: un `<img>` che punta a un URL
+firmato di Supabase resta vuoto con `ERR_CONNECTION_RESET`, mentre `curl` allo
+stesso indirizzo risponde. Non è un difetto dell'applicazione e i test non lo
+misurano (guardano il markup e il testo alternativo, non i pixel). Per gli
+screenshot si può fare da ponte: `page.route('**/storage/v1/object/sign/**')`,
+scaricare i byte con `fetch` in Node — che la rete ce l'ha — e servirli con
+`route.fulfill`.
 
 ---
 

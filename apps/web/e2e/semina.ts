@@ -12,6 +12,8 @@
 // controllo degli accessi resta verificato dai test che passano dall'app.
 // ---------------------------------------------------------------------------
 
+import { deflateSync } from 'node:zlib';
+
 const SETTORE_FOOD = '00000000-0000-0000-0f01-000000000001';
 
 interface Config {
@@ -63,6 +65,66 @@ async function aggiorna(percorso: string, patch: Record<string, unknown>): Promi
   if (!risposta.ok) throw new Error(`semina ${percorso}: ${risposta.status} ${await risposta.text()}`);
 }
 
+/**
+ * Una foto finta ma vera: un PNG generato al volo, cosi' la vista in lettura ha
+ * un'immagine da mostrare senza dipendere da file esterni.
+ */
+function pngDiProva(rosso: number, verde: number, blu: number): Buffer {
+  const larghezza = 240;
+  const altezza = 240;
+  const righe: number[] = [];
+  for (let y = 0; y < altezza; y++) {
+    righe.push(0); // filtro "none"
+    for (let x = 0; x < larghezza; x++) {
+      // Sfumatura diagonale: si riconosce a colpo d'occhio in uno screenshot.
+      const t = (x + y) / (larghezza + altezza);
+      righe.push(
+        Math.round(rosso * (0.55 + 0.45 * t)),
+        Math.round(verde * (0.55 + 0.45 * t)),
+        Math.round(blu * (0.55 + 0.45 * t)),
+      );
+    }
+  }
+  const idat = deflateSync(Buffer.from(righe));
+
+  const blocco = (tipo: string, dati: Buffer): Buffer => {
+    const lunghezza = Buffer.alloc(4);
+    lunghezza.writeUInt32BE(dati.length);
+    const corpo = Buffer.concat([Buffer.from(tipo, 'ascii'), dati]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(corpo) >>> 0);
+    return Buffer.concat([lunghezza, corpo, crc]);
+  };
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(larghezza, 0);
+  ihdr.writeUInt32BE(altezza, 4);
+  ihdr[8] = 8; // bit per canale
+  ihdr[9] = 2; // colore RGB
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    blocco('IHDR', ihdr),
+    blocco('IDAT', idat),
+    blocco('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+const TABELLA_CRC = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+
+function crc32(buf: Buffer): number {
+  let c = -1;
+  for (const b of buf) c = TABELLA_CRC[(c ^ b) & 0xff]! ^ (c >>> 8);
+  return c ^ -1;
+}
+
 export interface ScenarioSeminato {
   organizationId: string;
   presetVersionId: string;
@@ -80,6 +142,7 @@ const PRODOTTI = [
     categoria: 'Olio EVO',
     fatti: { Formato: '500 ml', Origine: 'Puglia', Acidità: '0,3%' },
     titolo: 'Olio extravergine di oliva Coratina 500 ml',
+    colore: [150, 190, 60] as const,
     // Confidenza bassa: la revisione deve segnalarla in modo evidente.
     confidenzaBassa: 'Acidità',
   },
@@ -89,6 +152,7 @@ const PRODOTTI = [
     categoria: 'Formaggi',
     fatti: { Formato: '300 g', Origine: 'Sardegna', Stagionatura: '12 mesi' },
     titolo: 'Pecorino sardo stagionato 12 mesi',
+    colore: [220, 190, 120] as const,
     confidenzaBassa: null,
   },
   {
@@ -97,9 +161,76 @@ const PRODOTTI = [
     categoria: 'Conserve',
     fatti: { Formato: '220 g', Origine: 'Campania' },
     titolo: 'Pomodori pelati San Marzano 220 g',
+    colore: [200, 70, 60] as const,
     confidenzaBassa: null,
   },
 ];
+
+/** Carica una foto per prodotto e la collega, come farebbe un import vero. */
+async function caricaFoto(
+  organizationId: string,
+  batchId: string,
+  prodotti: typeof PRODOTTI,
+  idProdotto: Map<string, string>,
+): Promise<void> {
+  const { url, service } = config();
+  const bucket = 'product-assets';
+
+  const [sorgente] = await inserisci<{ id: string }>('batch_sources', [
+    { organization_id: organizationId, batch_id: batchId, source_type: 'images_upload', status: 'ready' },
+  ]);
+
+  for (const p of prodotti) {
+    const png = pngDiProva(...p.colore);
+    const percorso = `${organizationId}/${batchId}/${p.sku}.png`;
+    const caricamento = await fetch(`${url}/storage/v1/object/${bucket}/${percorso}`, {
+      method: 'POST',
+      headers: {
+        apikey: service,
+        Authorization: `Bearer ${service}`,
+        'Content-Type': 'image/png',
+        'x-upsert': 'true',
+      },
+      body: new Uint8Array(png),
+    });
+    if (!caricamento.ok) {
+      throw new Error(`semina foto ${p.sku}: ${caricamento.status} ${await caricamento.text()}`);
+    }
+
+    const [file] = await inserisci<{ id: string }>('source_files', [
+      {
+        organization_id: organizationId,
+        storage_bucket: bucket,
+        storage_path: percorso,
+        original_filename: `${p.sku}.png`,
+        mime_type: 'image/png',
+        size_bytes: png.length,
+        sha256: `qa-${p.sku}`,
+      },
+    ]);
+    const [item] = await inserisci<{ id: string }>('source_items', [
+      {
+        organization_id: organizationId,
+        batch_source_id: sorgente!.id,
+        source_file_id: file!.id,
+        filename: `${p.sku}.png`,
+        mime_type: 'image/png',
+        size_bytes: png.length,
+        sha256: `qa-${p.sku}`,
+        detected_sku: p.sku,
+        status: 'valid',
+      },
+    ]);
+    await inserisci('product_source_links', [
+      {
+        organization_id: organizationId,
+        product_id: idProdotto.get(p.sku),
+        source_item_id: item!.id,
+        link_type: 'sku_exact',
+      },
+    ]);
+  }
+}
 
 /**
  * Costruisce un'organizzazione completa e pronta all'uso per l'utente dato:
@@ -227,6 +358,10 @@ export async function seminaScenario(userId: string): Promise<ScenarioSeminato> 
       })),
     ),
   );
+
+  // Una foto per prodotto: caricata su storage, registrata come sorgente e
+  // collegata al prodotto, esattamente come farebbe un import vero.
+  await caricaFoto(organizationId, batchId, PRODOTTI, idProdotto);
 
   const [run] = await inserisci<{ id: string }>('generation_runs', [
     {

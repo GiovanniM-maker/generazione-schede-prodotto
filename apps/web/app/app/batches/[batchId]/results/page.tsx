@@ -96,6 +96,71 @@ export default async function ResultsPage({
     }
   }
 
+  // Immagine principale di ogni prodotto, per la vista in lettura: rivedere una
+  // scheda guardando la foto del pack e' molto piu' vicino a "come apparira'"
+  // che leggere solo il testo. Una sola query per il batch, poi gli URL firmati
+  // in blocco: sono file privati, non si possono servire per percorso.
+  const immaginePerProdotto = new Map<string, string>();
+  if (productIds.length > 0) {
+    const { data: collegamenti } = await supabase
+      .from('product_source_links')
+      .select('product_id, source_item_id')
+      .in('product_id', productIds);
+
+    const itemIds = [...new Set((collegamenti ?? []).map((l) => l.source_item_id))].filter(
+      (v): v is string => Boolean(v),
+    );
+    if (itemIds.length > 0) {
+      const { data: items } = await supabase
+        .from('source_items')
+        .select('id, source_file_id, mime_type, filename')
+        .in('id', itemIds);
+      const fileIds = [...new Set((items ?? []).map((i) => i.source_file_id))].filter(
+        (v): v is string => Boolean(v),
+      );
+      const { data: files } = fileIds.length
+        ? await supabase
+            .from('source_files')
+            .select('id, storage_bucket, storage_path')
+            .in('id', fileIds)
+        : { data: [] as Array<{ id: string; storage_bucket: string; storage_path: string }> };
+
+      const fileById = new Map((files ?? []).map((f) => [f.id, f]));
+      // Un prodotto puo' avere piu' foto: in lettura ne basta una, la prima.
+      const primoItemPerProdotto = new Map<string, string>();
+      for (const l of collegamenti ?? []) {
+        if (l.product_id && l.source_item_id && !primoItemPerProdotto.has(l.product_id)) {
+          primoItemPerProdotto.set(l.product_id, l.source_item_id);
+        }
+      }
+      const itemById = new Map((items ?? []).map((i) => [i.id, i]));
+      const daFirmare: Array<{ productId: string; bucket: string; path: string }> = [];
+      for (const [productId, itemId] of primoItemPerProdotto) {
+        const item = itemById.get(itemId);
+        const file = item?.source_file_id ? fileById.get(item.source_file_id) : null;
+        if (file?.storage_bucket && file.storage_path) {
+          daFirmare.push({ productId, bucket: file.storage_bucket, path: file.storage_path });
+        }
+      }
+      // Un URL firmato per bucket, tutti insieme.
+      const perBucket = new Map<string, typeof daFirmare>();
+      for (const f of daFirmare) {
+        const arr = perBucket.get(f.bucket) ?? [];
+        arr.push(f);
+        perBucket.set(f.bucket, arr);
+      }
+      for (const [bucket, elenco] of perBucket) {
+        const { data: firmati } = await supabase.storage
+          .from(bucket)
+          .createSignedUrls(elenco.map((e) => e.path), 3600);
+        (firmati ?? []).forEach((f, i) => {
+          const voce = elenco[i];
+          if (voce && f?.signedUrl && !f.error) immaginePerProdotto.set(voce.productId, f.signedUrl);
+        });
+      }
+    }
+  }
+
   const rows: ResultRow[] = (products ?? []).map((p) => {
     const latest = latestByProduct.get(p.id);
     const generated = latest ? asContent(latest.generated_content_json) : null;
@@ -117,6 +182,7 @@ export default async function ResultsPage({
       edited,
       completeness: normalizeCompleteness(latest?.completeness_json ?? null),
       translations: (latest?.translations_json ?? {}) as ResultRow['translations'],
+      imageUrl: immaginePerProdotto.get(p.id) ?? null,
     };
   });
 

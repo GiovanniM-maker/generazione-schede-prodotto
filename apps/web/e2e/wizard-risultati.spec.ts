@@ -73,8 +73,11 @@ test.describe('risultati', () => {
     }
   });
 
-  test('offre l’export nei formati previsti', async ({ page }) => {
+  test('offre l’export nei formati previsti', async ({ page, isMobile }) => {
     await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    // Su telefono l'export sta nella barra strumenti, che parte chiusa.
+    if (isMobile) await page.getByRole('button', { name: /cerca, filtra ed esporta/i }).click();
     await expect(page.getByRole('button', { name: /^csv$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /^xlsx$/i })).toBeVisible();
   });
@@ -207,6 +210,79 @@ test.describe('risultati · vista lettura', () => {
     );
     expect(eccesso).toBeLessThanOrEqual(0);
     expect(await comandiTroppoPiccoli(page)).toEqual([]);
+  });
+
+  test('la scheda mostra la foto del prodotto', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+
+    // Rivedere una scheda guardando il prodotto e' un'altra cosa che leggere
+    // solo le parole: la foto caricata dev'essere nella scheda.
+    const foto = page.getByRole('link', { name: new RegExp(`apri la foto di`, 'i') });
+    expect(await foto.count()).toBeGreaterThanOrEqual(scenario.sku.length);
+    // Si apre a grandezza intera in una scheda nuova.
+    await expect(foto.first()).toHaveAttribute('target', '_blank');
+  });
+
+  test('la foto ha un testo alternativo, non un alt vuoto', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('radio', { name: /lettura/i }).click();
+    const alt = await page
+      .locator('article img')
+      .first()
+      .getAttribute('alt');
+    expect((alt ?? '').trim().length).toBeGreaterThan(0);
+  });
+});
+
+test.describe('risultati · barra strumenti su telefono', () => {
+  test.skip(({ isMobile }) => !isMobile, 'solo sul profilo telefono');
+
+  test('la barra parte chiusa e le schede si vedono subito', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    const apri = page.getByRole('button', { name: /cerca, filtra ed esporta/i });
+    await expect(apri).toBeVisible();
+    await expect(apri).toHaveAttribute('aria-expanded', 'false');
+    // Ricerca, export e filtri occupavano mezzo schermo prima dei prodotti.
+    await expect(page.getByRole('textbox', { name: /^cerca$/i })).toBeHidden();
+    await expect(page.getByRole('button', { name: /^csv$/i })).toBeHidden();
+  });
+
+  test('aprendola compaiono ricerca, export e filtri', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await page.getByRole('button', { name: /cerca, filtra ed esporta/i }).click();
+    await expect(page.getByRole('textbox', { name: /^cerca$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^csv$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^tutti/i })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /cerca, filtra ed esporta/i }),
+    ).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('la scelta della vista resta sempre a portata', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    // Passare a "Lettura" non deve costare un'apertura di menu: e' la ragione
+    // per cui il selettore sta fuori dalla barra collassabile.
+    await expect(page.getByRole('radio', { name: /lettura/i })).toBeVisible();
+  });
+});
+
+test.describe('risultati · barra strumenti su schermo grande', () => {
+  test.skip(({ isMobile }) => isMobile === true, 'solo sul profilo desktop');
+
+  test('la barra è aperta senza doverla chiedere', async ({ page }) => {
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    // Da tablet in su lo spazio c'e': nascondere gli strumenti sarebbe un passo
+    // in piu' per niente.
+    await expect(page.getByRole('textbox', { name: /^cerca$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^csv$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /cerca, filtra ed esporta/i })).toBeHidden();
   });
 });
 

@@ -20,6 +20,7 @@ import {
   Rows3,
   BookOpen,
   ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   acceptGenerationAction,
@@ -82,6 +83,8 @@ export interface ResultRow {
   completeness: Completeness | null;
   /** lingua ('en', 'fr', …) → copy tradotta. */
   translations: Partial<Record<string, TranslatedContent>>;
+  /** URL firmato della foto principale, se il prodotto ne ha una. */
+  imageUrl?: string | null;
 }
 
 const LANGS: Array<{ code: string; label: string }> = [
@@ -164,6 +167,10 @@ export function ResultsTable({
   // in fretta molte righe; la lettura serve a chi la scheda la deve LEGGERE,
   // come apparira' sul sito, senza niente troncato.
   const [vista, setVista] = useState<Vista>('tabella');
+  // Su telefono, prima del primo prodotto c'erano ricerca, quattro pulsanti di
+  // export, traduzione e otto filtri: parecchio da scorrere per chi vuole solo
+  // leggere e approvare. Ora sono chiusi, e si aprono a richiesta.
+  const [strumentiAperti, setStrumentiAperti] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
@@ -442,8 +449,32 @@ export function ResultsTable({
 
   return (
     <div className="space-y-4">
+      {/* Su telefono la barra e' chiusa: si apre solo se serve. Da tablet in su
+          c'e' spazio e resta sempre aperta. */}
+      <button
+        type="button"
+        onClick={() => setStrumentiAperti((v) => !v)}
+        aria-expanded={strumentiAperti}
+        aria-controls="barra-strumenti-risultati"
+        className="inline-flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:hidden"
+      >
+        <span className="inline-flex items-center gap-2">
+          <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+          Cerca, filtra ed esporta
+        </span>
+        <ChevronDown
+          className={cn('h-4 w-4 text-gray-500 transition-transform', strumentiAperti && 'rotate-180')}
+        />
+      </button>
+
       {/* Barra strumenti */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        id="barra-strumenti-risultati"
+        className={cn(
+          'flex-col gap-3 sm:flex sm:flex-row sm:items-center sm:justify-between',
+          strumentiAperti ? 'flex' : 'hidden',
+        )}
+      >
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
@@ -507,7 +538,7 @@ export function ResultsTable({
 
       {/* Tabs + azione multipla */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+        <div className={cn('flex-wrap gap-2 sm:flex', strumentiAperti ? 'flex' : 'hidden sm:flex')}>
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -899,7 +930,46 @@ function SchedaLettura({
           aria-label={`Seleziona ${riga.name}`}
           className="mt-1 h-6 w-6 shrink-0 rounded border-gray-300"
         />
+
+        {/* La foto del pack accanto al testo: rivedere una scheda guardando il
+            prodotto e' molto piu' vicino a "come apparira'" che leggere solo le
+            parole. Su telefono sta sopra, per non rubare larghezza alla lettura. */}
+        {riga.imageUrl && (
+          <a
+            href={riga.imageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="hidden shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:block"
+            aria-label={`Apri la foto di ${riga.name}`}
+          >
+            {/* Immagine da URL firmato di Supabase: next/image richiederebbe di
+                dichiarare l'host, e l'URL cambia a ogni caricamento. */}
+            <img
+              src={riga.imageUrl}
+              alt={effective(riga)?.altText || riga.name}
+              className="h-28 w-28 object-cover"
+              loading="lazy"
+            />
+          </a>
+        )}
+
         <div className="min-w-0 flex-1">
+          {riga.imageUrl && (
+            <a
+              href={riga.imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mb-3 block overflow-hidden rounded-lg border border-gray-200 bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:hidden"
+              aria-label={`Apri la foto di ${riga.name}`}
+            >
+              <img
+                src={riga.imageUrl}
+                alt={effective(riga)?.altText || riga.name}
+                className="h-40 w-full object-cover"
+                loading="lazy"
+              />
+            </a>
+          )}
           {/* Occhiello discreto: identificativo e categoria non rubano la scena. */}
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-400">
             <span className="font-mono">{riga.externalId}</span>
