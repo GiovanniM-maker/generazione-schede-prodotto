@@ -1,0 +1,274 @@
+// ---------------------------------------------------------------------------
+// Dati seminati per i test con browser.
+//
+// Percorrere sette passi di onboarding, caricare un file e aspettare la
+// generazione a ogni test costerebbe minuti e chiamate all'AI. Qui si scrive
+// direttamente lo stato finale — organizzazione, preset, batch, prodotti e
+// schede già generate — così i test possono guardare le pagine che contano:
+// il wizard e i risultati.
+//
+// Si scrive con la chiave di servizio, cioè scavalcando le regole di accesso:
+// è legittimo perché stiamo COSTRUENDO lo stato, non simulando un utente. Il
+// controllo degli accessi resta verificato dai test che passano dall'app.
+// ---------------------------------------------------------------------------
+
+const SETTORE_FOOD = '00000000-0000-0000-0f01-000000000001';
+
+interface Config {
+  url: string;
+  service: string;
+}
+
+function config(): Config {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !service) throw new Error('Configurazione Supabase incompleta');
+  return { url, service };
+}
+
+/** POST su PostgREST che RITORNA le righe e fallisce forte se qualcosa va storto. */
+async function inserisci<T = Record<string, unknown>>(
+  tabella: string,
+  righe: Record<string, unknown>[],
+): Promise<T[]> {
+  const { url, service } = config();
+  const risposta = await fetch(`${url}/rest/v1/${tabella}`, {
+    method: 'POST',
+    headers: {
+      apikey: service,
+      Authorization: `Bearer ${service}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(righe),
+  });
+  if (!risposta.ok) {
+    throw new Error(`semina ${tabella}: ${risposta.status} ${await risposta.text()}`);
+  }
+  return (await risposta.json()) as T[];
+}
+
+/** PATCH su PostgREST, con errore parlante se fallisce. */
+async function aggiorna(percorso: string, patch: Record<string, unknown>): Promise<void> {
+  const { url, service } = config();
+  const risposta = await fetch(`${url}/rest/v1/${percorso}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: service,
+      Authorization: `Bearer ${service}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(patch),
+  });
+  if (!risposta.ok) throw new Error(`semina ${percorso}: ${risposta.status} ${await risposta.text()}`);
+}
+
+export interface ScenarioSeminato {
+  organizationId: string;
+  presetVersionId: string;
+  batchId: string;
+  /** SKU dei prodotti creati, in ordine. */
+  sku: string[];
+  /** Nomi degli attributi di categoria, per ritrovarli nei risultati. */
+  attributi: string[];
+}
+
+const PRODOTTI = [
+  {
+    sku: 'OLIO-500',
+    nome: 'Olio EVO Coratina 500 ml',
+    categoria: 'Olio EVO',
+    fatti: { Formato: '500 ml', Origine: 'Puglia', Acidità: '0,3%' },
+    titolo: 'Olio extravergine di oliva Coratina 500 ml',
+    // Confidenza bassa: la revisione deve segnalarla in modo evidente.
+    confidenzaBassa: 'Acidità',
+  },
+  {
+    sku: 'FORM-300',
+    nome: 'Pecorino stagionato 300 g',
+    categoria: 'Formaggi',
+    fatti: { Formato: '300 g', Origine: 'Sardegna', Stagionatura: '12 mesi' },
+    titolo: 'Pecorino sardo stagionato 12 mesi',
+    confidenzaBassa: null,
+  },
+  {
+    sku: 'CONS-220',
+    nome: 'Pomodori pelati 220 g',
+    categoria: 'Conserve',
+    fatti: { Formato: '220 g', Origine: 'Campania' },
+    titolo: 'Pomodori pelati San Marzano 220 g',
+    confidenzaBassa: null,
+  },
+];
+
+/**
+ * Costruisce un'organizzazione completa e pronta all'uso per l'utente dato:
+ * preset Food con tre categorie, un batch con tre prodotti e le loro schede
+ * già generate.
+ */
+export async function seminaScenario(userId: string): Promise<ScenarioSeminato> {
+  const marca = Math.random().toString(36).slice(2, 8);
+
+  const [org] = await inserisci<{ id: string }>('organizations', [
+    { name: 'Cascina Verde S.r.l.', slug: `qa-cascina-${marca}` },
+  ]);
+  const organizationId = org!.id;
+  await inserisci('organization_members', [
+    { organization_id: organizationId, user_id: userId, role: 'owner' },
+  ]);
+
+  // Categorie e attributi dell'organizzazione (non di sistema): sono il
+  // vocabolario del preset.
+  const nomiCategorie = [...new Set(PRODOTTI.map((p) => p.categoria))];
+  const categorie = await inserisci<{ id: string; name: string }>(
+    'categories',
+    nomiCategorie.map((name) => ({
+      sector_id: SETTORE_FOOD,
+      owner_organization_id: organizationId,
+      name,
+      status: 'active',
+    })),
+  );
+  const idCategoria = new Map(categorie.map((c) => [c.name, c.id]));
+
+  const nomiAttributi = [...new Set(PRODOTTI.flatMap((p) => Object.keys(p.fatti)))];
+  const attributi = await inserisci<{ id: string; name: string }>(
+    'attributes',
+    nomiAttributi.map((name) => ({
+      sector_id: SETTORE_FOOD,
+      owner_organization_id: organizationId,
+      name,
+      attribute_kind: 'factual',
+      data_type: 'text',
+      is_system: false,
+      status: 'active',
+      version: 1,
+    })),
+  );
+  const idAttributo = new Map(attributi.map((a) => [a.name, a.id]));
+
+  const [preset] = await inserisci<{ id: string }>('presets', [
+    { organization_id: organizationId, sector_id: SETTORE_FOOD, name: 'Preset Food', status: 'active' },
+  ]);
+  const [versione] = await inserisci<{ id: string }>('preset_versions', [
+    // `published_at` valorizzato: il wizard propone solo i preset PUBBLICATI.
+    // Una bozza non compare, ed e' giusto cosi'.
+    { preset_id: preset!.id, version: 1, name: 'Preset Food', published_at: new Date().toISOString() },
+  ]);
+  const presetVersionId = versione!.id;
+  // Senza la versione attiva il preset non compare fra quelli scegliibili nel
+  // wizard: e' il campo che l'app usa per sapere quale versione servire.
+  await aggiorna(`presets?id=eq.${preset!.id}`, { active_version_id: presetVersionId });
+  await inserisci(
+    'preset_categories',
+    categorie.map((c, i) => ({
+      preset_version_id: presetVersionId,
+      category_id: c.id,
+      display_order: i + 1,
+      enabled: true,
+    })),
+  );
+  await inserisci(
+    'preset_attributes',
+    attributi.map((a, i) => ({
+      preset_version_id: presetVersionId,
+      attribute_id: a.id,
+      display_order: i + 1,
+      enabled: true,
+      is_required: false,
+    })),
+  );
+
+  const [batch] = await inserisci<{ id: string }>('batches', [
+    {
+      organization_id: organizationId,
+      name: 'Catalogo di prova',
+      preset_version_id: presetVersionId,
+      status: 'completed',
+      source_type: 'spreadsheet',
+      total_products: PRODOTTI.length,
+      valid_products: PRODOTTI.length,
+      invalid_products: 0,
+    },
+  ]);
+  const batchId = batch!.id;
+
+  const prodotti = await inserisci<{ id: string; sku: string }>(
+    'products',
+    PRODOTTI.map((p) => ({
+      organization_id: organizationId,
+      batch_id: batchId,
+      sku: p.sku,
+      external_id: p.sku,
+      name: p.nome,
+      category: p.categoria,
+      category_id: idCategoria.get(p.categoria),
+      preset_version_id: presetVersionId,
+      raw_input_json: { sku: p.sku, nome: p.nome, ...p.fatti },
+      canonical_attributes_json: { sku: p.sku, product_name: p.nome },
+      verification_status: 'eligible',
+      data_quality_score: 80,
+    })),
+  );
+  const idProdotto = new Map(prodotti.map((p) => [p.sku, p.id]));
+
+  await inserisci(
+    'product_attribute_values',
+    PRODOTTI.flatMap((p) =>
+      Object.entries(p.fatti).map(([nome, valore]) => ({
+        organization_id: organizationId,
+        product_id: idProdotto.get(p.sku),
+        attribute_id: idAttributo.get(nome),
+        value_json: valore,
+        status: 'provided',
+        source_type: 'spreadsheet',
+        // Una confidenza bassa per prodotto: la revisione deve renderla evidente.
+        confidence: p.confidenzaBassa === nome ? 0.35 : 0.95,
+      })),
+    ),
+  );
+
+  const [run] = await inserisci<{ id: string }>('generation_runs', [
+    {
+      organization_id: organizationId,
+      batch_id: batchId,
+      run_type: 'product_copy',
+      provider: 'mock',
+      model: 'mock',
+      prompt_version: 'qa',
+      status: 'completed',
+    },
+  ]);
+
+  await inserisci(
+    'product_generations',
+    PRODOTTI.map((p, i) => ({
+      organization_id: organizationId,
+      product_id: idProdotto.get(p.sku),
+      generation_run_id: run!.id,
+      input_hash: `qa-${marca}-${i}`,
+      generated_content_json: {
+        title: p.titolo,
+        shortDescription: `${p.nome}. Prodotto italiano.`,
+        longDescription: `${p.nome}: descrizione generata per la verifica dell'interfaccia. ${Object.entries(p.fatti).map(([k, v]) => `${k}: ${v}`).join('. ')}.`,
+        bullets: Object.entries(p.fatti).map(([k, v]) => `${k}: ${v}`),
+        metaDescription: `${p.titolo} — acquista online.`,
+        faq: [{ question: 'Qual è il formato?', answer: String(p.fatti.Formato) }],
+        altText: p.nome,
+        usedFactKeys: Object.keys(p.fatti),
+        warnings: [],
+      },
+      audit_json: { passed: true, unsupportedClaims: [], conflicts: [], severity: 'none' },
+      completeness_json: { status: 'complete', missingAttributes: [], usedAttributes: Object.keys(p.fatti), reason: null },
+      status: 'generated',
+    })),
+  );
+
+  return {
+    organizationId,
+    presetVersionId,
+    batchId,
+    sku: PRODOTTI.map((p) => p.sku),
+    attributi: nomiAttributi,
+  };
+}

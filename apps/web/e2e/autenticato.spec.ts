@@ -18,8 +18,9 @@ test.skip(salta !== null, salta ?? '');
 
 let utenteId: string | null = null;
 
-test.beforeEach(async ({ context }) => {
-  const utente = await creaUtenteDiProva();
+test.beforeEach(async ({ context }, info) => {
+  // Un utente per worker: i profili desktop e telefono girano in parallelo.
+  const utente = await creaUtenteDiProva(`w${info.parallelIndex}`);
   utenteId = utente.id;
   await accedi(context, utente);
 });

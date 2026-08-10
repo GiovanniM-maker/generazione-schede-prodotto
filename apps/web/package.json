@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:ui": "playwright test e2e/interfaccia.spec.ts",
-    "test:auth": "playwright test e2e/autenticato.spec.ts"
+    "test:auth": "playwright test e2e/autenticato.spec.ts e2e/wizard-risultati.spec.ts"
   },
   "dependencies": {
     "@app/ai": "workspace:*",
