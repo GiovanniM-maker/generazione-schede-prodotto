@@ -8,6 +8,8 @@ coverage/
 .env
 .env.local
 .env.*.local
+.env.staging
+apps/web/.env.staging
 .DS_Store
 *.log
 npm-debug.log*
