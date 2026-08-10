@@ -1,4 +1,8 @@
-import { classifyError, isRetryable } from '@app/core';
+import {
+  classifyError,
+  isRetryable,
+  mustWrite,
+} from '@app/core';
 import type { ErrorCode } from '@app/config';
 import type { ServerEnv } from '@app/config';
 import { queueSend, type TypedClient } from '@app/database';
@@ -55,7 +59,7 @@ export async function enqueueBatch(
   // Ripristina lo stato precedente se non si procede (niente batch "fantasma"
   // bloccati in coda senza job).
   const rollbackStatus = async () => {
-    await client.from('batches').update({ status: previousStatus }).eq('id', batchId);
+    await mustWrite('batches.update', client.from('batches').update({ status: previousStatus }).eq('id', batchId));
   };
 
   // Prodotti eleggibili: sector-agnostico. L'eleggibilità (SKU + ≥2 fatti) è
@@ -90,10 +94,10 @@ export async function enqueueBatch(
   }
 
   // Lo stato è già 'queued' (claim): qui restano solo i contatori.
-  await client
+  await mustWrite('batches.update', client
     .from('batches')
     .update({ credits_reserved: eligible.length, started_at: new Date().toISOString() })
-    .eq('id', batchId);
+    .eq('id', batchId));
 
   let enqueued = 0;
   let skipped = 0;
@@ -128,10 +132,10 @@ export async function enqueueBatch(
     });
   }
 
-  await client
+  await mustWrite('batches.update', client
     .from('batches')
     .update({ status: 'processing', credits_reserved: enqueued })
-    .eq('id', batchId);
+    .eq('id', batchId));
   await updateBatchProgress(client, batchId);
   return { enqueued, reserved: eligible.length, skipped };
 }
@@ -194,18 +198,18 @@ export async function handleJobFailure(
   const retry = isRetryable(code) && attempts < maxAttempts;
 
   if (retry) {
-    await client
+    await mustWrite('job_items.update', client
       .from('job_items')
       .update({ status: 'queued', attempts, last_error_code: code, last_error_message: message })
-      .eq('id', jobItemId);
+      .eq('id', jobItemId));
     return { retry: true, code };
   }
 
   // Definitivo: marca failed e rilascia il credito riservato (rimborso).
-  await client
+  await mustWrite('job_items.update', client
     .from('job_items')
     .update({ status: 'failed', attempts, last_error_code: code, last_error_message: message })
-    .eq('id', jobItemId);
+    .eq('id', jobItemId));
   await client.rpc('release_credits', {
     org: job.organization_id,
     amt: 1,

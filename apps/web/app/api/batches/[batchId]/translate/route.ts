@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createAiProviders } from '@app/ai';
 import {
   isSupportedLanguage,
+  logWrite,
+  mustWrite,
   toTranslatableCopy,
   type LanguageCode,
   type ProductCopy,
@@ -153,21 +155,21 @@ export async function POST(
 
   // Salvataggio per generazione (merge già fatto in memoria).
   for (const [genId, map] of translationsByGen) {
-    await service
+    await mustWrite('product_generations.update', service
       .from('product_generations')
       .update({ translations_json: map as unknown as Json })
-      .eq('id', genId);
+      .eq('id', genId));
   }
 
   const remaining = jobs.length - translated - failed;
   try {
-    await service.from('app_events').insert({
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: orgId,
       user_id: user.id,
       event_name: 'batch_translated',
       batch_id: batchId,
       metadata_json: { languages, translated, skipped, failed, remaining } as unknown as Json,
-    });
+    }));
   } catch {
     /* storico best-effort */
   }

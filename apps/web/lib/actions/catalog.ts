@@ -3,6 +3,9 @@
 import type { Json } from '@app/database';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
+import { logWrite, mustWrite,
+  writeOrThrow,
+} from '@app/core';
 
 // =====================================================================
 // Server actions per l'area "Configurazione catalogo".
@@ -47,12 +50,12 @@ async function logEvent(
   metadata: Record<string, unknown> = {},
 ): Promise<void> {
   try {
-    await service.from('app_events').insert({
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: organizationId,
       user_id: userId,
       event_name: eventName,
       metadata_json: metadata as unknown as Json,
-    });
+    }));
   } catch {
     // Lo storico è accessorio: un errore qui non deve far fallire l'operazione.
   }
@@ -452,7 +455,7 @@ export async function createPreset(input: {
         display_order: i + 1,
         enabled: true,
       }));
-      await service.from('preset_categories').insert(catRows);
+      await writeOrThrow('preset_categories.insert', service.from('preset_categories').insert(catRows));
 
       const { data: links } = await service
         .from('category_attributes')
@@ -481,7 +484,7 @@ export async function createPreset(input: {
           return true;
         });
         if (deduped.length > 0) {
-          await service.from('preset_attributes').insert(deduped);
+          await writeOrThrow('preset_attributes.insert', service.from('preset_attributes').insert(deduped));
         }
       }
     }
@@ -493,12 +496,12 @@ export async function createPreset(input: {
       display_order: i + 1,
       enabled: true,
     }));
-    await service.from('preset_generated_fields').insert(fieldRows);
+    await writeOrThrow('preset_generated_fields.insert', service.from('preset_generated_fields').insert(fieldRows));
 
-    await service
+    await writeOrThrow('presets.update', service
       .from('presets')
       .update({ active_version_id: version.id })
-      .eq('id', preset.id);
+      .eq('id', preset.id));
 
     return { ok: true, presetId: preset.id };
   } catch (err) {
@@ -627,13 +630,13 @@ export async function duplicatePreset(input: {
         display_order: i + 1,
         enabled: true,
       }));
-      await service.from('preset_generated_fields').insert(fieldRows);
+      await writeOrThrow('preset_generated_fields.insert', service.from('preset_generated_fields').insert(fieldRows));
     }
 
-    await service
+    await writeOrThrow('presets.update', service
       .from('presets')
       .update({ active_version_id: newVersion.id })
-      .eq('id', newPreset.id);
+      .eq('id', newPreset.id));
 
     return { ok: true, presetId: newPreset.id };
   } catch (err) {
@@ -665,17 +668,17 @@ async function cloneVersionContent(
   ]);
 
   if (cats.data && cats.data.length > 0) {
-    await service.from('preset_categories').insert(
+    await mustWrite('preset_categories.insert', service.from('preset_categories').insert(
       cats.data.map((c) => ({
         preset_version_id: toVersionId,
         category_id: c.category_id,
         display_order: c.display_order,
         enabled: c.enabled,
       })),
-    );
+    ));
   }
   if (attrs.data && attrs.data.length > 0) {
-    await service.from('preset_attributes').insert(
+    await mustWrite('preset_attributes.insert', service.from('preset_attributes').insert(
       attrs.data.map((a) => ({
         preset_version_id: toVersionId,
         attribute_id: a.attribute_id,
@@ -687,10 +690,10 @@ async function cloneVersionContent(
         validation_rules_override_json: a.validation_rules_override_json,
         enabled: a.enabled,
       })),
-    );
+    ));
   }
   if (fields.data && fields.data.length > 0) {
-    await service.from('preset_generated_fields').insert(
+    await mustWrite('preset_generated_fields.insert', service.from('preset_generated_fields').insert(
       fields.data.map((f) => ({
         preset_version_id: toVersionId,
         field_key: f.field_key,
@@ -699,7 +702,7 @@ async function cloneVersionContent(
         enabled: f.enabled,
         config_json: f.config_json,
       })),
-    );
+    ));
   }
 }
 
@@ -790,10 +793,10 @@ export async function publishPresetVersion(input: {
       .eq('id', preset.id);
     if (pErr) {
       // Rollback compensativo del primo passo.
-      await service
+      await writeOrThrow('preset_versions.update', service
         .from('preset_versions')
         .update({ published_at: null })
-        .eq('id', draft.id);
+        .eq('id', draft.id));
       return { ok: false, error: pErr.message };
     }
 
@@ -1122,7 +1125,7 @@ export async function addCategoryToPreset(input: {
         generation_instruction_override: l.generation_instruction_override,
         enabled: true,
       }));
-      await service.from('preset_attributes').insert(rows);
+      await writeOrThrow('preset_attributes.insert', service.from('preset_attributes').insert(rows));
     }
     return { ok: true };
   } catch (err) {
@@ -1152,11 +1155,11 @@ export async function removeCategoryFromPreset(input: {
     if (!chk.ok) return chk;
 
     // Rimuovi gli attributi legati a questa categoria nella versione.
-    await service
+    await writeOrThrow('preset_attributes.delete', service
       .from('preset_attributes')
       .delete()
       .eq('preset_version_id', row.preset_version_id)
-      .eq('category_id', row.category_id);
+      .eq('category_id', row.category_id));
 
     const { error } = await service
       .from('preset_categories')
@@ -1442,7 +1445,7 @@ export async function duplicateSystemCategory(input: {
       )
       .eq('category_id', src.id);
     if (links && links.length > 0) {
-      await service.from('category_attributes').insert(
+      await writeOrThrow('category_attributes.insert', service.from('category_attributes').insert(
         links.map((l) => ({
           category_id: copy.id,
           attribute_id: l.attribute_id,
@@ -1452,7 +1455,7 @@ export async function duplicateSystemCategory(input: {
           generation_instruction_override: l.generation_instruction_override,
           validation_rules_override_json: l.validation_rules_override_json,
         })),
-      );
+      ));
     }
     return { ok: true, categoryId: copy.id };
   } catch (err) {
@@ -2285,8 +2288,8 @@ export async function clearPresetVersion(input: {
     const chk = await requireDraftVersion(service, organizationId, input.presetVersionId);
     if (!chk.ok) return chk;
 
-    await service.from('preset_attributes').delete().eq('preset_version_id', input.presetVersionId);
-    await service.from('preset_categories').delete().eq('preset_version_id', input.presetVersionId);
+    await writeOrThrow('preset_attributes.delete', service.from('preset_attributes').delete().eq('preset_version_id', input.presetVersionId));
+    await writeOrThrow('preset_categories.delete', service.from('preset_categories').delete().eq('preset_version_id', input.presetVersionId));
     await logEvent(service, organizationId, auth.userId, 'preset_cleared', {
       presetId: chk.presetId,
     });
@@ -2494,7 +2497,7 @@ export async function addCategoriesFromListToPreset(input: {
         )
         .eq('category_id', categoryId);
       if (links && links.length > 0) {
-        await service.from('preset_attributes').insert(
+        await writeOrThrow('preset_attributes.insert', service.from('preset_attributes').insert(
           links.map((l) => ({
             preset_version_id: input.presetVersionId,
             attribute_id: l.attribute_id,
@@ -2505,7 +2508,7 @@ export async function addCategoriesFromListToPreset(input: {
             generation_instruction_override: l.generation_instruction_override,
             enabled: true,
           })),
-        );
+        ));
       }
     }
 

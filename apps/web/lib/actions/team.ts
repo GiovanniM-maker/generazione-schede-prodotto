@@ -3,6 +3,7 @@
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getServerEnv } from '@/lib/env.server';
+import { mustWrite } from '@app/core';
 
 // Gestione team: membri, ruoli, inviti. Solo il proprietario può invitare o
 // rimuovere. Gli inviti generano un link con token da condividere; l'invitato
@@ -202,10 +203,10 @@ export async function acceptInvitation(input: {
     if (error) return fail(`Adesione fallita: ${error.message}`);
   }
 
-  await service
+  await mustWrite('organization_invitations.update', service
     .from('organization_invitations')
     .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-    .eq('id', invite.id);
+    .eq('id', invite.id));
 
   return ok({ organizationId: invite.organization_id });
 }

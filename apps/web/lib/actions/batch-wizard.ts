@@ -3,26 +3,28 @@
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
 import {
+  NON_ADDITIONAL_FIELDS,
+  SKU_DELIMITERS,
+  analyzeSources,
+  chunk,
+  computeQuality,
+  extractProductFromHtml,
+  extractSkuFromFilename,
+  isSupportedImage,
+  logWrite,
+  mustWrite,
+  normalizeCategoryName,
   parseCsv,
   parseXlsx,
-  extractSkuFromFilename,
-  SKU_DELIMITERS,
-  type SkuDelimiter,
-  suggestImageType,
-  isSupportedImage,
-  validateRowSku,
-  suggestSkuHeader,
-  analyzeSources,
-  computeQuality,
-  NON_ADDITIONAL_FIELDS,
-  extractProductFromHtml,
-  chunk,
   pickCategoryVocabulary,
-  normalizeCategoryName,
+  suggestImageType,
+  suggestSkuHeader,
+  validateRowSku,
+  type BuiltProduct,
   type CategoryRow,
   type ParseResult,
+  type SkuDelimiter,
   type SourceAnalysis,
-  type BuiltProduct,
 } from '@app/core';
 import { STORAGE_BUCKETS } from '@app/config';
 import type { Json } from '@app/database';
@@ -170,13 +172,13 @@ export async function createBatchV2(input: {
     .single();
   if (error || !data) return fail(`Creazione batch fallita: ${error?.message}`);
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: org.organizationId,
     user_id: user.id,
     event_name: 'batch_created',
     batch_id: data.id,
     metadata_json: { presetId: input.presetId, description: input.description ?? null },
-  });
+  }));
 
   return ok({ batchId: data.id });
 }
@@ -371,7 +373,7 @@ export async function setBatchSources(input: {
   const sourceType = wantSpreadsheet && wantImages ? 'mixed' : wantSpreadsheet ? 'spreadsheet' : 'images';
   // NB: nessun 'sources_selected' — non esiste nell'enum batch_status e faceva
   // fallire l'update IN SILENZIO (anche source_type non veniva salvato).
-  await service.from('batches').update({ source_type: sourceType }).eq('id', input.batchId);
+  await mustWrite('batches.update', service.from('batches').update({ source_type: sourceType }).eq('id', input.batchId));
 
   return ok({ sourceType });
 }
@@ -484,7 +486,7 @@ export async function uploadBatchFiles(
     if (!batchSourceId) return fail('Registrazione sorgente fallita');
 
     // Rimpiazza eventuali item precedenti dello spreadsheet (re-upload).
-    await service.from('source_items').delete().eq('batch_source_id', batchSourceId);
+    await mustWrite('source_items.delete', service.from('source_items').delete().eq('batch_source_id', batchSourceId));
     // status DEVE essere un valore dell'enum source_item_status ('valid', …):
     // 'ready' NON è valido e faceva fallire l'insert IN SILENZIO, lasciando lo
     // spreadsheet senza source_item → l'analisi non trovava gli SKU del file.
@@ -501,7 +503,7 @@ export async function uploadBatchFiles(
       metadata_json: { headers: parsed.headers, rowCount: parsed.rows.length } as unknown as Json,
     });
     if (itemErr) return fail(`Registrazione file non riuscita: ${itemErr.message}`);
-    await service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId);
+    await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
 
     return ok<UploadSpreadsheetResult>({
       kind: 'spreadsheet',
@@ -571,7 +573,7 @@ export async function uploadBatchFiles(
       }
 
       const status = sku ? 'valid' : 'missing_sku';
-      await service.from('source_items').insert({
+      await mustWrite('source_items.insert', service.from('source_items').insert({
         organization_id: orgId,
         batch_source_id: batchSourceId,
         source_file_id: persisted.id,
@@ -582,7 +584,7 @@ export async function uploadBatchFiles(
         detected_sku: sku,
         status,
         metadata_json: { imageType: suggestImageType(file.name) } as unknown as Json,
-      });
+      }));
 
       if (sku) validCount++;
       else invalidCount++;
@@ -594,7 +596,7 @@ export async function uploadBatchFiles(
       });
     }
 
-    await service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId);
+    await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
 
     return ok<UploadImagesResult>({ kind: 'images', files: summaries, validCount, invalidCount });
   }
@@ -731,9 +733,9 @@ export async function registerUploadedImages(input: {
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (itemRows.length > 0) {
-    await service.from('source_items').insert(itemRows);
+    await mustWrite('source_items.insert', service.from('source_items').insert(itemRows));
   }
-  await service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId);
+  await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId));
 
   return ok({ kind: 'images', files: summaries, validCount, invalidCount });
 }
@@ -775,15 +777,26 @@ export async function reparseImageSkus(input: {
     return { id: it.id, sku, status };
   });
 
-  const CHUNK = 20;
-  for (let i = 0; i < updates.length; i += CHUNK) {
-    await Promise.all(
-      updates
-        .slice(i, i + CHUNK)
-        .map((u) =>
-          service.from('source_items').update({ detected_sku: u.sku, status: u.status }).eq('id', u.id),
+  // Se uno di questi aggiornamenti fallisce, l'immagine resta con lo SKU
+  // vecchio: l'anteprima direbbe una cosa e il database un'altra. Meglio
+  // dirlo subito che scoprirlo al momento della generazione.
+  let updateErrors = 0;
+  for (const slice of chunk(updates, 20)) {
+    const results = await Promise.all(
+      slice.map((u) =>
+        mustWrite(
+          'source_items.update',
+          service
+            .from('source_items')
+            .update({ detected_sku: u.sku, status: u.status })
+            .eq('id', u.id),
         ),
+      ),
     );
+    updateErrors += results.filter((r) => !r.ok).length;
+  }
+  if (updateErrors > 0) {
+    return fail(`${updateErrors} immagini non aggiornate con il nuovo separatore. Riprova.`);
   }
 
   return ok({ kind: 'images', files, validCount, invalidCount });
@@ -884,7 +897,7 @@ export async function analyzeBatch(input: {
   const analysis = analyzeSources({ fileSkus, imageSkus, filesWithoutSku, rowsWithoutSku });
   // 'analysis' non esiste nell'enum batch_status (update falliva in silenzio):
   // dopo l'analisi delle sorgenti il batch è in fase di mappatura.
-  await service.from('batches').update({ status: 'mapping' }).eq('id', input.batchId);
+  await mustWrite('batches.update', service.from('batches').update({ status: 'mapping' }).eq('id', input.batchId));
 
   return ok({ ...analysis, suggestedSkuHeader });
 }
@@ -1258,7 +1271,7 @@ export async function confirmImportV2(input: {
   }
 
   // Pulisci import precedenti dello stesso batch (re-import).
-  await service.from('products').delete().eq('batch_id', input.batchId);
+  await mustWrite('products.delete', service.from('products').delete().eq('batch_id', input.batchId));
 
   let imported = 0;
   let valid = 0;
@@ -1599,10 +1612,10 @@ export async function confirmImportV2(input: {
     for (const { snap, productId } of restorable) {
       const existingId = existingIdByKey.get(`${productId}|${snap.attribute_id}`);
       if (existingId) {
-        await service
+        await mustWrite('product_attribute_values.update', service
           .from('product_attribute_values')
           .update({ status: snap.status, value_json: snap.value_json })
-          .eq('id', existingId);
+          .eq('id', existingId));
       } else {
         toInsert.push({
           organization_id: orgId,
@@ -1621,7 +1634,7 @@ export async function confirmImportV2(input: {
     }
   }
 
-  await service
+  await mustWrite('batches.update', service
     .from('batches')
     .update({
       status: 'input_review',
@@ -1629,10 +1642,10 @@ export async function confirmImportV2(input: {
       valid_products: valid,
       invalid_products: invalid,
     })
-    .eq('id', input.batchId);
+    .eq('id', input.batchId));
 
   const unmatched = [...unmatchedCategories];
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: orgId,
     user_id: user.id,
     event_name: 'mapping_confirmed',
@@ -1647,7 +1660,7 @@ export async function confirmImportV2(input: {
       // Tracciato nello storico: se >0 alcuni prodotti sono senza fatti.
       factsInsertErrors,
     },
-  });
+  }));
 
   return ok({
     imported,
@@ -2028,7 +2041,7 @@ export async function importFromUrls(input: {
     if (eligible) valid++;
 
     if (pavRows.length > 0) {
-      await service.from('product_attribute_values').insert(
+      await mustWrite('product_attribute_values.insert', service.from('product_attribute_values').insert(
         pavRows.map((r) => ({
           organization_id: orgId,
           product_id: productRow.id,
@@ -2037,7 +2050,7 @@ export async function importFromUrls(input: {
           status: 'provided',
           source_type: 'url',
         })),
-      );
+      ));
     }
 
     // Immagini: scarica (SSRF-safe) → storage → source_files/source_items → link.
@@ -2088,34 +2101,34 @@ export async function importFromUrls(input: {
         .select('id')
         .single();
       if (!si) continue;
-      await service.from('product_source_links').insert({
+      await mustWrite('product_source_links.insert', service.from('product_source_links').insert({
         organization_id: orgId,
         product_id: productRow.id,
         source_item_id: si.id,
         link_type: 'sku_exact',
-      });
+      }));
       imagesAttached++;
     }
   }
 
   if (imageBatchSourceId) {
-    await service.from('batch_sources').update({ status: 'ready' }).eq('id', imageBatchSourceId);
+    await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', imageBatchSourceId));
   }
 
   // Porta il batch in revisione dati, come confirmImportV2, così i passi
   // successivi (campione → generazione) funzionano senza modifiche.
   if (imported > 0) {
-    await service
+    await mustWrite('batches.update', service
       .from('batches')
       .update({ status: 'input_review', total_products: imported, valid_products: valid, invalid_products: imported - valid })
-      .eq('id', input.batchId);
-    await service.from('app_events').insert({
+      .eq('id', input.batchId));
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: orgId,
       user_id: user.id,
       event_name: 'url_import_confirmed',
       batch_id: input.batchId,
       metadata_json: { imported, valid, imagesAttached, failed: failures.length } as unknown as Json,
-    });
+    }));
   }
 
   return ok({ imported, failed: failures.length, imagesAttached, failures: failures.slice(0, 20) });

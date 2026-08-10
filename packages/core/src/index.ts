@@ -27,3 +27,4 @@ export * from './url-extract.js';
 export * from './ip-guard.js';
 export * from './chunk.js';
 export * from './category-vocabulary.js';
+export * from './db-write.js';

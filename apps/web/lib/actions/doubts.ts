@@ -3,6 +3,7 @@
 import type { Json } from '@app/database';
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
+import { mustWrite } from '@app/core';
 
 // Inbox dei "dubbi" dell'AI. Un dubbio nasce da un dato letto dalle foto con
 // bassa confidenza: l'AI chiede conferma all'utente, che risponde (conferma /
@@ -83,7 +84,7 @@ export async function generateDoubtsForBatch(
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (rows.length === 0) return 0;
-  await service.from('ai_doubts').insert(rows);
+  await mustWrite('ai_doubts.insert', service.from('ai_doubts').insert(rows));
   return rows.length;
 }
 
@@ -210,14 +211,14 @@ export async function answerDoubtAction(input: {
 
   if (input.action !== 'dismiss' && doubt.product_id && doubt.attribute_id) {
     const newValue = input.action === 'correct' ? (input.value ?? '').trim() : (doubt.suggested_value ?? '');
-    await service
+    await mustWrite('product_attribute_values.update', service
       .from('product_attribute_values')
       .update({ value_json: newValue as unknown as Json, status: 'confirmed', confidence: 1 })
       .eq('product_id', doubt.product_id)
-      .eq('attribute_id', doubt.attribute_id);
+      .eq('attribute_id', doubt.attribute_id));
   }
 
-  await service
+  await mustWrite('ai_doubts.update', service
     .from('ai_doubts')
     .update({
       status: input.action === 'dismiss' ? 'dismissed' : 'answered',
@@ -225,7 +226,7 @@ export async function answerDoubtAction(input: {
       answered_at: now,
       answered_by: user.id,
     })
-    .eq('id', input.doubtId);
+    .eq('id', input.doubtId));
 
   return { ok: true };
 }

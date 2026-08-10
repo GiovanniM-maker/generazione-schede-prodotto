@@ -2,7 +2,11 @@
 
 import { createAiProviders } from '@app/ai';
 import { STORAGE_BUCKETS } from '@app/config';
-import { NON_ADDITIONAL_FIELDS } from '@app/core';
+import {
+  NON_ADDITIONAL_FIELDS,
+  logWrite,
+  mustWrite,
+} from '@app/core';
 import type { VisualExtractionImage, VisualFieldSpec } from '@app/core';
 import type { Json } from '@app/database';
 import { getSessionUser } from '@/lib/auth';
@@ -489,11 +493,11 @@ export async function runVisualExtractionCore(
     if (classification) {
       const catId = matchCategoryId(classification.value);
       if (catId) {
-        await service
+        await mustWrite('products.update', service
           .from('products')
           .update({ category_id: catId, category: categoryNameById.get(catId) ?? null })
           .eq('id', productId)
-          .is('category_id', null);
+          .is('category_id', null));
         categoryByProduct.set(productId, catId);
       }
     }
@@ -603,11 +607,11 @@ export async function runVisualExtractionCore(
       .filter(([, set]) => set.size >= 2)
       .map(([pid]) => pid);
     if (nowEligible.length > 0) {
-      await service
+      await mustWrite('products.update', service
         .from('products')
         .update({ verification_status: 'eligible' })
         .in('id', nowEligible)
-        .eq('verification_status', 'excluded');
+        .eq('verification_status', 'excluded'));
     }
   } catch (e) {
     console.warn('[visual] ricalcolo eleggibilità non riuscito:', e);
@@ -615,7 +619,7 @@ export async function runVisualExtractionCore(
 
   // Nel percorso cron non c'è una sessione: l'evento resta senza utente.
   const eventUser = await getSessionUser().catch(() => null);
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: orgId,
     user_id: eventUser?.id ?? null,
     event_name: 'visual_extraction_run',
@@ -626,7 +630,7 @@ export async function runVisualExtractionCore(
       productsSkipped,
       productsWithTruncatedImages,
     } as unknown as Json,
-  });
+  }));
 
   return ok({
     productsProcessed,

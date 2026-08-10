@@ -3,6 +3,7 @@
 import type { Json } from '@app/database';
 import { ensureOrg, getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
+import { logWrite } from '@app/core';
 
 // =====================================================================
 // Server actions dell'onboarding aziendale v2.
@@ -441,12 +442,12 @@ export async function completeOnboardingAction(input: {
       .eq('id', input.organizationId);
     if (error) return { ok: false, error: error.message };
 
-    await service.from('app_events').insert({
+    await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: input.organizationId,
       user_id: userId,
       event_name: 'onboarding_completed',
       metadata_json: { flow: 'v2' } as unknown as Json,
-    });
+    }));
 
     return { ok: true };
   } catch (err) {

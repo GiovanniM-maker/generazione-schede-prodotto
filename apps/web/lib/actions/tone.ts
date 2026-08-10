@@ -5,6 +5,7 @@ import type { Json } from '@app/database';
 import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
+import { logWrite, mustWrite } from '@app/core';
 
 // Genera e salva un profilo tono versionato per l'organizzazione.
 export async function createToneProfileAction(input: {
@@ -74,30 +75,30 @@ async function createToneProfileInner(input: {
     .single();
   if (vErr || !version) throw new Error(`Versione profilo fallita: ${vErr?.message}`);
 
-  await service.from('brand_profiles').update({ active_version_id: version.id }).eq('id', bp.id);
+  await mustWrite('brand_profiles.update', service.from('brand_profiles').update({ active_version_id: version.id }).eq('id', bp.id));
 
   if (input.examples && input.examples.length > 0) {
-    await service.from('brand_examples').insert(
+    await mustWrite('brand_examples.insert', service.from('brand_examples').insert(
       input.examples.filter(Boolean).map((text) => ({
         brand_profile_version_id: version.id,
         original_text: text,
       })),
-    );
+    ));
   }
 
   if (input.batchId) {
-    await service
+    await mustWrite('batches.update', service
       .from('batches')
       .update({ brand_profile_version_id: version.id, status: 'tone_setup' })
-      .eq('id', input.batchId);
+      .eq('id', input.batchId));
   }
 
-  await service.from('app_events').insert({
+  await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: input.organizationId,
     user_id: user.id,
     event_name: 'onboarding_completed',
     metadata_json: { style: input.style },
-  });
+  }));
 
   return { ok: true, brandProfileId: bp.id, versionId: version.id };
 }
