@@ -105,7 +105,7 @@ export default async function OnboardingPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-semibold text-gray-900">
-          Benvenuto in Schede Prodotto
+          Benvenuto in Verificato
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           Configuriamo il sistema in base ai prodotti della tua azienda.
