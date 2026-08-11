@@ -31,7 +31,7 @@ export default async function SectorsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900">Settori</h2>
+        <h1 className="text-2xl font-semibold text-gray-900">Settori</h1>
         <p className="mt-1 text-sm text-gray-500">
           Settori disponibili nel catalogo (sola lettura).
         </p>

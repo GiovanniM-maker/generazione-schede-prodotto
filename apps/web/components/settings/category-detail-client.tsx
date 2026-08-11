@@ -53,10 +53,10 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold text-gray-900">
               {detail.category.name}
-            </h2>
-            <Badge tone="blue">{detail.category.sectorName}</Badge>
+            </h1>
+            <Badge tone="gray">{detail.category.sectorName}</Badge>
             {detail.category.isSystem ? (
               <Badge tone="gray">Sistema</Badge>
             ) : (
@@ -73,7 +73,6 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
           {editable && (
             <Button
               variant="outline"
-              size="sm"
               onClick={() => {
                 setError(null);
                 setCopilotOpen(true);
@@ -304,7 +303,7 @@ function CategoryAttributeRow({
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-900">{attr.name}</span>
-          <Badge tone="violet">
+          <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
           <span className="text-xs text-gray-400">{attr.dataType}</span>

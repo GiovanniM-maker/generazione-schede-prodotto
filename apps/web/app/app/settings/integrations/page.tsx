@@ -8,7 +8,7 @@ export default function IntegrationsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900">Integrazioni</h2>
+        <h1 className="text-2xl font-semibold text-gray-900">Integrazioni</h1>
         <p className="mt-1 text-sm text-gray-500">
           Collega origini dati esterne al tuo catalogo.
         </p>

@@ -1031,8 +1031,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // --- Render ---
 
+  // Il wizard vive in un guscio largo come tutto il flusso di un batch, così il
+  // titolo non salta di lato fra un passo e l'altro. Il modulo però resta
+  // stretto: una riga di modulo lunga 1150 px si compila peggio, non meglio.
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <ProgressBar steps={activeSteps} activeIndex={activeIndex} />

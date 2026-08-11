@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
 import { batchDiPagina } from '@/lib/batch-page';
+import { PageShell } from '@/components/page-shell';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { InputTable, type InputProduct } from '@/components/input-table';
@@ -98,25 +99,18 @@ export default async function InputPage({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Revisione dei dati
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {batch.name} — controlla i prodotti importati prima di generare le
-            schede.
-          </p>
-        </div>
+    <PageShell
+      title="Revisione dei dati"
+      subtitle={`${batch.name} — controlla i prodotti importati prima di generare le schede.`}
+      actions={
         <Link href={`/app/batches/${batchId}/sample`}>
-          <Button size="lg">
+          <Button>
             Configura tono e campione
             <ArrowRight className="h-4 w-4" />
           </Button>
         </Link>
-      </div>
-
+      }
+    >
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
 
       <InferredAttributesSection
@@ -126,6 +120,6 @@ export default async function InputPage({
       />
 
       <InputTable products={rows} />
-    </div>
+    </PageShell>
   );
 }

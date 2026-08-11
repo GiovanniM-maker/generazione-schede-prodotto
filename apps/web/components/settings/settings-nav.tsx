@@ -16,10 +16,10 @@ const items = [
   { href: '/app/settings/account', label: 'Account', icon: UserCog },
 ];
 
-export function SettingsNav() {
+export function SettingsNav({ 'aria-label': ariaLabel }: { 'aria-label'?: string } = {}) {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-1">
+    <nav aria-label={ariaLabel} className="flex flex-col gap-1">
       {items.map((item) => {
         const active = pathname.startsWith(item.href);
         const Icon = item.icon;

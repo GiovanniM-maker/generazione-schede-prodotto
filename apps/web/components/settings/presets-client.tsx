@@ -104,13 +104,12 @@ export function PresetsClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Preset</h2>
+          <h1 className="text-2xl font-semibold text-gray-900">Preset</h1>
           <p className="mt-1 text-sm text-gray-500">
             Configurazioni riutilizzabili di categorie, attributi e prompt.
           </p>
         </div>
         <Button
-          size="sm"
           onClick={() => {
             setError(null);
             setNewSector(sectors[0]?.id ?? '');
@@ -161,7 +160,7 @@ export function PresetsClient({
                     </button>
                   </TD>
                   <TD>
-                    <Badge tone="blue">{p.sectorName}</Badge>
+                    <Badge tone="gray">{p.sectorName}</Badge>
                   </TD>
                   <TD>{p.categoryCount}</TD>
                   <TD>{p.attributeCount}</TD>

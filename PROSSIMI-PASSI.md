@@ -311,32 +311,55 @@ punterebbero al vuoto.
 
 ## 3. Subito dopo il lancio
 
-### 3.1 Un'identità visiva — 2-3 giorni
+### 3.1 ~~Un'identità visiva~~ — **fatto**
 
-**Il prodotto non ha un carattere.** In `globals.css` c'è
-`font-feature-settings: 'cv11', 'ss01'` — le varianti stilistiche di Inter — ma
-Inter non viene mai caricato: nessun `@font-face`, nessun `next/font`. Tutto
-rende in `ui-sans-serif, system-ui`. Quella riga non fa niente. È la singola
-modifica che cambia di più l'aspetto del prodotto, e costa un'ora.
+**Il carattere.** In `globals.css` c'era `font-feature-settings: 'cv11', 'ss01'`
+— le varianti stilistiche di Inter — ma Inter non veniva mai caricato: nessun
+`@font-face`, nessun `next/font`. Tutto rendeva col carattere di sistema e
+quella riga non faceva assolutamente niente. Ora Inter c'è, servito da noi
+(`next/font` lo scarica in compilazione): nessuna richiesta a Google dal browser
+di chi usa il prodotto, che è ciò che ci permette di scrivere nella cookie
+policy che usiamo solo cookie tecnici. Aggiunte anche le cifre a larghezza fissa
+nelle tabelle: un totale che cambia non fa più ballare la riga.
 
-**Cinque larghezze di contenuto** dentro lo stesso guscio: camminando nel wizard
-il titolo salta lateralmente di 168 px a ogni «Avanti» (`new` 336 → `mapping`
-272 → `input` 168 → `sample` 336 → `results` 168). Serve un `PageShell` con una
-larghezza sola.
+**Una posizione sola per il titolo.** Dentro lo stesso guscio convivevano cinque
+larghezze scelte una per volta, e camminando nel flusso di un batch il titolo
+saltava di lato di quasi 200 px a ogni «Avanti». Ora c'è `PageShell` con due
+larghezze **dichiarate e motivate** — `larga` per le pagine con tabelle, dove lo
+spazio orizzontale è il contenuto, `stretta` per quelle che si leggono — e tutto
+il flusso di un batch usa la stessa. Misurato: `h1` a **x=88 su ogni pagina**,
+dalla dashboard ai risultati. (Configurazione sta a 340 perché ha una barra
+laterale: è strutturale e non si muove mentre ci si sta dentro.)
 
-**Il pulsante primario ha tre altezze** (32/40/44) senza logica: «Nuovo preset»
-è il comando più piccolo dello schermo, su `/input` due primari rossi convivono
-a 44 e 40, su `/results` cinque trattamenti nella stessa barra.
+**Le tre misure del pulsante hanno una regola**, scritta in `button.tsx`: `lg`
+solo per l'unica azione che è il punto dello schermo, `md` come misura normale,
+`sm` solo nelle righe che si ripetono. «Nuovo preset» era il comando più piccolo
+dello schermo pur essendo il motivo per cui si è su quella pagina: adesso è alla
+misura del titolo, come gli altri sette comandi di intestazione.
 
-**Il colore ha perso il significato**: il blu vuol dire settore *e* stato; il
-verde esito *e* tipo; il rosso è insieme marchio, errore, azione distruttiva e
-«dubbio dell'AI». Due viola diversi per la stessa idea.
+**Il colore ha di nuovo un significato**, uno per colore: grigio la
+classificazione (settore, tipo di attributo, «Sistema»), blu gli stati
+intermedi, verde ciò che è riuscito o attivo, ambra ciò che è in corso o da
+guardare, rosso ciò che è fallito, viola **quello che hai fatto tu**
+(«Personalizzata», «Custom», «Modificato»). Prima il settore era blu come uno
+stato, «Custom» verde come un esito, e la stessa idea aveva due viola diversi —
+il badge diceva `violet` e disegnava indigo, mentre i risultati usavano il viola
+vero.
 
-Sulle pagine `/app/settings/*` il **titolo di pagina è 12 px grigio a 2,40:1** —
-più piccolo dell'`<h2>` sotto di lui.
+**Il titolo delle pagine di configurazione** era un `<h1>` da 12 px grigio a
+2,40:1 — il testo meno leggibile dello schermo, più piccolo dell'`<h2>` sotto di
+lui, e per giunta l'unico titolo semantico della pagina. Adesso è l'etichetta di
+navigazione che è sempre stato, e il titolo vero («Preset», «Categorie») è un
+`<h1>` da 24 px.
 
-*Da tenere*: zero colori arbitrari, zero spaziature fuori griglia, `Card` in 28
-file e `Button` in 31. La disciplina di base c'è già, va solo estesa.
+Tre di queste cose non si vedono leggendo il file che le contiene — si vedono
+solo mettendo insieme file diversi — e per questo hanno un test: il carattere
+caricato davvero, un viola solo, e nessuna pagina del flusso che si stringa per
+conto suo.
+
+**Rimasto da decidere a chi vende:** se il prodotto vuole un carattere *da
+display* per i titoli, diverso da quello del testo. È una scelta di marchio, non
+di codice.
 
 ### 3.2 Accessibilità — 2-3 giorni
 

@@ -169,7 +169,7 @@ export function AttributesClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Attributi</h2>
+          <h1 className="text-2xl font-semibold text-gray-900">Attributi</h1>
           <p className="mt-1 text-sm text-gray-500">
             Libreria di attributi di sistema ed estensioni della tua
             organizzazione.
@@ -178,7 +178,6 @@ export function AttributesClient({
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setCopilotOpen(true);
@@ -189,7 +188,6 @@ export function AttributesClient({
           </Button>
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setImportMsg(null);
@@ -299,10 +297,10 @@ export function AttributesClient({
                 <TR key={a.id}>
                   <TD className="font-medium text-gray-900">{a.name}</TD>
                   <TD>
-                    <Badge tone="blue">{a.sectorName}</Badge>
+                    <Badge tone="gray">{a.sectorName}</Badge>
                   </TD>
                   <TD>
-                    <Badge tone="violet">
+                    <Badge tone="gray">
                       {KINDS.find((k) => k.value === a.attributeKind)?.label ??
                         a.attributeKind}
                     </Badge>
@@ -312,7 +310,7 @@ export function AttributesClient({
                     {a.isSystem ? (
                       <Badge tone="gray">Sistema</Badge>
                     ) : (
-                      <Badge tone="green">Custom</Badge>
+                      <Badge tone="violet">Custom</Badge>
                     )}
                   </TD>
                   <TD>{a.usageCount}</TD>

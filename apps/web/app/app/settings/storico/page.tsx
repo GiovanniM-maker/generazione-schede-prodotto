@@ -109,7 +109,7 @@ export default async function StoricoPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900">Storico attività</h2>
+        <h1 className="text-2xl font-semibold text-gray-900">Storico attività</h1>
         <p className="mt-1 text-sm text-gray-500">
           Cronologia delle azioni sulla configurazione, sulle generazioni e sui
           miglioramenti del prompt. Ultime 100 attività.

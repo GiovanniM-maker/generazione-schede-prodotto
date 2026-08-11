@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { PurchaseButton } from '@/components/purchase-button';
+import { PageShell } from '@/components/page-shell';
 import { DatiFatturazioneForm } from '@/components/billing/dati-fatturazione-form';
 import { leggiDatiFatturazione } from '@/lib/actions/fatturazione';
 import { formattaPrezzo, prezzoPerCredito } from '@app/core';
@@ -72,14 +73,10 @@ export default async function BillingPage({
   const fatturazione = await leggiDatiFatturazione();
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Fatturazione</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Gestisci i crediti della tua organizzazione.
-        </p>
-      </div>
-
+    <PageShell
+      title="Fatturazione"
+      subtitle="Gestisci i crediti della tua organizzazione."
+    >
       {success && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -247,6 +244,6 @@ export default async function BillingPage({
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }

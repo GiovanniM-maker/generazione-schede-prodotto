@@ -109,7 +109,7 @@ export function CategoriesClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Categorie</h2>
+          <h1 className="text-2xl font-semibold text-gray-900">Categorie</h1>
           <p className="mt-1 text-sm text-gray-500">
             Categorie di sistema e categorie personalizzate della tua
             organizzazione.
@@ -118,7 +118,6 @@ export function CategoriesClient({
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setCopilotOpen(true);
@@ -129,7 +128,6 @@ export function CategoriesClient({
           </Button>
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setImportMsg(null);
@@ -204,7 +202,7 @@ export function CategoriesClient({
                 <TR key={c.id}>
                   <TD className="font-medium text-gray-900">{c.name}</TD>
                   <TD>
-                    <Badge tone="blue">{c.sectorName}</Badge>
+                    <Badge tone="gray">{c.sectorName}</Badge>
                   </TD>
                   <TD>{c.attributeCount}</TD>
                   <TD>

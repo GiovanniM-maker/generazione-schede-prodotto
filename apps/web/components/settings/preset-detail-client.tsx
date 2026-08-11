@@ -140,10 +140,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold text-gray-900">
               {detail.preset.name}
-            </h2>
-            <Badge tone="blue">{detail.preset.sectorName}</Badge>
+            </h1>
+            <Badge tone="gray">{detail.preset.sectorName}</Badge>
             {detail.isDraft ? (
               <Badge tone="amber">Bozza v{detail.workingVersion}</Badge>
             ) : (
@@ -157,7 +157,6 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setCopilotOpen(true);
@@ -715,7 +714,7 @@ function AttributeEditor({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-900">{attr.name}</span>
-          <Badge tone="violet">
+          <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
           <span className="text-xs text-gray-400">{attr.dataType}</span>
