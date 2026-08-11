@@ -430,3 +430,66 @@ test.describe('wizard · non perde il lavoro', () => {
     await expect(velo).toHaveCount(0, { timeout: 5000 });
   });
 });
+
+test.describe('larghezze intermedie', () => {
+  // I test provavano 390 e 1280: il difetto stava esattamente in mezzo.
+  // Fra 640 e 928px le etichette dell'intestazione comparivano ma non
+  // entravano, e il documento scorreva di lato fino a 288px spingendo «Esci»
+  // fuori schermo. È la fascia del tablet in verticale E dello zoom al 200% su
+  // 1440 — cioè di chi ha bisogno di ingrandire per leggere.
+  test.skip(({ isMobile }) => isMobile === true, 'il profilo telefono è già coperto');
+
+  for (const larghezza of [320, 640, 700, 800, 928, 1024]) {
+    test(`la dashboard non scorre di lato a ${larghezza}px`, async ({ page }) => {
+      await page.setViewportSize({ width: larghezza, height: 900 });
+      await page.goto('/app', { waitUntil: 'networkidle' });
+      await chiudiBanner(page);
+      const eccesso = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(eccesso, `a ${larghezza}px la pagina scorre di ${eccesso}px`).toBeLessThanOrEqual(0);
+    });
+  }
+
+  test('a 800px l’uscita resta dentro lo schermo', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.goto('/app', { waitUntil: 'networkidle' });
+    const esci = page.getByRole('button', { name: /esci/i }).first();
+    await expect(esci).toBeVisible();
+    const box = await esci.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(800);
+  });
+});
+
+test.describe('chiedere aiuto', () => {
+  // Dentro /app c'erano quattro link in tutto e la parola «supporto» non
+  // compariva mai: chi si blocca a metà di un import non aveva modo di
+  // chiedere niente a nessuno. Privacy e termini erano raggiungibili solo
+  // uscendo dall'applicazione.
+
+  test('il piede dell’applicazione offre un contatto', async ({ page }) => {
+    await page.goto('/app', { waitUntil: 'networkidle' });
+    const piede = page.getByRole('contentinfo');
+    await expect(piede).toBeVisible();
+    const testo = await piede.innerText();
+    // O c'è un indirizzo, o si dice apertamente che non è configurato: quello
+    // che non deve esserci è un link che non porta da nessuna parte.
+    expect(/serve aiuto\?|non ancora configurato/i.test(testo)).toBe(true);
+  });
+
+  test('le pagine legali si raggiungono senza uscire', async ({ page }) => {
+    await page.goto('/app', { waitUntil: 'networkidle' });
+    const legali = page.getByRole('navigation', { name: /informazioni legali/i });
+    await expect(legali.getByRole('link', { name: /^privacy$/i })).toBeVisible();
+    await expect(legali.getByRole('link', { name: /^termini$/i })).toBeVisible();
+    await expect(legali.getByRole('link', { name: /^cookie$/i })).toBeVisible();
+  });
+
+  test('il contatto, se c’è, è un indirizzo scrivibile', async ({ page }) => {
+    await page.goto('/app', { waitUntil: 'networkidle' });
+    const link = page.getByRole('contentinfo').locator('a[href^="mailto:"]');
+    if ((await link.count()) === 0) test.skip();
+    // L'oggetto precompilato risparmia all'utente di doversi spiegare da zero.
+    await expect(link.first()).toHaveAttribute('href', /^mailto:.+@.+\?subject=/);
+  });
+});

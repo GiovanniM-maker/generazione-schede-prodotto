@@ -13,6 +13,7 @@ import { countOpenDoubtsAction } from '@/lib/actions/doubts';
 import { signOut } from '@/lib/actions/auth';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
+import { AppFooter } from '@/components/app-footer';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,29 +32,35 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      {/* Le etichette compaiono da `lg`, non da `sm`.
+          Con le parole accanto alle icone la barra vuole 928px, ma comparivano
+          già a 640: fra 640 e 928 il documento scorreva di lato fino a 288px e
+          «Esci» finiva fuori schermo. È la fascia del tablet in verticale E
+          dello zoom al 200% su 1440 — cioè di chi ha bisogno di ingrandire.
+          I test provavano 390 e 1440: il buco stava esattamente in mezzo. */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-brand text-white shadow-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-2 sm:gap-4 sm:px-6">
           <Logo href="/app" className="shrink-0 text-white" />
 
           <div className="flex items-center gap-1 sm:gap-3">
             <Link href="/app">
               <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">Dashboard</span>
+                <span className="sr-only lg:not-sr-only">Dashboard</span>
               </Button>
             </Link>
 
             <Link href="/app/settings/presets">
               <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <Settings className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">Configurazione</span>
+                <span className="sr-only lg:not-sr-only">Configurazione</span>
               </Button>
             </Link>
 
             <Link href="/app/inbox" className="relative">
               <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <Inbox className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">Dubbi</span>
+                <span className="sr-only lg:not-sr-only">Dubbi</span>
               </Button>
               {openDoubts > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
@@ -68,20 +75,20 @@ export default async function AppLayout({
             >
               <Coins className="h-4 w-4 text-amber-500" />
               {credits}
-              <span className="hidden text-gray-400 sm:inline">crediti</span>
+              <span className="hidden text-gray-400 lg:inline">crediti</span>
             </span>
 
             <Link href="/app/billing">
               <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <CreditCard className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">Fatturazione</span>
+                <span className="sr-only lg:not-sr-only">Fatturazione</span>
               </Button>
             </Link>
 
             <form action={signOut}>
               <Button variant="outline" size="sm" type="submit" className="border-white/25 bg-transparent text-white hover:bg-white/10">
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only">Esci</span>
+                <span className="sr-only lg:not-sr-only">Esci</span>
               </Button>
             </form>
           </div>
@@ -90,6 +97,7 @@ export default async function AppLayout({
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <AppFooter />
     </div>
   );
 }

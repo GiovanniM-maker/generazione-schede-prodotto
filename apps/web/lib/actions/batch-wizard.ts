@@ -398,6 +398,10 @@ export interface UploadSpreadsheetResult {
   suggestedSkuHeader: string | null;
   /** Colonna che sembra contenere il nome del prodotto (mai quella dello SKU). */
   suggestedNameHeader: string | null;
+  /** I fogli dell'Excel: vuoto per i CSV. Serve a poterne scegliere un altro. */
+  sheets: string[];
+  /** Il foglio letto. Senza questo, l'utente non sa nemmeno cosa ha importato. */
+  sheet: string | null;
   totalRows: number;
   file: UploadedFileSummary;
 }
@@ -534,6 +538,8 @@ export async function uploadBatchFiles(
       previewRows: parsed.rows.slice(0, 100),
       suggestedSkuHeader: suggestSkuHeader(parsed.headers),
       suggestedNameHeader: suggestNameHeader(parsed.headers, suggestSkuHeader(parsed.headers)),
+      sheets: parsed.sheets ?? [],
+      sheet: parsed.sheet ?? null,
       totalRows: parsed.rows.length,
       file: {
         filename: file.name,
@@ -847,6 +853,7 @@ interface LoadedSpreadsheet {
 async function loadBatchSpreadsheet(
   service: ReturnType<typeof getServiceClient>,
   batchId: string,
+  foglio?: string | null,
 ): Promise<LoadedSpreadsheet | null> {
   const { data: bs } = await service
     .from('batch_sources')
@@ -871,7 +878,7 @@ async function loadBatchSpreadsheet(
   if (error || !blob) return null;
   const buffer = Buffer.from(await blob.arrayBuffer());
   const isCsv = sf.original_filename.toLowerCase().endsWith('.csv');
-  const parsed = isCsv ? parseCsv(buffer) : await parseXlsx(buffer);
+  const parsed = isCsv ? parseCsv(buffer) : await parseXlsx(buffer, { sheet: foglio ?? null });
   return { parsed, sourceItemId: item.id, isCsv, filename: item.filename ?? sf.original_filename };
 }
 
@@ -2295,6 +2302,8 @@ export interface BatchRipreso {
     previewRows: Array<Record<string, string>>;
     suggestedSkuHeader: string | null;
     suggestedNameHeader: string | null;
+    sheets: string[];
+    sheet: string | null;
     totalRows: number;
   } | null;
   /** Quante immagini risultano già caricate. */
@@ -2345,9 +2354,47 @@ export async function riprendiBatch(input: {
           previewRows: caricato.parsed.rows.slice(0, 100),
           suggestedSkuHeader: sku,
           suggestedNameHeader: suggestNameHeader(caricato.parsed.headers, sku),
+          sheets: caricato.parsed.sheets ?? [],
+          sheet: caricato.parsed.sheet ?? null,
           totalRows: caricato.parsed.rows.length,
         }
       : null,
     immagini,
+  });
+}
+
+/**
+ * Rilegge lo spreadsheet del batch scegliendo un altro foglio.
+ *
+ * Il file resta quello caricato: cambia solo quale pagina se ne guarda. Serve
+ * per i workbook che tengono le istruzioni sul primo foglio e il listino sul
+ * secondo — un caso comune che prima finiva con l'import del foglio sbagliato,
+ * senza che nessuno lo dicesse.
+ */
+export async function rileggiFoglio(input: {
+  batchId: string;
+  foglio: string;
+}): Promise<ActionResult<UploadSpreadsheetResult>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+
+  const caricato = await loadBatchSpreadsheet(service, input.batchId, input.foglio);
+  if (!caricato) return fail('Nessun file da rileggere per questo batch');
+  if (caricato.parsed.rows.length === 0) {
+    return fail(`Il foglio «${input.foglio}» non contiene righe dati.`);
+  }
+
+  const sku = suggestSkuHeader(caricato.parsed.headers);
+  return ok<UploadSpreadsheetResult>({
+    kind: 'spreadsheet',
+    headers: caricato.parsed.headers,
+    previewRows: caricato.parsed.rows.slice(0, 100),
+    suggestedSkuHeader: sku,
+    suggestedNameHeader: suggestNameHeader(caricato.parsed.headers, sku),
+    sheets: caricato.parsed.sheets ?? [],
+    sheet: caricato.parsed.sheet ?? null,
+    totalRows: caricato.parsed.rows.length,
+    file: { filename: caricato.filename, sku: null, status: 'ready', problem: null },
   });
 }

@@ -989,7 +989,10 @@ export function OnboardingStepper({
             <span />
           )}
 
-          <div className="flex items-center gap-2">
+          {/* Va a capo sotto i 360px: «Salta per ora» + «Genera profilo»
+              affiancati non entrano, e senza wrap spingevano la pagina fuori
+              dallo schermo di 28px. */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {step === 6 && (
               <Button variant="outline" onClick={() => setStep(7)} disabled={loading}>
                 Salta per ora

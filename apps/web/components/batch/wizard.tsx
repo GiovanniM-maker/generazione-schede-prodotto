@@ -21,6 +21,7 @@ import {
 import {
   listPublishedPresets,
   createBatchV2,
+  rileggiFoglio,
   riprendiBatch,
   getPresetExplorer,
   setBatchSources,
@@ -656,6 +657,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
             previewRows: d.spreadsheet.previewRows,
             suggestedSkuHeader: d.spreadsheet.suggestedSkuHeader,
             suggestedNameHeader: d.spreadsheet.suggestedNameHeader,
+            sheets: d.spreadsheet.sheets,
+            sheet: d.spreadsheet.sheet,
             totalRows: d.spreadsheet.totalRows,
             file: { filename: d.spreadsheet.filename, sku: null, status: 'ready', problem: null },
           });
@@ -675,6 +678,32 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       annullato = true;
     };
   }, [batchDaRiprendere, batchId, passoDaRiprendere]);
+
+  /** Rilegge il file scegliendo un altro foglio dell'Excel. */
+  async function cambiaFoglio(foglio: string) {
+    if (!batchId || !foglio) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await rileggiFoglio({ batchId, foglio });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setSpreadsheetResult(res.data);
+      // Le colonne del foglio precedente non valgono più: si riparte dai
+      // suggerimenti del nuovo, altrimenti la mappatura punta al vuoto.
+      setSkuHeader(res.data.suggestedSkuHeader ?? '');
+      setNameHeader('');
+      setCategoryHeader('');
+      setMapping(() => ({}));
+      setExtraCols(() => ({}));
+    } catch (e) {
+      setError(messaggioDiRete(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // --- Azioni di transizione ---
 
@@ -1056,6 +1085,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           imagesResult={imagesResult}
           uploadProgress={uploadProgress}
           onUploadSpreadsheet={doUploadSpreadsheet}
+          onCambiaFoglio={cambiaFoglio}
           onUploadImages={doUploadImages}
           skuDelimiter={skuDelimiter}
           onChangeDelimiter={changeSkuDelimiter}
@@ -1593,6 +1623,7 @@ function Step5({
   imagesResult,
   uploadProgress,
   onUploadSpreadsheet,
+  onCambiaFoglio,
   onUploadImages,
   skuDelimiter,
   onChangeDelimiter,
@@ -1605,6 +1636,7 @@ function Step5({
   imagesResult: UploadImagesResult | null;
   uploadProgress: { done: number; total: number } | null;
   onUploadSpreadsheet: (file: File) => void;
+  onCambiaFoglio: (foglio: string) => void;
   onUploadImages: (files: FileList | File[]) => void;
   skuDelimiter: '_' | '-' | '.' | ' ' | 'none';
   onChangeDelimiter: (d: '_' | '-' | '.' | ' ' | 'none') => void;
@@ -1638,6 +1670,33 @@ function Step5({
               <div className="flex items-center gap-2 text-emerald-700">
                 <Check className="h-4 w-4" /> {spreadsheetResult.file.filename} — {spreadsheetResult.totalRows} righe
               </div>
+              {/* Excel con più fogli: si dice QUALE è stato letto e si lascia
+                  scegliere. Un workbook con «Istruzioni» prima e «Listino»
+                  dopo finiva per importare le istruzioni, in silenzio. */}
+              {spreadsheetResult.sheets.length > 1 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <Label htmlFor="foglio-excel">
+                    Questo file ha {spreadsheetResult.sheets.length} fogli: sto leggendo «
+                    {spreadsheetResult.sheet}»
+                  </Label>
+                  <Select
+                    id="foglio-excel"
+                    value={spreadsheetResult.sheet ?? ''}
+                    onChange={(e) => onCambiaFoglio(e.target.value)}
+                    disabled={busy}
+                  >
+                    {spreadsheetResult.sheets.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="mt-1.5 text-xs text-amber-800">
+                    Se i prodotti sono su un altro foglio, scegliilo qui: l’anteprima
+                    qui sotto si aggiorna.
+                  </p>
+                </div>
+              )}
               <PreviewTable headers={spreadsheetResult.headers} rows={spreadsheetResult.previewRows} />
             </div>
           )}
