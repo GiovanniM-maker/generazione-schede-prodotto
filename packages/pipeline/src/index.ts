@@ -3,3 +3,4 @@ export * from './generate.js';
 export * from './enqueue.js';
 export * from './trace.js';
 export * from './credits.js';
+export * from './reconcile.js';
