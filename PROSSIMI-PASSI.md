@@ -257,16 +257,43 @@ azioni della card batch e i comandi dell'onboarding): adesso vanno a capo.
 permanenti su quelle larghezze — il difetto stava esattamente fra le due che
 provavamo.
 
-### 2.8 La pagina morta raggiungibile — 2 ore
+### 2.8 ~~La pagina morta raggiungibile~~ — **fatto**
 
-`/app/batches/[id]/mapping` è un relitto della prima versione: mostra *sempre*
-«Dati di anteprima non disponibili» perché legge da `sessionStorage` scritto solo
-da `new-batch-flow.tsx`, **un componente che nessuno importa più**. E dice,
-cablato nel codice, «i campi del preset **Moda**» su un prodotto multi-settore.
+`/app/batches/[id]/mapping` era un relitto della prima versione: mostrava
+*sempre* «Dati di anteprima non disponibili» perché leggeva da `sessionStorage`
+scritto solo da `new-batch-flow.tsx`, un componente che nessuno importava più.
+È stata tolta col wizard (§2.4), insieme a `mapping-editor`, `new-batch-flow` e
+alle tre server action rimaste senza chiamanti — che in Next non sono codice
+morto ma superficie di rete viva. Un batch fermo in `mapping` ora torna nel
+wizard, al suo passo.
 
-Non sarebbe grave se fosse irraggiungibile — ma il passo 6 del wizard mette il
-batch in stato `mapping`, quindi un batch abbandonato lì **compare in dashboard
-con «Apri» che porta nel vicolo cieco**.
+**Ma il difetto non era di quella pagina: era del modo di scriverle.** Cercandolo
+altrove è saltato fuori identico in **altre quattro** — `input`, `processing`,
+`results`, `sample`. Tutte controllavano che ci fosse una sessione, nessuna che
+il batch esistesse o fosse tuo. I dati non uscivano (le query passano dalle
+regole di accesso del database, e un batch altrui non restituisce righe) ma la
+pagina si disegnava lo stesso: intestazione, tabella vuota e un pulsante
+«Configura tono e campione» che portava avanti dentro un batch inesistente. Zero
+prodotti di un batch che non c'è e zero prodotti di un batch vuoto sono la
+stessa risposta.
+
+Ora c'è una guardia sola (`lib/batch-page.ts`), chiamata **prima** di ogni altra
+lettura, e una pagina che dice cosa è successo — «questo lavoro non c'è più»,
+con le tre spiegazioni possibili e il collegamento per tornare indietro. Le
+pagine mostrano anche il **nome del batch** nel sottotitolo: dicevano
+«Risultati» e basta, senza dire di cosa.
+
+Il test che conta non guarda le quattro pagine di oggi: verifica che *ogni*
+pagina sotto `batches/[batchId]` chiami la guardia, e che la chiami prima di
+leggere altro. È lì che una regola così si perde — non quando la si scrive, ma
+sei mesi dopo, con la quinta pagina.
+
+**Una precisazione onesta:** quella pagina arriva con stato HTTP 200, non 404.
+Il guscio dell'applicazione è dinamico e la risposta è già partita quando
+`notFound()` scatta. Per chi la usa non cambia niente — vede la pagina giusta —
+e sono rotte dietro l'accesso, quindi nessun motore di ricerca le guarda.
+Sistemarlo vorrebbe dire un giro al database nel middleware a ogni apertura: un
+costo vero per un codice che qui non legge nessuno.
 
 ### 2.9 ~~Il selettore del foglio Excel~~ — **fatto**
 
@@ -430,13 +457,18 @@ prova fatta apposta per romperle.
 
 ## 7. Ordine consigliato
 
-1. **Le bugie a schermo** (§2.1) — mezza giornata. Sono le uniche voci che
-   rendono il prodotto non lanciabile *oggi*, indipendentemente da tutto il resto.
-2. **Il nome dei prodotti** (§2.2) — mezza giornata. Un catalogo di codici a
-   barre non è un catalogo.
-3. **Il wizard** (§2.4) — 2-3 giorni. Il difetto trovato da tre revisioni su sei.
-4. ~~**Poter comprare** (§2.5)~~ — fatto. Restano solo i prezzi da decidere.
-5. ~~**I ruoli** (§2.3)~~ — fatto.
-6. **Il resto del §2** — circa 2 giorni in totale.
+**Il §2 è chiuso: 2.1 → 2.9, tutte fatte.** Era la lista di ciò che rendeva il
+prodotto non lanciabile; adesso non c'è più niente lì dentro che lo impedisca.
+
+Restano tre cose, e non sono codice — le decide chi vende:
+
+1. **I prezzi veri.** Quelli in archivio sono segnaposto (29,00 / 99,00 /
+   199,00 €). Stanno nel database, quindi si cambiano senza un rilascio:
+   `update billing_products set price_cents = … where key = …`.
+2. **Stripe in produzione:** chiavi live e webhook.
+3. **Le variabili sul deploy:** `LEGAL_ENTITY_NAME`, `LEGAL_ADDRESS`,
+   `LEGAL_EMAIL`, `LEGAL_CITY`, `SUPPORT_EMAIL`, e l'SMTP per le email di
+   accesso. Finché mancano, le pagine legali si dichiarano non valide e il piede
+   dice che l'assistenza non è configurata: è voluto, meglio del silenzio.
 
 Poi si lancia, e §3 si fa con gli utenti veri davanti.

@@ -1,4 +1,5 @@
 import { requireUser } from '@/lib/auth';
+import { batchDiPagina } from '@/lib/batch-page';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ResultsTable, type ResultRow, type GenContent } from '@/components/results-table';
 import { ImportIssuesBanner } from '@/components/import-issues-banner';
@@ -55,6 +56,7 @@ export default async function ResultsPage({
 }) {
   await requireUser();
   const { batchId } = await params;
+  const batch = await batchDiPagina(batchId);
   const supabase = await createSupabaseServerClient();
 
   const { data: products } = await supabase
@@ -210,8 +212,8 @@ export default async function ResultsPage({
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Risultati</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Rivedi, modifica e approva le schede generate, poi esporta il
-            catalogo.
+            {batch.name} — rivedi, modifica e approva le schede generate, poi
+            esporta il catalogo.
           </p>
         </div>
         <ReanalyzeButton batchId={batchId} />

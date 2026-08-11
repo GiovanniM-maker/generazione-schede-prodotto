@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
+import { batchDiPagina } from '@/lib/batch-page';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { InputTable, type InputProduct } from '@/components/input-table';
@@ -33,6 +34,9 @@ export default async function InputPage({
 }) {
   await requireUser();
   const { batchId } = await params;
+  // Prima di tutto: il batch esiste ed è tuo? Zero prodotti di un batch
+  // inesistente e zero prodotti di un batch vuoto sono la stessa risposta.
+  const batch = await batchDiPagina(batchId);
   const supabase = await createSupabaseServerClient();
 
   const { data } = await supabase
@@ -101,7 +105,8 @@ export default async function InputPage({
             Revisione dei dati
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Controlla i prodotti importati prima di generare le schede.
+            {batch.name} — controlla i prodotti importati prima di generare le
+            schede.
           </p>
         </div>
         <Link href={`/app/batches/${batchId}/sample`}>
