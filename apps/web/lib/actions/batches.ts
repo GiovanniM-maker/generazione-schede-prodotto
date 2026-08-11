@@ -8,9 +8,9 @@ import {
   groupVariants,
   logWrite,
   matchHeaders,
-  mustWrite,
   parseCsv,
   parseXlsx,
+  writeOrThrow,
   type ColumnMapping,
 } from '@app/core';
 import { STORAGE_BUCKETS } from '@app/config';
@@ -134,7 +134,7 @@ export async function uploadAndParseAction(formData: FormData): Promise<ParsePre
     }
   }
 
-  await mustWrite('batches.update', service
+  await writeOrThrow('batches.update', service
     .from('batches')
     .update({ status: 'mapping', source_type: ext === '.csv' ? 'csv' : 'xlsx' })
     .eq('id', batchId));
@@ -194,8 +194,10 @@ export async function confirmMappingAndImportAction(input: {
   const built = buildProducts(parsed.rows, input.mapping, sourceType);
   const groups = groupVariants(built);
 
-  // Pulisci import precedenti dello stesso batch (re-import).
-  await mustWrite('products.delete', service.from('products').delete().eq('batch_id', input.batchId));
+  // Pulisci import precedenti dello stesso batch (re-import). Se la pulizia
+  // non passa i nuovi prodotti sbattono contro la unique (batch, sku) e
+  // l'import finisce a zero dichiarando di essere riuscito.
+  await writeOrThrow('products.delete', service.from('products').delete().eq('batch_id', input.batchId));
 
   let valid = 0;
   let invalid = 0;
@@ -229,7 +231,7 @@ export async function confirmMappingAndImportAction(input: {
 
     // Evidenza per ogni fatto (provenienza).
     if (p.facts.length > 0) {
-      await mustWrite('attribute_evidence.insert', service.from('attribute_evidence').insert(
+      await writeOrThrow('attribute_evidence.insert', service.from('attribute_evidence').insert(
         p.facts.map((f) => ({
           organization_id: orgId,
           product_id: productRow.id,
@@ -244,7 +246,7 @@ export async function confirmMappingAndImportAction(input: {
 
     // Varianti.
     if (group.variants.length > 0) {
-      await mustWrite('product_variants.insert', service.from('product_variants').insert(
+      await writeOrThrow('product_variants.insert', service.from('product_variants').insert(
         group.variants.map((v) => ({
           product_id: productRow.id,
           external_id: v.externalId,
@@ -257,7 +259,7 @@ export async function confirmMappingAndImportAction(input: {
     }
   }
 
-  await mustWrite('batches.update', service
+  await writeOrThrow('batches.update', service
     .from('batches')
     .update({
       status: 'input_review',
@@ -267,7 +269,7 @@ export async function confirmMappingAndImportAction(input: {
     })
     .eq('id', input.batchId));
 
-  await mustWrite('batch_imports.insert', service.from('batch_imports').insert({
+  await writeOrThrow('batch_imports.insert', service.from('batch_imports').insert({
     batch_id: input.batchId,
     source_file_id: input.sourceFileId,
     detected_headers_json: parsed.headers,

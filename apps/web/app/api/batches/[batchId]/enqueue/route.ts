@@ -7,8 +7,8 @@ import { getServiceClient } from '@/lib/supabase/service';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import {
   logWrite,
-  mustWrite,
 } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 // L'estrazione visiva può leggere fino a 50 prodotti: diamo tempo alla funzione.
 export const maxDuration = 300;
@@ -33,7 +33,14 @@ export async function POST(
   // Opt-in notifica email: salva il destinatario (email dell'account) sul batch.
   // A fine generazione il drain invierà l'avviso.
   if (body.notify && user.email) {
-    await mustWrite('batches.update', service.from('batches').update({ notify_email: user.email, notified_at: null }).eq('id', batchId));
+    // L'utente ha spuntato "avvisami": se il destinatario non si salva, la
+    // mail non parte e nessuno se ne accorge finche' non la aspetta invano.
+    await writeOrTrace(
+      service,
+      'batches.update(notifica)',
+      service.from('batches').update({ notify_email: user.email, notified_at: null }).eq('id', batchId),
+      { organizationId: orgId, batchId, refId: batchId },
+    );
   }
 
   try {
@@ -68,7 +75,12 @@ export async function POST(
         );
       }
       // Genuinamente 0 eleggibili pre-elaborazione: torna alla verifica dati.
-      await mustWrite('batches.update', service.from('batches').update({ status: 'input_review' }).eq('id', batchId));
+      await writeOrTrace(
+        service,
+        'batches.update(nessun_eleggibile)',
+        service.from('batches').update({ status: 'input_review' }).eq('id', batchId),
+        { organizationId: orgId, batchId, refId: batchId },
+      );
       return NextResponse.json(
         {
           error:
@@ -95,8 +107,14 @@ export async function POST(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Errore';
     const status = message.startsWith('INSUFFICIENT_CREDITS') ? 402 : 500;
-    // Ripristina lo stato per consentire un nuovo tentativo.
-    await mustWrite('batches.update', service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId));
+    // Ripristina lo stato per consentire un nuovo tentativo: se non passa, il
+    // batch resta bloccato e l'utente non puo' nemmeno riprovare.
+    await writeOrTrace(
+      service,
+      'batches.update(ripristino)',
+      service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId),
+      { organizationId: orgId, batchId, refId: batchId },
+    );
     return NextResponse.json({ error: message }, { status });
   }
 }

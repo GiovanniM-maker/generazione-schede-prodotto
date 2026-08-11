@@ -4,7 +4,8 @@ import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
 import { buildBatchExport } from '@/lib/exporter';
-import { logWrite, mustWrite } from '@app/core';
+import { logWrite } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 // L'export legge tutte le generazioni del batch e costruisce CSV/XLSX: su
 // cataloghi grandi supera il timeout predefinito (10s) → serve più margine.
@@ -42,7 +43,12 @@ export async function POST(
   // exports.format è un enum (csv/xlsx): gli export piattaforma sono file CSV,
   // la piattaforma va in mapping_json.
   const storedFormat = result.extension === 'xlsx' ? 'xlsx' : 'csv';
-  await mustWrite('exports.insert', service.from('exports').insert({
+  // Il file e' gia' in storage e viene restituito: qui si perde solo la riga
+  // nello storico degli export, non il lavoro.
+  await writeOrTrace(
+    service,
+    'exports.insert',
+    service.from('exports').insert({
     organization_id: orgId,
     batch_id: batchId,
     format: storedFormat,
@@ -50,7 +56,9 @@ export async function POST(
     storage_bucket: STORAGE_BUCKETS.exports,
     storage_path: path,
     row_count: result.rowCount,
-  }));
+    }),
+    { organizationId: orgId, batchId, refId: batchId },
+  );
 
   const { data: signed } = await service.storage
     .from(STORAGE_BUCKETS.exports)

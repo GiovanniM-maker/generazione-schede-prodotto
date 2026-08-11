@@ -313,7 +313,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
-  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
+  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
@@ -626,6 +626,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       valid: res.data.imported - res.data.failed,
       invalid: res.data.failed,
       imageOnly: 0,
+      factsInsertErrors: 0,
       categoriesMatched: 0,
       unmatchedCategories: [],
     });
@@ -2194,7 +2195,7 @@ function Step9({
   categoryFromFile,
 }: {
   products: BatchProductRow[] | null;
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   batchId: string;
   hasImages: boolean;
   analyzing: boolean;
@@ -2263,6 +2264,12 @@ function Step9({
           <Badge tone="green">{importSummary.valid} validi</Badge>
           <Badge tone="amber">{importSummary.invalid} da rivedere</Badge>
           {importSummary.imageOnly > 0 && <Badge tone="violet">{importSummary.imageOnly} solo-immagini</Badge>}
+          {/* Prodotti entrati senza i loro dati: il database ha rifiutato la
+              scrittura. Prima finiva solo nella telemetria e l'utente scopriva
+              il buco a generazione fatta. */}
+          {importSummary.factsInsertErrors > 0 && (
+            <Badge tone="red">{importSummary.factsInsertErrors} senza dati (scrittura rifiutata)</Badge>
+          )}
           {importSummary.categoriesMatched > 0 && (
             <Badge tone="green">{importSummary.categoriesMatched} collegati a categoria</Badge>
           )}
@@ -2457,7 +2464,7 @@ function Step11({
   notifyByEmail,
   setNotifyByEmail,
 }: {
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   notifyByEmail: boolean;
   setNotifyByEmail: (v: boolean) => void;
 }) {

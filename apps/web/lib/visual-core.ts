@@ -15,10 +15,10 @@ import { STORAGE_BUCKETS } from '@app/config';
 import {
   NON_ADDITIONAL_FIELDS,
   logWrite,
-  mustWrite,
 } from '@app/core';
 import type { VisualExtractionImage, VisualFieldSpec } from '@app/core';
 import type { Json } from '@app/database';
+import { writeOrTrace } from '@app/pipeline';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getServerEnv } from '@/lib/env.server';
@@ -480,11 +480,17 @@ export async function runVisualExtractionCore(
     if (classification) {
       const catId = matchCategoryId(classification.value);
       if (catId) {
-        await mustWrite('products.update', service
-          .from('products')
-          .update({ category_id: catId, category: categoryNameById.get(catId) ?? null })
-          .eq('id', productId)
-          .is('category_id', null));
+        // Senza categoria i fatti successivi non hanno un vocabolario su cui
+        // filtrare: il prodotto finisce senza attributi da estrarre.
+        await writeOrTrace(
+          service,
+          'products.update(categoria_da_foto)',
+          service.from('products')
+            .update({ category_id: catId, category: categoryNameById.get(catId) ?? null })
+            .eq('id', productId)
+            .is('category_id', null),
+          { organizationId: orgId, batchId: input.batchId, refId: productId },
+        );
         categoryByProduct.set(productId, catId);
       }
     }
@@ -594,11 +600,17 @@ export async function runVisualExtractionCore(
       .filter(([, set]) => set.size >= 2)
       .map(([pid]) => pid);
     if (nowEligible.length > 0) {
-      await mustWrite('products.update', service
-        .from('products')
-        .update({ verification_status: 'eligible' })
-        .in('id', nowEligible)
-        .eq('verification_status', 'excluded'));
+      // Prodotti diventati generabili grazie ai fatti letti dalle foto: se
+      // l'aggiornamento salta restano 'excluded' e nessuno li genera.
+      await writeOrTrace(
+        service,
+        'products.update(eleggibili_da_foto)',
+        service.from('products')
+          .update({ verification_status: 'eligible' })
+          .in('id', nowEligible)
+          .eq('verification_status', 'excluded'),
+        { organizationId: orgId, batchId: input.batchId, refId: null },
+      );
     }
   } catch (e) {
     console.warn('[visual] ricalcolo eleggibilità non riuscito:', e);

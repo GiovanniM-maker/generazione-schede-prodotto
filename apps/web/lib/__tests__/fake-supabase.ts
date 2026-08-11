@@ -53,6 +53,25 @@ export class FakeDb {
   /** Ogni operazione eseguita, per verificare quante richieste fa il codice. */
   readonly calls: Array<{ table: string; op: string; rows: number }> = [];
 
+  /**
+   * Guasti su richiesta: `tabella|op` → messaggio d'errore.
+   *
+   * Serve a provare la famiglia di bug piu' insidiosa di questo progetto: la
+   * scrittura che fallisce e l'applicazione che dice "fatto". Senza poter far
+   * fallire una scrittura a comando, quel comportamento non e' verificabile.
+   */
+  private readonly guasti = new Map<string, string>();
+
+  /** Fa fallire quell'operazione su quella tabella, come farebbe Postgres. */
+  guasta(table: string, op: 'insert' | 'update' | 'delete', messaggio: string): void {
+    this.guasti.set(`${table}|${op}`, messaggio);
+  }
+
+  private guasto(table: string, op: string): { message: string } | null {
+    const m = this.guasti.get(`${table}|${op}`);
+    return m ? { message: m } : null;
+  }
+
   constructor(opts: FakeDbOptions = {}) {
     this.schema = opts.schema ?? {};
     this.newId = opts.newId ?? (() => `id-${++this.seq}`);
@@ -145,6 +164,8 @@ export class FakeDb {
 
   // --- usati da FakeQuery -------------------------------------------------
   _insert(table: string, rows: Row[]): Postgrestish<Row[] | null> {
+    const ko = this.guasto(table, 'insert');
+    if (ko) return { data: null, error: ko };
     const target = (this.tables[table] ??= []);
     const prepared: Row[] = [];
     for (const r of rows) {
@@ -164,6 +185,8 @@ export class FakeDb {
   }
 
   _update(table: string, patch: Row, filters: Filter[]): Postgrestish<Row[] | null> {
+    const ko = this.guasto(table, 'update');
+    if (ko) return { data: null, error: ko };
     const target = (this.tables[table] ??= []);
     const matched = target.filter((r) => filters.every((f) => f(r)));
     const updated: Row[] = [];
@@ -179,6 +202,8 @@ export class FakeDb {
   }
 
   _delete(table: string, filters: Filter[]): Postgrestish<Row[] | null> {
+    const ko = this.guasto(table, 'delete');
+    if (ko) return { data: null, error: ko };
     const target = (this.tables[table] ??= []);
     const rimosse = target.filter((r) => filters.every((f) => f(r)));
     this.tables[table] = target.filter((r) => !filters.every((f) => f(r)));

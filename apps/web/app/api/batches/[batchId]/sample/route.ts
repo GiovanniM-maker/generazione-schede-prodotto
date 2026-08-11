@@ -9,8 +9,8 @@ import { checkAiRateLimit } from '@/lib/rate-limit';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import {
   logWrite,
-  mustWrite,
 } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 // Il campione legge le etichette dalle foto (vision) e poi genera il testo:
 // ben oltre il timeout predefinito (10s) → serve margine, altrimenti la
@@ -37,7 +37,12 @@ export async function POST(
   const providers = createAiProviders(env);
 
   try {
-    await mustWrite('batches.update', service.from('batches').update({ status: 'sample_pending' }).eq('id', batchId));
+    await writeOrTrace(
+      service,
+      'batches.update(campione_in_corso)',
+      service.from('batches').update({ status: 'sample_pending' }).eq('id', batchId),
+      { organizationId: orgId, batchId, refId: batchId },
+    );
 
     // Estrazione visiva automatica sul prodotto campione: se ha immagini e non è
     // ancora stato letto, l'AI legge le etichette così il campione ha dei fatti
@@ -62,7 +67,14 @@ export async function POST(
     }
 
     const sample = await generateSample({ client: service, providers, env }, batchId);
-    await mustWrite('batches.update', service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId));
+    // Il campione e' gia' stato pagato al modello: rispondere 500 lo butterebbe
+    // via. Ma senza questo stato il wizard non lascia passare al passo dopo.
+    await writeOrTrace(
+      service,
+      'batches.update(campione_pronto)',
+      service.from('batches').update({ status: 'sample_ready' }).eq('id', batchId),
+      { organizationId: orgId, batchId, refId: batchId },
+    );
     await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: orgId,
       user_id: user.id,
@@ -72,7 +84,12 @@ export async function POST(
     }));
     return NextResponse.json(sample);
   } catch (err) {
-    await mustWrite('batches.update', service.from('batches').update({ status: 'tone_setup' }).eq('id', batchId));
+    await writeOrTrace(
+      service,
+      'batches.update(campione_ripristino)',
+      service.from('batches').update({ status: 'tone_setup' }).eq('id', batchId),
+      { organizationId: orgId, batchId, refId: batchId },
+    );
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Errore generazione campione' },
       { status: 500 },

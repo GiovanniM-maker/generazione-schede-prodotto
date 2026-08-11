@@ -191,12 +191,15 @@ export async function saveOutputEdit(input: {
     // (prodotto, campo): teniamo solo l'ultima, così ri-modifiche successive
     // non accumulano duplicati (BUG audit #1, difesa lato server).
     const fieldKeys = [...new Set(rows.map((r) => r.field_key))];
-    await mustWrite('output_corrections.delete', service
+    // Se la pulizia non passa, le vecchie correzioni restano e si sommano
+    // alle nuove: il prompt migliorato riceverebbe istruzioni contraddittorie.
+    const ripulite = await mustWrite('output_corrections.delete', service
       .from('output_corrections')
       .delete()
       .eq('product_id', input.productId)
       .eq('applied_to_prompt', false)
       .in('field_key', fieldKeys));
+    if (!ripulite.ok) return fail(`Correzioni precedenti non rimosse: ${ripulite.error}`);
     const registrate = await mustWrite(
       'output_corrections.insert',
       service.from('output_corrections').insert(rows),
@@ -244,13 +247,14 @@ export async function saveAttributeFeedbackAction(input: {
 
   const fieldKey = `${ATTR_FIELD_PREFIX}${input.attributeId}`;
   // Un solo feedback in sospeso per (prodotto, attributo): sostituisci il vecchio.
-  await mustWrite('output_corrections.delete', service
+  const ripulito = await mustWrite('output_corrections.delete', service
     .from('output_corrections')
     .delete()
     .eq('product_id', input.productId)
     .eq('applied_to_prompt', false)
     .eq('field_key', fieldKey));
-  await mustWrite('output_corrections.insert', service.from('output_corrections').insert({
+  if (!ripulito.ok) return fail(`Feedback precedente non rimosso: ${ripulito.error}`);
+  const registrato = await mustWrite('output_corrections.insert', service.from('output_corrections').insert({
     organization_id: scope.orgId,
     batch_id: scope.batchId,
     product_id: input.productId,
@@ -263,6 +267,9 @@ export async function saveAttributeFeedbackAction(input: {
     reason: feedback.slice(0, 1000),
     created_by: user.id,
   }));
+  // "Feedback salvato" con niente a database e' il tipo di bugia che questo
+  // giro di lavoro esiste per togliere.
+  if (!registrato.ok) return fail(`Feedback non salvato: ${registrato.error}`);
   return ok({ recorded: true });
 }
 

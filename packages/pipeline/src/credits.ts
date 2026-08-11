@@ -11,17 +11,17 @@
 //   - rimborso di una cache hit       → addebitato per zero lavoro
 //   - consumo del credito riservato   → credito bloccato per sempre
 //
-// `console.error` non basta: nel worker nessuno legge quei log. Un fallimento
-// qui lascia una riga in `app_events` con nome `credit_ledger_failed`, che è
-// interrogabile e si vede.
-//
 // Dove c'è un utente davanti allo schermo la regola resta un'altra: si
 // interrompe e glielo si dice (vedi il webhook Stripe, che risponde 500 così
-// Stripe riprova).
+// Stripe riprova). Qui siamo nel worker, dove non c'è nessuno: vale
+// `writeOrTrace`, cioè una riga interrogabile in `app_events`.
 // ---------------------------------------------------------------------------
 
-import { mustWrite } from '@app/core';
-import type { TypedClient, Json, Database } from '@app/database';
+import type { TypedClient, Database } from '@app/database';
+import { writeOrTrace, type TraceContext } from './trace.js';
+
+/** I fallimenti del registro crediti hanno un nome tutto loro: si notano. */
+export const EVENTO_CREDITI_FALLITO = 'credit_ledger_failed';
 
 /** Le tre funzioni che spostano crediti. Le altre `rpc` sono sole letture. */
 export type FunzioneCrediti =
@@ -29,12 +29,7 @@ export type FunzioneCrediti =
   | 'release_credits'
   | 'consume_reserved_credit';
 
-export interface CreditOpContext {
-  organizationId: string;
-  /** A che cosa si riferisce l'operazione: job, batch, prodotto. */
-  refId?: string | null;
-  batchId?: string | null;
-}
+export type CreditOpContext = TraceContext;
 
 /**
  * Esegue un'operazione sul registro crediti e, se fallisce, lascia una traccia
@@ -50,24 +45,9 @@ export async function creditOp<F extends FunzioneCrediti>(
   args: Database['public']['Functions'][F]['Args'],
   ctx: CreditOpContext,
 ): Promise<boolean> {
-  const esito = await mustWrite(`crediti.${fn}`, client.rpc(fn, args));
-  if (esito.ok) return true;
-
-  // La segnalazione non deve poter far cadere il chiamante: se anche questa
-  // fallisce resta il console.error di `mustWrite`.
-  await mustWrite(
-    'app_events.insert(credit_ledger_failed)',
-    client.from('app_events').insert({
-      organization_id: ctx.organizationId,
-      event_name: 'credit_ledger_failed',
-      batch_id: ctx.batchId ?? null,
-      metadata_json: {
-        funzione: fn,
-        errore: esito.error,
-        riferimento: ctx.refId ?? null,
-        argomenti: args,
-      } as unknown as Json,
-    }),
-  );
-  return false;
+  return writeOrTrace(client, `crediti.${fn}`, client.rpc(fn, args), {
+    ...ctx,
+    evento: EVENTO_CREDITI_FALLITO,
+    dettagli: { funzione: fn, argomenti: args },
+  });
 }

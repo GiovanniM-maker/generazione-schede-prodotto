@@ -11,7 +11,7 @@ non a memoria.
 
 | | |
 |---|---|
-| Test | **355** unitari + **100** con browser vero, verdi |
+| Test | **366** unitari + **100** con browser vero, verdi |
 | Typecheck / lint | puliti su tutto il repo |
 | Build | OK |
 | Job falliti in coda | 0 |
@@ -28,9 +28,9 @@ Sul database di produzione: 3 organizzazioni, 11 preset, 51 categorie,
 | strato | test | note |
 |---|---|---|
 | `packages/core` | 210 | logica pura: SKU, qualità, prompt, export, sicurezza URL |
-| `apps/web` | 108 | **server action** e rotte API — a inizio agosto erano 0 |
+| `apps/web` | 111 | **server action** e rotte API — a inizio agosto erano 0 |
 | `packages/ai` | 14 | provider, traduzioni, miglioramento prompt |
-| `packages/pipeline` | 18 | accodamento, generazione, registro crediti |
+| `packages/pipeline` | 26 | accodamento, generazione, crediti, tracce |
 | `apps/worker` | 5 | fallimenti e retry |
 | interfaccia (Playwright) | 100 | pagine pubbliche, wizard, risultati — su desktop e telefono |
 
@@ -88,6 +88,26 @@ non accredita due volte); i rimborsi nel worker, dove non c'è nessuno a cui
 dirlo, lasciano una riga `credit_ledger_failed` in `app_events` — perché nel
 worker i log del server non li legge nessuno.
 
+### Quattro casi, non due
+`mustWrite` con il risultato buttato via è `logWrite` che finge di controllare:
+sembra un presidio e non lo è. Erano 58 punti. Rivisti uno per uno, la regola
+non è "quanto conta la scrittura" ma **chi può farci qualcosa**:
+
+| situazione | cosa si fa | quanti |
+|---|---|---|
+| utente in attesa, la scrittura *è* il lavoro chiesto | errore vero (`mustWrite` + `fail`, o `writeOrThrow`) | 22 |
+| utente in attesa, il lavoro è riuscito e resta uno strascico | `writeOrTrace` | 6 |
+| background: worker, cron, code | `writeOrTrace` | 27 |
+| davvero accessoria, e niente da fare | resta, **con scritto perché** | 3 |
+
+`writeOrTrace` lascia una riga `write_failed` in `app_events`, interrogabile.
+Un `console.error` alle tre di notte nei log di Vercel non lo legge nessuno —
+ed era l'unica traccia in tutta la parte in background.
+
+Un effetto collaterale che si vede: l'import ora **dice** quanti prodotti sono
+entrati senza i loro dati. Prima il conteggio finiva solo nella telemetria e
+chi importava lo scopriva a generazione fatta.
+
 ### I vincoli dello schema in un posto solo
 Enum, unicità e cancellazioni a cascata sono definiti una volta e condivisi dai
 test. Ripeterli file per file è il modo in cui in questo progetto sono già nati
@@ -99,11 +119,10 @@ dei bug: la stessa regola scritta due volte, e le due copie che divergono.
 
 ### P1 — Robustezza
 
-1. **Scritture solo loggate: verificate una per una.** Sono 20, e sono *tutte*
-   `app_events.insert`, cioè telemetria pura: il log è la scelta giusta.
-   Restano invece **58 `mustWrite` il cui esito nessuno legge** — al sito della
-   chiamata sono indistinguibili da `logWrite`, ma il nome promette un
-   controllo che non c'è. Da rivedere una per una.
+1. ~~Scritture il cui esito nessuno legge~~ — **chiuse**. I 20 `logWrite` sono
+   tutti `app_events.insert`, telemetria pura: il log è la scelta giusta. I 58
+   `mustWrite` con l'esito scartato sono stati rivisti uno per uno e ne restano
+   **3**, ognuno con scritto accanto perché. Vedi §3.
 2. **Selettore del foglio Excel.** Il ripiego automatico c'è; manca la scelta
    esplicita quando i fogli sono più d'uno.
 3. **Test end-to-end con AI reale** su ogni sorgente (Excel, foto, URL, misto).

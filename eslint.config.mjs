@@ -53,9 +53,9 @@ export default tseslint.config(
           // QUALSIASI punto dell'espressione attesa — compresa dentro un
           // Promise.all — e si esclude solo ciò che passa già dagli helper.
           selector:
-            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite)$/])) CallExpression[callee.property.name=/^(insert|update|upsert|delete)$/]",
+            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite|writeOrTrace|creditOp)$/])) CallExpression[callee.property.name=/^(insert|update|upsert|delete)$/]",
           message:
-            "Scrittura al database con l'errore ignorato. Usa `const { error } = await ...` e controllalo, oppure `mustWrite`/`writeOrThrow`/`logWrite` da @app/core.",
+            "Scrittura al database con l'errore ignorato. Usa `const { error } = await ...` e controllalo, oppure uno degli helper: `mustWrite`/`writeOrThrow`/`logWrite` (@app/core), `writeOrTrace`/`creditOp` (@app/pipeline).",
         },
         {
           // `rpc` non passava dalla regola sopra, e sono proprio le funzioni
@@ -63,9 +63,9 @@ export default tseslint.config(
           // rimborso di una generazione fallita, consumo del credito riservato.
           // Un errore ignorato lì significa soldi che non tornano.
           selector:
-            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite)$/])) CallExpression[callee.property.name='rpc']",
+            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite|writeOrTrace|creditOp)$/])) CallExpression[callee.property.name='rpc']",
           message:
-            "Chiamata `rpc` con l'errore ignorato. Sono le funzioni del registro crediti: usa `mustWrite`/`writeOrThrow`/`logWrite` da @app/core.",
+            "Chiamata `rpc` con l'errore ignorato. Sono le funzioni del registro crediti: usa `creditOp` da @app/pipeline.",
         },
       ],
     },
