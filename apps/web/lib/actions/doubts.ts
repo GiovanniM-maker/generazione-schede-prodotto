@@ -105,14 +105,17 @@ export async function answerDoubtAction(input: {
 
   if (input.action !== 'dismiss' && doubt.product_id && doubt.attribute_id) {
     const newValue = input.action === 'correct' ? (input.value ?? '').trim() : (doubt.suggested_value ?? '');
-    await mustWrite('product_attribute_values.update', service
+    // E' la risposta dell'utente al dubbio: se non arriva a database, il
+    // dubbio risulta risolto e il valore resta quello sbagliato.
+    const corretto = await mustWrite('product_attribute_values.update', service
       .from('product_attribute_values')
       .update({ value_json: newValue as unknown as Json, status: 'confirmed', confidence: 1 })
       .eq('product_id', doubt.product_id)
       .eq('attribute_id', doubt.attribute_id));
+    if (!corretto.ok) return { ok: false, error: `Valore non aggiornato: ${corretto.error}` };
   }
 
-  await mustWrite('ai_doubts.update', service
+  const chiuso = await mustWrite('ai_doubts.update', service
     .from('ai_doubts')
     .update({
       status: input.action === 'dismiss' ? 'dismissed' : 'answered',
@@ -121,6 +124,7 @@ export async function answerDoubtAction(input: {
       answered_by: user.id,
     })
     .eq('id', input.doubtId));
+  if (!chiuso.ok) return { ok: false, error: `Dubbio non chiuso: ${chiuso.error}` };
 
   return { ok: true };
 }

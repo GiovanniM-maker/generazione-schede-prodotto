@@ -9,8 +9,8 @@ import { getServerEnv } from '@/lib/env.server';
 import { checkAiRateLimit } from '@/lib/rate-limit';
 import {
   logWrite,
-  mustWrite,
 } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 // ---------------------------------------------------------------------------
 // "Costruttore di preset" via Copilot: una chiamata AI progetta l'intero preset
@@ -339,11 +339,17 @@ export async function applyPresetPlanAction(input: {
         res.categoriesAdded++;
       }
     } else if (hint) {
-      await mustWrite('preset_categories.update', service
-        .from('preset_categories')
-        .update({ recognition_hint: hint })
-        .eq('preset_version_id', versionId)
-        .eq('category_id', categoryId));
+      // La categoria e' gia' collegata: qui si perde solo il suggerimento di
+      // riconoscimento, che peggiora l'estrazione senza romperla.
+      await writeOrTrace(
+        service,
+        'preset_categories.update(hint)',
+        service.from('preset_categories')
+          .update({ recognition_hint: hint })
+          .eq('preset_version_id', versionId)
+          .eq('category_id', categoryId),
+        { organizationId: ctx.orgId, refId: categoryId },
+      );
     }
 
     // Attributi della categoria.
@@ -407,15 +413,19 @@ export async function applyPresetPlanAction(input: {
           res.attributesAdded++;
         }
       } else if (extractionOverride || generationOverride) {
-        await mustWrite('preset_attributes.update', service
-          .from('preset_attributes')
-          .update({
-            extraction_instruction_override: extractionOverride,
-            generation_instruction_override: generationOverride,
-          })
-          .eq('preset_version_id', versionId)
-          .eq('attribute_id', attributeId)
-          .eq('category_id', categoryId));
+        await writeOrTrace(
+          service,
+          'preset_attributes.update(istruzioni)',
+          service.from('preset_attributes')
+            .update({
+              extraction_instruction_override: extractionOverride,
+              generation_instruction_override: generationOverride,
+            })
+            .eq('preset_version_id', versionId)
+            .eq('attribute_id', attributeId)
+            .eq('category_id', categoryId),
+          { organizationId: ctx.orgId, refId: attributeId },
+        );
       }
     }
   }

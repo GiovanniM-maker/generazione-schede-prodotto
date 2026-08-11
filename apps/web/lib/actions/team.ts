@@ -3,7 +3,8 @@
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { getServerEnv } from '@/lib/env.server';
-import { mustWrite } from '@app/core';
+import { } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 // Gestione team: membri, ruoli, inviti. Solo il proprietario può invitare o
 // rimuovere. Gli inviti generano un link con token da condividere; l'invitato
@@ -203,10 +204,16 @@ export async function acceptInvitation(input: {
     if (error) return fail(`Adesione fallita: ${error.message}`);
   }
 
-  await mustWrite('organization_invitations.update', service
-    .from('organization_invitations')
-    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-    .eq('id', invite.id));
+  // L'utente e' dentro: dirgli "fallito" sarebbe falso. Ma un invito rimasto
+  // 'pending' e' un token ancora spendibile, quindi non puo' passare inosservato.
+  await writeOrTrace(
+    service,
+    'organization_invitations.update(accettato)',
+    service.from('organization_invitations')
+      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+      .eq('id', invite.id),
+    { organizationId: invite.organization_id, refId: invite.id },
+  );
 
   return ok({ organizationId: invite.organization_id });
 }

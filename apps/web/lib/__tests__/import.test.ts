@@ -550,3 +550,48 @@ describe('import: accessi', () => {
     expect(prodotti().every((p) => p.preset_version_id === 'v1')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+
+describe('import: quando una scrittura fallisce', () => {
+  // Fino a ieri queste scritture usavano `mustWrite` con l'esito buttato via.
+  // L'import proseguiva, rispondeva `ok` e l'utente vedeva "importato" davanti
+  // a un batch che non era cambiato. Il finto database sa guastarsi a comando,
+  // quindi adesso il comportamento si puo' verificare invece che sperare.
+
+  it('non dichiara riuscito un re-import che non ha ripulito il precedente', async () => {
+    await importa();
+    const primaVolta = prodotti().length;
+    expect(primaVolta).toBeGreaterThan(0);
+
+    db.guasta('products', 'delete', 'permission denied for table products');
+    const res = await importa();
+
+    expect(res.ok).toBe(false);
+    expect(String((res as { error?: string }).error)).toMatch(/import precedente non rimosso/i);
+    // E i prodotti di prima sono ancora tutti li': niente stato a meta'.
+    expect(prodotti()).toHaveLength(primaVolta);
+  });
+
+  it('non dichiara riuscito un import che non ha aggiornato lo stato del batch', async () => {
+    db.guasta('batches', 'update', 'invalid input value for enum batch_status');
+    const res = await importa();
+
+    expect(res.ok).toBe(false);
+    expect(String((res as { error?: string }).error)).toMatch(/stato del batch/i);
+  });
+
+  it('un fatto non salvato lascia una traccia interrogabile, non solo un log', async () => {
+    // I fatti sono la ragione per cui un prodotto e' generabile. Se non
+    // arrivano a database e nessuno lo registra, il prodotto risulta importato
+    // e vuoto, e non c'e' modo di sapere perche'.
+    db.guasta('product_attribute_values', 'insert', 'value too long for type character varying');
+    await importa();
+
+    const tracce = db.rows('app_events').filter((e) => e.event_name === 'write_failed');
+    expect(tracce.length).toBeGreaterThan(0);
+    const meta = tracce[0]!.metadata_json as Record<string, unknown>;
+    expect(String(meta.operazione)).toContain('product_attribute_values');
+    expect(String(meta.errore)).toContain('value too long');
+  });
+});

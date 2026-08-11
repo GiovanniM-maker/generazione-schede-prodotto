@@ -19,6 +19,7 @@ import { sectorSafetyRules, sectorSensitiveClaims, type ServerEnv } from '@app/c
 import type { TypedClient, Json, Database } from '@app/database';
 import { loadProductFactsV2 } from './facts.js';
 import { creditOp } from './credits.js';
+import { writeOrTrace } from './trace.js';
 
 // Spec di generazione derivata dal preset: settore + istruzioni per attributo.
 export interface PresetGenerationSpec {
@@ -485,14 +486,22 @@ export async function runProductGeneration(
     // nel giro di retry: meglio riprovare che dichiarare completato un prodotto
     // che non ha nessuna scheda. Qui il credito è ancora riservato.
     if (!cachedWrite.ok) throw new Error(`Scheda non salvata: ${cachedWrite.error}`);
-    await mustWrite('products.update', client
-      .from('products')
-      .update({ input_hash: inputHash, verification_status: cachedStatus })
-      .eq('id', job.product_id));
-    await mustWrite('job_items.update', client
-      .from('job_items')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', jobItemId));
+    await writeOrTrace(
+      client,
+      'products.update(cache_hit)',
+      client.from('products')
+        .update({ input_hash: inputHash, verification_status: cachedStatus })
+        .eq('id', job.product_id),
+      { organizationId: job.organization_id, batchId: job.batch_id, refId: job.product_id },
+    );
+    await writeOrTrace(
+      client,
+      'job_items.update(completed)',
+      client.from('job_items')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', jobItemId),
+      { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+    );
     // Cache hit: rilascia il credito riservato (nessun consumo).
     await creditOp(
       client,
@@ -532,10 +541,16 @@ export async function runProductGeneration(
   // fallimento non brucia il credito.
   if (!genWrite.ok) throw new Error(`Scheda non salvata: ${genWrite.error}`);
 
-  await mustWrite('products.update', client
-    .from('products')
-    .update({ input_hash: inputHash, verification_status: genStatus })
-    .eq('id', job.product_id));
+  // Senza `input_hash` la prossima generazione non riconosce la cache e
+  // ripaga il modello per un lavoro gia' fatto.
+  await writeOrTrace(
+    client,
+    'products.update(generato)',
+    client.from('products')
+      .update({ input_hash: inputHash, verification_status: genStatus })
+      .eq('id', job.product_id),
+    { organizationId: job.organization_id, batchId: job.batch_id, refId: job.product_id },
+  );
 
   // Consuma definitivamente il credito riservato.
   // La scheda c'e' gia': un consumo fallito non deve buttare via il lavoro
@@ -549,10 +564,14 @@ export async function runProductGeneration(
   );
 
   const jobStatus = genStatus === 'needs_review' || genStatus === 'rejected' ? 'needs_review' : 'completed';
-  await mustWrite('job_items.update', client
-    .from('job_items')
-    .update({ status: jobStatus, completed_at: new Date().toISOString() })
-    .eq('id', jobItemId));
+  await writeOrTrace(
+    client,
+    'job_items.update(esito)',
+    client.from('job_items')
+      .update({ status: jobStatus, completed_at: new Date().toISOString() })
+      .eq('id', jobItemId),
+    { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+  );
 
   await updateBatchProgress(client, job.batch_id);
   return { outcome: 'completed', status: genStatus, creditConsumed: true };
@@ -596,7 +615,7 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
 export async function updateBatchProgress(client: TypedClient, batchId: string): Promise<void> {
   const { data: jobs } = await client
     .from('job_items')
-    .select('status')
+    .select('status, organization_id')
     .eq('batch_id', batchId);
   const list = jobs ?? [];
   const total = list.length;
@@ -616,5 +635,12 @@ export async function updateBatchProgress(client: TypedClient, batchId: string):
     update.status = status;
     update.completed_at = new Date().toISOString();
   }
-  await mustWrite('batches.update', client.from('batches').update(update).eq('id', batchId));
+  // Se questa non passa il batch non arriva mai a 'completed': la pagina
+  // resta a "in elaborazione" con tutti i job finiti.
+  await writeOrTrace(
+    client,
+    'batches.update(avanzamento)',
+    client.from('batches').update(update).eq('id', batchId),
+    { organizationId: list[0]?.organization_id ?? null, batchId, refId: batchId },
+  );
 }

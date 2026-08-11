@@ -5,7 +5,7 @@ import type { Json } from '@app/database';
 import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
-import { logWrite, mustWrite } from '@app/core';
+import { logWrite, writeOrThrow } from '@app/core';
 
 // Genera e salva un profilo tono versionato per l'organizzazione.
 export async function createToneProfileAction(input: {
@@ -75,10 +75,11 @@ async function createToneProfileInner(input: {
     .single();
   if (vErr || !version) throw new Error(`Versione profilo fallita: ${vErr?.message}`);
 
-  await mustWrite('brand_profiles.update', service.from('brand_profiles').update({ active_version_id: version.id }).eq('id', bp.id));
+  // Senza versione attiva il profilo di tono esiste ma non viene mai applicato.
+  await writeOrThrow('brand_profiles.update', service.from('brand_profiles').update({ active_version_id: version.id }).eq('id', bp.id));
 
   if (input.examples && input.examples.length > 0) {
-    await mustWrite('brand_examples.insert', service.from('brand_examples').insert(
+    await writeOrThrow('brand_examples.insert', service.from('brand_examples').insert(
       input.examples.filter(Boolean).map((text) => ({
         brand_profile_version_id: version.id,
         original_text: text,
@@ -87,7 +88,7 @@ async function createToneProfileInner(input: {
   }
 
   if (input.batchId) {
-    await mustWrite('batches.update', service
+    await writeOrThrow('batches.update', service
       .from('batches')
       .update({ brand_profile_version_id: version.id, status: 'tone_setup' })
       .eq('id', input.batchId));

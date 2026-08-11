@@ -9,7 +9,8 @@
 
 import type { Json } from '@app/database';
 import { getServiceClient } from '@/lib/supabase/service';
-import { mustWrite } from '@app/core';
+import { } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 const CONFIDENCE_THRESHOLD = 0.8;
 const FINAL_STATUSES = new Set(['confirmed', 'rejected']);
@@ -86,8 +87,15 @@ export async function generateDoubtsForBatch(
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (rows.length === 0) return 0;
-  await mustWrite('ai_doubts.insert', service.from('ai_doubts').insert(rows));
-  return rows.length;
+  // Restituire rows.length con l'insert fallito significa dichiarare dubbi che
+  // nell'inbox non ci sono.
+  const scritti = await writeOrTrace(
+    service,
+    'ai_doubts.insert',
+    service.from('ai_doubts').insert(rows),
+    { organizationId: orgId, batchId, refId: batchId },
+  );
+  return scritti ? rows.length : 0;
 }
 
 /** Genera i dubbi una sola volta per i batch appena completati (chiamata dal drain). */

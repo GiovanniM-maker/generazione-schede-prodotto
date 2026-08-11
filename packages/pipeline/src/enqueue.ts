@@ -1,13 +1,13 @@
 import {
   classifyError,
   isRetryable,
-  mustWrite,
 } from '@app/core';
 import type { ErrorCode } from '@app/config';
 import type { ServerEnv } from '@app/config';
 import { queueSend, type TypedClient } from '@app/database';
 import { updateBatchProgress } from './generate.js';
 import { creditOp } from './credits.js';
+import { writeOrTrace } from './trace.js';
 
 // ---------------------------------------------------------------------------
 // Prenotazione crediti + creazione job items + invio messaggi in coda.
@@ -60,7 +60,14 @@ export async function enqueueBatch(
   // Ripristina lo stato precedente se non si procede (niente batch "fantasma"
   // bloccati in coda senza job).
   const rollbackStatus = async () => {
-    await mustWrite('batches.update', client.from('batches').update({ status: previousStatus }).eq('id', batchId));
+    // Se il ripristino salta, il batch resta 'queued' senza un solo job: e'
+    // proprio il "batch fantasma" che questa funzione esiste per evitare.
+    await writeOrTrace(
+      client,
+      'batches.update(rollback)',
+      client.from('batches').update({ status: previousStatus }).eq('id', batchId),
+      { organizationId: batch.organization_id, batchId, refId: batchId },
+    );
   };
 
   // Prodotti eleggibili: sector-agnostico. L'eleggibilità (SKU + ≥2 fatti) è
@@ -95,10 +102,16 @@ export async function enqueueBatch(
   }
 
   // Lo stato è già 'queued' (claim): qui restano solo i contatori.
-  await mustWrite('batches.update', client
-    .from('batches')
-    .update({ credits_reserved: eligible.length, started_at: new Date().toISOString() })
-    .eq('id', batchId));
+  // `started_at` non e' decorativo: e' il riferimento per capire da quanto un
+  // batch e' fermo.
+  await writeOrTrace(
+    client,
+    'batches.update(riserva)',
+    client.from('batches')
+      .update({ credits_reserved: eligible.length, started_at: new Date().toISOString() })
+      .eq('id', batchId),
+    { organizationId: batch.organization_id, batchId, refId: batchId },
+  );
 
   let enqueued = 0;
   let skipped = 0;
@@ -133,10 +146,12 @@ export async function enqueueBatch(
     );
   }
 
-  await mustWrite('batches.update', client
-    .from('batches')
-    .update({ status: 'processing', credits_reserved: enqueued })
-    .eq('id', batchId));
+  await writeOrTrace(
+    client,
+    'batches.update(processing)',
+    client.from('batches').update({ status: 'processing', credits_reserved: enqueued }).eq('id', batchId),
+    { organizationId: batch.organization_id, batchId, refId: batchId },
+  );
   await updateBatchProgress(client, batchId);
   return { enqueued, reserved: eligible.length, skipped };
 }
@@ -199,18 +214,28 @@ export async function handleJobFailure(
   const retry = isRetryable(code) && attempts < maxAttempts;
 
   if (retry) {
-    await mustWrite('job_items.update', client
-      .from('job_items')
-      .update({ status: 'queued', attempts, last_error_code: code, last_error_message: message })
-      .eq('id', jobItemId));
+    // Se la rimessa in coda non passa, il job resta appeso nello stato
+    // precedente e nessuno lo ritenta: il batch non arriva mai in fondo.
+    await writeOrTrace(
+      client,
+      'job_items.update(retry)',
+      client.from('job_items')
+        .update({ status: 'queued', attempts, last_error_code: code, last_error_message: message })
+        .eq('id', jobItemId),
+      { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+    );
     return { retry: true, code };
   }
 
   // Definitivo: marca failed e rilascia il credito riservato (rimborso).
-  await mustWrite('job_items.update', client
-    .from('job_items')
-    .update({ status: 'failed', attempts, last_error_code: code, last_error_message: message })
-    .eq('id', jobItemId));
+  await writeOrTrace(
+    client,
+    'job_items.update(failed)',
+    client.from('job_items')
+      .update({ status: 'failed', attempts, last_error_code: code, last_error_message: message })
+      .eq('id', jobItemId),
+    { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+  );
   // Rimborso di una scheda mai prodotta: se salta, l'utente resta addebitato.
   await creditOp(
     client,

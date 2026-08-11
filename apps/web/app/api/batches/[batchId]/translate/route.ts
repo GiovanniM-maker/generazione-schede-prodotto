@@ -3,7 +3,6 @@ import { createAiProviders } from '@app/ai';
 import {
   isSupportedLanguage,
   logWrite,
-  mustWrite,
   toTranslatableCopy,
   type LanguageCode,
   type ProductCopy,
@@ -15,6 +14,7 @@ import { getSessionUser } from '@/lib/auth';
 import { assertBatchAccess } from '@/lib/ownership';
 import { getServiceClient } from '@/lib/supabase/service';
 import { checkAiRateLimit } from '@/lib/rate-limit';
+import { writeOrTrace } from '@app/pipeline';
 
 // POST /api/batches/[batchId]/translate  { languages: ['en','fr'], force?: boolean }
 // Traduce l'ultima generazione di ogni prodotto nelle lingue scelte e salva in
@@ -153,12 +153,24 @@ export async function POST(
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, worker));
 
-  // Salvataggio per generazione (merge già fatto in memoria).
+  // Salvataggio per generazione (merge già fatto in memoria). Le traduzioni
+  // sono già state pagate al modello: se il salvataggio non passa, dichiararle
+  // "tradotte" manderebbe l'utente a cercare un testo che non c'è.
+  let nonSalvate = 0;
   for (const [genId, map] of translationsByGen) {
-    await mustWrite('product_generations.update', service
-      .from('product_generations')
-      .update({ translations_json: map as unknown as Json })
-      .eq('id', genId));
+    const salvata = await writeOrTrace(
+      service,
+      'product_generations.update(traduzioni)',
+      service.from('product_generations')
+        .update({ translations_json: map as unknown as Json })
+        .eq('id', genId),
+      { organizationId: orgId, batchId, refId: genId },
+    );
+    if (!salvata) nonSalvate += Object.keys(map).length;
+  }
+  if (nonSalvate > 0) {
+    translated = Math.max(0, translated - nonSalvate);
+    failed += nonSalvate;
   }
 
   const remaining = jobs.length - translated - failed;

@@ -32,6 +32,7 @@ import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
 import { safeFetch } from '@/lib/safe-fetch';
+import { writeOrTrace } from '@app/pipeline';
 
 // ---------------------------------------------------------------------------
 // Server actions del wizard "Nuovo batch" v2 (modello preset v2 + pipeline SKU).
@@ -373,7 +374,8 @@ export async function setBatchSources(input: {
   const sourceType = wantSpreadsheet && wantImages ? 'mixed' : wantSpreadsheet ? 'spreadsheet' : 'images';
   // NB: nessun 'sources_selected' — non esiste nell'enum batch_status e faceva
   // fallire l'update IN SILENZIO (anche source_type non veniva salvato).
-  await mustWrite('batches.update', service.from('batches').update({ source_type: sourceType }).eq('id', input.batchId));
+  const salvato = await mustWrite('batches.update', service.from('batches').update({ source_type: sourceType }).eq('id', input.batchId));
+  if (!salvato.ok) return fail(`Fonti non salvate: ${salvato.error}`);
 
   return ok({ sourceType });
 }
@@ -486,7 +488,10 @@ export async function uploadBatchFiles(
     if (!batchSourceId) return fail('Registrazione sorgente fallita');
 
     // Rimpiazza eventuali item precedenti dello spreadsheet (re-upload).
-    await mustWrite('source_items.delete', service.from('source_items').delete().eq('batch_source_id', batchSourceId));
+    // Se la pulizia non passa il file precedente resta collegato: l'analisi
+    // vedrebbe due spreadsheet e SKU doppi.
+    const ripulito = await mustWrite('source_items.delete', service.from('source_items').delete().eq('batch_source_id', batchSourceId));
+    if (!ripulito.ok) return fail(`Sorgente precedente non rimossa: ${ripulito.error}`);
     // status DEVE essere un valore dell'enum source_item_status ('valid', …):
     // 'ready' NON è valido e faceva fallire l'insert IN SILENZIO, lasciando lo
     // spreadsheet senza source_item → l'analisi non trovava gli SKU del file.
@@ -904,7 +909,8 @@ export async function analyzeBatch(input: {
   const analysis = analyzeSources({ fileSkus, imageSkus, filesWithoutSku, rowsWithoutSku });
   // 'analysis' non esiste nell'enum batch_status (update falliva in silenzio):
   // dopo l'analisi delle sorgenti il batch è in fase di mappatura.
-  await mustWrite('batches.update', service.from('batches').update({ status: 'mapping' }).eq('id', input.batchId));
+  const inMappatura = await mustWrite('batches.update', service.from('batches').update({ status: 'mapping' }).eq('id', input.batchId));
+  if (!inMappatura.ok) return fail(`Analisi non conclusa, stato non aggiornato: ${inMappatura.error}`);
 
   return ok({ ...analysis, suggestedSkuHeader });
 }
@@ -992,6 +998,12 @@ export interface ImportResultV2 {
   valid: number;
   invalid: number;
   imageOnly: number;
+  /**
+   * Prodotti importati senza i loro fatti perche' il database ha rifiutato la
+   * scrittura. Finiva solo nella telemetria: chi importava non lo sapeva, e
+   * scopriva il buco a generazione fatta.
+   */
+  factsInsertErrors: number;
   /** Prodotti collegati a una categoria merceologica dell'organizzazione. */
   categoriesMatched: number;
   /** Nomi di categoria presenti nel file ma non riconosciuti (da creare). */
@@ -1277,8 +1289,11 @@ export async function confirmImportV2(input: {
     }
   }
 
-  // Pulisci import precedenti dello stesso batch (re-import).
-  await mustWrite('products.delete', service.from('products').delete().eq('batch_id', input.batchId));
+  // Pulisci import precedenti dello stesso batch (re-import). Se la pulizia
+  // non passa, i nuovi inserimenti sbattono contro la unique (batch, sku) e
+  // l'import finisce a zero prodotti dichiarando di essere riuscito.
+  const ripulito = await mustWrite('products.delete', service.from('products').delete().eq('batch_id', input.batchId));
+  if (!ripulito.ok) return fail(`Import precedente non rimosso: ${ripulito.error}`);
 
   let imported = 0;
   let valid = 0;
@@ -1571,11 +1586,15 @@ export async function confirmImportV2(input: {
         else byProduct.set(r.product_id, [r]);
       }
       for (const [productId, rows] of byProduct) {
-        const { error: retryErr } = await service.from('product_attribute_values').insert(rows);
-        if (retryErr) {
-          console.error(`[import] fatti non salvati per il prodotto ${productId}: ${retryErr.message}`);
-          factsInsertErrors++;
-        }
+        // Ultimo tentativo: se anche questo non passa il prodotto resta senza
+        // fatti, cioe' senza niente da cui scrivere. Va a verbale.
+        const salvati = await writeOrTrace(
+          service,
+          'product_attribute_values.insert(import)',
+          service.from('product_attribute_values').insert(rows),
+          { organizationId: orgId, batchId: input.batchId, refId: productId },
+        );
+        if (!salvati) factsInsertErrors++;
       }
     }
 
@@ -1588,8 +1607,14 @@ export async function confirmImportV2(input: {
       })),
     );
     for (const slice of chunk(linkAll, THIN_CHUNK)) {
-      const { error } = await service.from('product_source_links').insert(slice);
-      if (error) console.error(`[import] link immagini non salvati: ${error.message}`);
+      // Senza il collegamento la foto e' caricata ma nessuno la trova: niente
+      // analisi visiva, niente immagine nella scheda.
+      await writeOrTrace(
+        service,
+        'product_source_links.insert(import)',
+        service.from('product_source_links').insert(slice),
+        { organizationId: orgId, batchId: input.batchId, refId: null },
+      );
     }
   }
 
@@ -1619,10 +1644,16 @@ export async function confirmImportV2(input: {
     for (const { snap, productId } of restorable) {
       const existingId = existingIdByKey.get(`${productId}|${snap.attribute_id}`);
       if (existingId) {
-        await mustWrite('product_attribute_values.update', service
-          .from('product_attribute_values')
-          .update({ status: snap.status, value_json: snap.value_json })
-          .eq('id', existingId));
+        // Sono le conferme fatte a mano dall'utente: perderle in silenzio
+        // significa fargli rifare il lavoro senza dirglielo.
+        await writeOrTrace(
+          service,
+          'product_attribute_values.update(ripristino)',
+          service.from('product_attribute_values')
+            .update({ status: snap.status, value_json: snap.value_json })
+            .eq('id', existingId),
+          { organizationId: orgId, batchId: input.batchId, refId: productId },
+        );
       } else {
         toInsert.push({
           organization_id: orgId,
@@ -1636,12 +1667,18 @@ export async function confirmImportV2(input: {
       }
     }
     for (const slice of chunk(toInsert, THIN_CHUNK)) {
-      const { error } = await service.from('product_attribute_values').insert(slice);
-      if (error) console.error(`[import] fatti confermati non ripristinati: ${error.message}`);
+      await writeOrTrace(
+        service,
+        'product_attribute_values.insert(ripristino)',
+        service.from('product_attribute_values').insert(slice),
+        { organizationId: orgId, batchId: input.batchId, refId: null },
+      );
     }
   }
 
-  await mustWrite('batches.update', service
+  // Senza questo passaggio il batch resta indietro di un passo e il wizard
+  // riporta l'utente alla mappatura che ha appena confermato.
+  const avanzato = await mustWrite('batches.update', service
     .from('batches')
     .update({
       status: 'input_review',
@@ -1650,6 +1687,7 @@ export async function confirmImportV2(input: {
       invalid_products: invalid,
     })
     .eq('id', input.batchId));
+  if (!avanzato.ok) return fail(`Stato del batch non aggiornato: ${avanzato.error}`);
 
   const unmatched = [...unmatchedCategories];
   await logWrite('app_events.insert', service.from('app_events').insert({
@@ -1674,6 +1712,9 @@ export async function confirmImportV2(input: {
     valid,
     invalid,
     imageOnly,
+    // Prodotti entrati senza fatti perche' la scrittura e' stata rifiutata:
+    // finiva solo nella telemetria, quindi l'utente non lo sapeva.
+    factsInsertErrors,
     categoriesMatched,
     unmatchedCategories: unmatched.slice(0, 50),
   });
@@ -2048,7 +2089,12 @@ export async function importFromUrls(input: {
     if (eligible) valid++;
 
     if (pavRows.length > 0) {
-      await mustWrite('product_attribute_values.insert', service.from('product_attribute_values').insert(
+      // I fatti sono la ragione per cui il prodotto e' generabile: se non
+      // arrivano, il prodotto risulta importato ma non ha niente da dire.
+      await writeOrTrace(
+        service,
+        'product_attribute_values.insert(url)',
+        service.from('product_attribute_values').insert(
         pavRows.map((r) => ({
           organization_id: orgId,
           product_id: productRow.id,
@@ -2057,7 +2103,9 @@ export async function importFromUrls(input: {
           status: 'provided',
           source_type: 'url',
         })),
-      ));
+        ),
+        { organizationId: orgId, batchId: input.batchId, refId: productRow.id },
+      );
     }
 
     // Immagini: scarica (SSRF-safe) → storage → source_files/source_items → link.
@@ -2108,27 +2156,40 @@ export async function importFromUrls(input: {
         .select('id')
         .single();
       if (!si) continue;
-      await mustWrite('product_source_links.insert', service.from('product_source_links').insert({
-        organization_id: orgId,
-        product_id: productRow.id,
-        source_item_id: si.id,
-        link_type: 'sku_exact',
-      }));
+      // Senza il collegamento la foto e' a database ma nessuno la trova:
+      // niente analisi visiva, niente immagine nella scheda.
+      await writeOrTrace(
+        service,
+        'product_source_links.insert(url)',
+        service.from('product_source_links').insert({
+          organization_id: orgId,
+          product_id: productRow.id,
+          source_item_id: si.id,
+          link_type: 'sku_exact',
+        }),
+        { organizationId: orgId, batchId: input.batchId, refId: productRow.id },
+      );
       imagesAttached++;
     }
   }
 
   if (imageBatchSourceId) {
-    await mustWrite('batch_sources.update', service.from('batch_sources').update({ status: 'ready' }).eq('id', imageBatchSourceId));
+    await writeOrTrace(
+      service,
+      'batch_sources.update(pronta)',
+      service.from('batch_sources').update({ status: 'ready' }).eq('id', imageBatchSourceId),
+      { organizationId: orgId, batchId: input.batchId, refId: imageBatchSourceId },
+    );
   }
 
   // Porta il batch in revisione dati, come confirmImportV2, così i passi
   // successivi (campione → generazione) funzionano senza modifiche.
   if (imported > 0) {
-    await mustWrite('batches.update', service
+    const avanzatoUrl = await mustWrite('batches.update', service
       .from('batches')
       .update({ status: 'input_review', total_products: imported, valid_products: valid, invalid_products: imported - valid })
       .eq('id', input.batchId));
+    if (!avanzatoUrl.ok) return fail(`Stato del batch non aggiornato: ${avanzatoUrl.error}`);
     await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: orgId,
       user_id: user.id,

@@ -3,7 +3,7 @@
 import type { Json } from '@app/database';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
-import { logWrite, mustWrite,
+import { logWrite,
   writeOrThrow,
 } from '@app/core';
 
@@ -645,6 +645,13 @@ export async function duplicatePreset(input: {
 }
 
 /** Clona categorie/attributi/campi da una versione all'altra. */
+/**
+ * Copia il contenuto di una versione di preset in un'altra.
+ *
+ * Lancia se una delle tre copie non passa: una versione con le categorie ma
+ * senza attributi e' un preset rotto, e i due chiamanti sono gia' avvolti in
+ * un try/catch che lo traduce in un errore visibile.
+ */
 async function cloneVersionContent(
   service: ServiceClient,
   fromVersionId: string,
@@ -668,7 +675,7 @@ async function cloneVersionContent(
   ]);
 
   if (cats.data && cats.data.length > 0) {
-    await mustWrite('preset_categories.insert', service.from('preset_categories').insert(
+    await writeOrThrow('preset_categories.insert', service.from('preset_categories').insert(
       cats.data.map((c) => ({
         preset_version_id: toVersionId,
         category_id: c.category_id,
@@ -678,7 +685,7 @@ async function cloneVersionContent(
     ));
   }
   if (attrs.data && attrs.data.length > 0) {
-    await mustWrite('preset_attributes.insert', service.from('preset_attributes').insert(
+    await writeOrThrow('preset_attributes.insert', service.from('preset_attributes').insert(
       attrs.data.map((a) => ({
         preset_version_id: toVersionId,
         attribute_id: a.attribute_id,
@@ -693,7 +700,7 @@ async function cloneVersionContent(
     ));
   }
   if (fields.data && fields.data.length > 0) {
-    await mustWrite('preset_generated_fields.insert', service.from('preset_generated_fields').insert(
+    await writeOrThrow('preset_generated_fields.insert', service.from('preset_generated_fields').insert(
       fields.data.map((f) => ({
         preset_version_id: toVersionId,
         field_key: f.field_key,

@@ -7,8 +7,8 @@
 // ---------------------------------------------------------------------------
 
 import { getServiceClient } from '@/lib/supabase/service';
-import { mustWrite } from '@app/core';
 import { runVisualExtractionCore } from '@/lib/visual-core';
+import { writeOrTrace } from '@app/pipeline';
 
 type Service = ReturnType<typeof getServiceClient>;
 
@@ -58,40 +58,58 @@ export async function resumeVisualAnalysis(
 
     touched++;
     if (!batch.organization_id) {
-      await mustWrite('batches.update', service
-        .from('batches')
-        .update({ visual_analysis_status: 'error', visual_analysis_error: 'Organizzazione mancante' })
-        .eq('id', batch.id));
+      await writeOrTrace(
+        service,
+        'batches.update(analisi_senza_org)',
+        service.from('batches')
+          .update({ visual_analysis_status: 'error', visual_analysis_error: 'Organizzazione mancante' })
+          .eq('id', batch.id),
+        { organizationId: null, batchId: batch.id, refId: batch.id },
+      );
       continue;
     }
     try {
       const res = await runVisualExtractionCore(batch.organization_id, { batchId: batch.id });
       if (!res.ok) {
-        await mustWrite('batches.update', service
-          .from('batches')
-          .update({ visual_analysis_status: 'error', visual_analysis_error: res.error })
-          .eq('id', batch.id));
+        await writeOrTrace(
+          service,
+          'batches.update(analisi_errore)',
+          service.from('batches')
+            .update({ visual_analysis_status: 'error', visual_analysis_error: res.error })
+            .eq('id', batch.id),
+          { organizationId: batch.organization_id, batchId: batch.id, refId: batch.id },
+        );
         continue;
       }
       // Restano prodotti non analizzati → lascia 'pending': il prossimo giro
       // del cron continua. Altrimenti chiudi.
       const finished = res.data.productsSkipped === 0;
-      await mustWrite('batches.update', service
-        .from('batches')
-        .update({
-          visual_analysis_status: finished ? 'done' : 'pending',
-          visual_analysis_claimed_at: null,
-        })
-        .eq('id', batch.id));
+      // Se questa non passa il batch resta 'running' con la claim vecchia:
+      // il cron non lo riprende e l'analisi non finisce mai.
+      await writeOrTrace(
+        service,
+        'batches.update(analisi_esito)',
+        service.from('batches')
+          .update({
+            visual_analysis_status: finished ? 'done' : 'pending',
+            visual_analysis_claimed_at: null,
+          })
+          .eq('id', batch.id),
+        { organizationId: batch.organization_id, batchId: batch.id, refId: batch.id },
+      );
       if (finished) continue;
     } catch (e) {
-      await mustWrite('batches.update', service
-        .from('batches')
-        .update({
-          visual_analysis_status: 'error',
-          visual_analysis_error: e instanceof Error ? e.message : 'Errore analisi foto',
-        })
-        .eq('id', batch.id));
+      await writeOrTrace(
+        service,
+        'batches.update(analisi_eccezione)',
+        service.from('batches')
+          .update({
+            visual_analysis_status: 'error',
+            visual_analysis_error: e instanceof Error ? e.message : 'Errore analisi foto',
+          })
+          .eq('id', batch.id),
+        { organizationId: batch.organization_id, batchId: batch.id, refId: batch.id },
+      );
     }
   }
 

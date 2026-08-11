@@ -126,6 +126,9 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     // Segna l'errore per un retry sicuro (l'evento resta registrato).
+    // Ultimo anello: stiamo gia' rispondendo 500 e l'evento resta 'pending',
+    // che e' comunque uno stato riprocessabile. Non c'e' altro da fare, e per
+    // questo l'esito qui non viene letto.
     await mustWrite('stripe_events.update', service
       .from('stripe_events')
       .update({ status: 'failed', error_message: err instanceof Error ? err.message : 'errore' })

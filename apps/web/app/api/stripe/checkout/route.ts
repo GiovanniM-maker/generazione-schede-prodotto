@@ -7,6 +7,7 @@ import {
   logWrite,
   mustWrite,
 } from '@app/core';
+import { writeOrTrace } from '@app/pipeline';
 
 // POST /api/stripe/checkout  { packKey: 'pack_50' | 'pack_200' | 'pack_500' }
 // Non si fida MAI di prezzo/crediti inviati dal client: risolve tutto server-side.
@@ -78,10 +79,16 @@ export async function POST(request: Request) {
       metadata: { organization_id: org.organizationId },
     });
     customerId = customer.id;
-    await mustWrite('organizations.update', service
-      .from('organizations')
-      .update({ stripe_customer_id: customerId })
-      .eq('id', org.organizationId));
+    // Se non si salva, al prossimo acquisto si crea un secondo cliente Stripe
+    // per la stessa organizzazione e lo storico si spezza in due.
+    await writeOrTrace(
+      service,
+      'organizations.update(stripe_customer)',
+      service.from('organizations')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', org.organizationId),
+      { organizationId: org.organizationId, refId: customerId },
+    );
   }
 
   const session = await stripe.checkout.sessions.create({
