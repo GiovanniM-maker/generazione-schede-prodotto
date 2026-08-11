@@ -17,6 +17,16 @@ export interface ParseResult {
     duplicateHeaders: string[];
     delimiter: string;
   };
+  /**
+   * I fogli presenti nel file (solo per gli Excel; vuoto per i CSV).
+   *
+   * Serve a *dire* quale foglio si sta leggendo e a lasciarne scegliere un
+   * altro: con «Istruzioni» + «Listino 2024» + «Listino 2025» veniva importato
+   * *Istruzioni*, e nessuno lo diceva.
+   */
+  sheets?: string[];
+  /** Il foglio effettivamente letto. */
+  sheet?: string | null;
 }
 
 const DELIMITERS = [',', ';', '\t', '|'];

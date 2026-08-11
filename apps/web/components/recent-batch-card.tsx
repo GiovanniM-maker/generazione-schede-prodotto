@@ -116,7 +116,10 @@ export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwne
           )}
           {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        {/* `shrink-0` faceva uscire dallo schermo la riga di azioni sotto i
+            360px: Esporta + Apri + cestino non entrano, e rifiutando di
+            comprimersi spingevano fuori la pagina. Meglio che vadano a capo. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {batch.isCompleted && (
             <Link href={`/app/batches/${batch.id}/results`}>
               <Button variant="outline" size="sm">

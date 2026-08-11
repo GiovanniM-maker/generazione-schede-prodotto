@@ -29,7 +29,22 @@ function cellToString(cell: ExcelJS.Cell): string {
   return '';
 }
 
-export async function parseXlsx(input: Buffer, opts?: { maxRows?: number }): Promise<ParseResult> {
+/**
+ * Legge un file Excel.
+ *
+ * `sheet` sceglie il foglio per nome. Senza, si prende il **primo foglio con
+ * almeno due righe**: un ripiego scritto per il caso frequente «Sheet1 di
+ * servizio vuoto, dati sul foglio dopo». Funziona per quello e sbaglia quando
+ * il primo foglio ha contenuto che non è un listino — un file «Istruzioni» +
+ * «Listino 2024» + «Listino 2025» finiva per importare *Istruzioni*.
+ *
+ * Il risultato dice sempre quali fogli ci sono e quale è stato letto, così chi
+ * chiama può proporre la scelta invece di indovinare.
+ */
+export async function parseXlsx(
+  input: Buffer,
+  opts?: { maxRows?: number; sheet?: string | null },
+): Promise<ParseResult> {
   const wb = new ExcelJS.Workbook();
   // Copia in un ArrayBuffer dedicato: aggira l'attrito di tipi tra il Buffer
   // generico di @types/node 22 e la firma di exceljs, senza usare `any`.
@@ -45,12 +60,18 @@ export async function parseXlsx(input: Buffer, opts?: { maxRows?: number }): Pro
     });
     return n;
   };
-  const ws = wb.worksheets.find((s) => countRows(s) >= 2) ?? wb.worksheets[0];
+  const sheets = wb.worksheets.map((s) => s.name);
+  const richiesto = opts?.sheet
+    ? wb.worksheets.find((s) => s.name === opts.sheet)
+    : undefined;
+  const ws = richiesto ?? wb.worksheets.find((s) => countRows(s) >= 2) ?? wb.worksheets[0];
   if (!ws) {
     return {
       headers: [],
       rows: [],
       summary: { totalRows: 0, emptyRowsSkipped: 0, duplicateHeaders: [], delimiter: 'xlsx' },
+      sheets,
+      sheet: null,
     };
   }
 
@@ -64,10 +85,14 @@ export async function parseXlsx(input: Buffer, opts?: { maxRows?: number }): Pro
   });
 
   if (matrix.length === 0) {
+    // Anche qui l'elenco dei fogli: se il foglio letto è vuoto ma ce ne sono
+    // altri, è proprio il momento in cui serve poterne scegliere un altro.
     return {
       headers: [],
       rows: [],
       summary: { totalRows: 0, emptyRowsSkipped: 0, duplicateHeaders: [], delimiter: 'xlsx' },
+      sheets,
+      sheet: ws.name,
     };
   }
 
@@ -112,5 +137,7 @@ export async function parseXlsx(input: Buffer, opts?: { maxRows?: number }): Pro
       duplicateHeaders: [...new Set(duplicates)],
       delimiter: 'xlsx',
     },
+    sheets,
+    sheet: ws.name,
   };
 }

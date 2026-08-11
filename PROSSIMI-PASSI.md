@@ -202,20 +202,29 @@ anche senza F5. Serve una colonna, quindi una migrazione: voce a sé.
   traccia di nessuno dei due in tutto il repository — nessun cliente B2B
   italiano può comprare.
 
-### 2.6 Un modo di chiedere aiuto — mezza giornata
+### 2.6 ~~Un modo di chiedere aiuto~~ — **fatto**
 
-Quattro link in tutta l'applicazione, la parola «supporto» non compare mai.
-Serve almeno un indirizzo email raggiungibile da dentro il prodotto.
+`/app` ha un piede con l'indirizzo di assistenza e i link a privacy, termini e
+cookie — che prima si raggiungevano **solo uscendo** dall'applicazione.
 
-### 2.7 L'intestazione che straborda — 2 ore
+L'indirizzo viene da `SUPPORT_EMAIL`, o da `LEGAL_EMAIL` se manca. Se mancano
+entrambi il piede **non finge**: dice che il contatto non è configurato, invece
+di offrire un `mailto:` che non porta da nessuna parte. Il link precompila
+l'oggetto, così chi scrive non deve spiegarsi da zero.
 
-Fra **640 e 928 px** l'intestazione di `/app/*` fa scorrere il documento in
-orizzontale fino a 288 px e spinge «Esci» fuori schermo. Misurato di persona:
-a 320 px straborda di 28 px, a 700 px di **228 px**.
+### 2.7 ~~L'intestazione che straborda~~ — **fatto**
 
-È la fascia del tablet in verticale **e dello zoom 200 % su 1440**. I nostri
-test provano 390 e 1440: il buco è esattamente in mezzo. Da correggere insieme
-alla larghezza testata.
+Le etichette dell'intestazione comparivano da `sm` (640 px) ma con le parole
+accanto alle icone la barra vuole 928 px: fra i due valori il documento
+scorreva di lato fino a 288 px e «Esci» finiva fuori schermo. Ora compaiono da
+`lg`, dove lo spazio c'è davvero.
+
+Sotto i 360 px straboravano anche due righe di pulsanti con `shrink-0` (le
+azioni della card batch e i comandi dell'onboarding): adesso vanno a capo.
+
+**Misurato da 320 a 1440 px: nessuno scorrimento.** E ci sono sei test
+permanenti su quelle larghezze — il difetto stava esattamente fra le due che
+provavamo.
 
 ### 2.8 La pagina morta raggiungibile — 2 ore
 
@@ -228,15 +237,15 @@ Non sarebbe grave se fosse irraggiungibile — ma il passo 6 del wizard mette il
 batch in stato `mapping`, quindi un batch abbandonato lì **compare in dashboard
 con «Apri» che porta nel vicolo cieco**.
 
-### 2.9 Il selettore del foglio Excel — mezza giornata
+### 2.9 ~~Il selettore del foglio Excel~~ — **fatto**
 
-Con un file «Istruzioni» + «Listino 2024» + «Listino 2025» viene importato
-*Istruzioni*. Non è un errore casuale: `parseXlsx` prende **il primo foglio con
-almeno due righe**, ripiego scritto apposta per il caso «Sheet1 vuoto, dati sul
-secondo foglio». Funziona per quello e sbaglia qui — e in nessun caso dice quale
-foglio ha letto.
+Il ripiego resta — è giusto per il caso per cui era stato scritto, «Sheet1 di
+servizio vuoto e dati sul foglio dopo» — ma adesso il file **dichiara quale
+foglio è stato letto** e quali altri ci sono. Se ce n'è più d'uno, il
+caricamento mostra un avviso con la scelta, e cambiarla rilegge l'anteprima.
 
-Era già una voce aperta dell'audit. Adesso è stata vista in natura.
+Cambiando foglio le colonne scelte si azzerano: quelle del foglio precedente
+punterebbero al vuoto.
 
 **Totale «prima del lancio»: circa 9-12 giorni.**
 

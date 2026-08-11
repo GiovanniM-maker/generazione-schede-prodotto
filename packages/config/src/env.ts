@@ -77,6 +77,14 @@ export const serverEnvSchema = z
     LEGAL_ADDRESS: z.string().min(1).optional(),
     LEGAL_EMAIL: z.string().email().optional(),
     LEGAL_CITY: z.string().min(1).optional(),
+
+    /**
+     * Dove si scrive per chiedere aiuto. Se manca si usa `LEGAL_EMAIL`.
+     * Senza né l'una né l'altra, l'applicazione non ha modo di dire a chi
+     * rivolgersi — ed è quello che succedeva: quattro link in tutto il
+     * prodotto e la parola «supporto» che non compariva mai.
+     */
+    SUPPORT_EMAIL: z.string().email().optional(),
   })
   .superRefine((env, ctx) => {
     // I mock non devono MAI essere attivi in produzione.
