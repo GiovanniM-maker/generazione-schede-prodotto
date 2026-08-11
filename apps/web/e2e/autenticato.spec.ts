@@ -61,7 +61,7 @@ test('l’intestazione mostra la navigazione e il logo alla misura giusta', asyn
 
 test('il primo passo dell’onboarding accetta i dati dell’azienda', async ({ page }) => {
   await page.goto('/app/onboarding', { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: /ho capito/i }).click({ timeout: 3000 }).catch(() => {});
+  await page.getByRole('region', { name: /avviso cookie/i }).getByRole('button', { name: /ho capito/i }).click({ timeout: 3000 }).catch(() => {});
 
   await page.getByLabel(/nome azienda/i).fill('Cascina Verde S.r.l.');
   await page.getByLabel(/nome brand/i).fill('Cascina Verde');
@@ -73,7 +73,7 @@ test('il primo passo dell’onboarding accetta i dati dell’azienda', async ({ 
 
 test('la scelta del settore porta alle sue categorie, non a quelle di un altro', async ({ page }) => {
   await page.goto('/app/onboarding', { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: /ho capito/i }).click({ timeout: 3000 }).catch(() => {});
+  await page.getByRole('region', { name: /avviso cookie/i }).getByRole('button', { name: /ho capito/i }).click({ timeout: 3000 }).catch(() => {});
   await page.getByLabel(/nome azienda/i).fill('Cascina Verde S.r.l.');
   await page.getByRole('button', { name: /continua/i }).click();
   await expect(page.getByText(/passaggio 2 di 7/i)).toBeVisible({ timeout: 15000 });
@@ -92,7 +92,7 @@ test('nessun errore JavaScript durante l’onboarding', async ({ page }) => {
   const errori: string[] = [];
   page.on('pageerror', (e) => errori.push(e.message));
   await page.goto('/app/onboarding', { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: /ho capito/i }).click({ timeout: 3000 }).catch(() => {});
+  await page.getByRole('region', { name: /avviso cookie/i }).getByRole('button', { name: /ho capito/i }).click({ timeout: 3000 }).catch(() => {});
   await page.getByLabel(/nome azienda/i).fill('Cascina Verde S.r.l.');
   await page.getByRole('button', { name: /continua/i }).click();
   await expect(page.getByText(/passaggio 2 di 7/i)).toBeVisible({ timeout: 15000 });

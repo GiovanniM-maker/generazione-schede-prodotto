@@ -31,7 +31,14 @@ export function CookieBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur">
+    // `region` con un nome proprio: il banner e il fumetto della guida dicono
+    // entrambi «Ho capito», e senza un'etichetta non c'è modo di distinguerli —
+    // né per un lettore di schermo, né per un test.
+    <div
+      role="region"
+      aria-label="Avviso cookie"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur"
+    >
       <div className="mx-auto flex max-w-4xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-600">
           Usiamo solo cookie tecnici essenziali per il funzionamento e

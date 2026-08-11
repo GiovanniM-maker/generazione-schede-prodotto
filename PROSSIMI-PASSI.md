@@ -138,17 +138,37 @@ riscrive i preset.
 Nell'interfaccia il badge «Proprietario / Membro» c'è. Una distinzione mostrata e
 non applicata è peggio di nessuna distinzione.
 
-### 2.4 Il wizard che perde il lavoro — 2-3 giorni
+### 2.4 ~~Il wizard che perde il lavoro~~ — **fatto**
 
-Il punto 1.1 e il punto 1.2 insieme. La forma della soluzione: **lo stato del
-wizard nell'URL** (`/app/batches/new/[step]` o un parametro), il batch
-recuperabile dalla dashboard, e il pulsante disabilitato durante i caricamenti.
+| cosa | com'è adesso |
+|---|---|
+| F5 riportava al passo 1 | L'indirizzo porta `?batch=…&passo=…`. Alla ricarica il wizard si ricostruisce **dal server**, file compreso: l'anteprima viene ri-letta da storage, non da `sessionStorage`. |
+| Il batch restava irraggiungibile | Dalla dashboard un batch `draft` / `uploaded` / `mapping` torna nel wizard, dove era. |
+| «Crea e continua» creava un secondo batch | Se il batch c'è già, prosegue invece di crearne un altro. |
+| «Continua» attivo durante il caricamento | I caricamenti dei passi 2, 6 e 8 ora dichiarano quale passo stanno servendo, e il pulsante aspetta. |
+| Rete che cade → «Caricamento» per sempre | Le quattro azioni senza `try/finally` sono state chiuse, con un messaggio in italiano che dice che il lavoro è salvo. |
 
-Nello stesso giro va chiuso il caso della rete che cade: quattro funzioni di
-`wizard.tsx` fanno `setBusy(true)` → `await` → `setBusy(false)` **senza
-`try/finally`**, quindi se l'`await` lancia l'interfaccia resta su «Caricamento
-in corso…» per sempre, anche tornando online. Altre funzioni nello stesso file
-il `finally` ce l'hanno: è un'incoerenza, non una scelta.
+**Il vicolo cieco `/mapping` è stato rimosso**, con la sua pagina, i suoi due
+componenti e le tre server action della v1 rimaste senza chiamanti — in Next
+un'azione esportata senza interfaccia non è codice morto, è superficie di rete
+viva.
+
+Due difetti trovati lavorando, non dall'audit:
+
+- **la guida rubava un clic a ogni passo.** Il velo copriva tutta la pagina e un
+  clic fuori dal fumetto la faceva *avanzare*: su undici passi, ognuno col suo
+  fumetto, era un clic sprecato ogni volta. Ora un clic la chiude.
+- **il banner cookie copriva il comando principale del wizard.** In fondo alla
+  pagina convivono barra del wizard, banner e pulsante d'aiuto: alla prima
+  visita vinceva il banner. Ora chi sta lavorando ha la precedenza sull'avviso.
+  (Il banner ha anche un nome proprio: diceva «Ho capito» esattamente come il
+  fumetto della guida, e non c'era modo di distinguerli — né per un test né per
+  un lettore di schermo.)
+
+**Resta aperto**: la «Descrizione (facoltativa)» del passo 1 non si può
+riprendere perché **non viene salvata da nessuna parte** — finisce solo nel
+`metadata_json` di un evento di telemetria. Chi la scrive la perde comunque,
+anche senza F5. Serve una colonna, quindi una migrazione: voce a sé.
 
 ### 2.5 Poter comprare — 2-3 giorni
 

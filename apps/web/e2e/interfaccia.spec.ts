@@ -102,7 +102,7 @@ test.describe('landing', () => {
 
   test('il banner cookie non copre il proprio pulsante', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
-    const bottone = page.getByRole('button', { name: /ho capito/i });
+    const bottone = page.getByRole('region', { name: /avviso cookie/i }).getByRole('button', { name: /ho capito/i });
     if ((await bottone.count()) === 0) test.skip();
     // `click` fallisce da solo se qualcosa sta davanti: e' la verifica migliore.
     await bottone.click({ timeout: 5000 });

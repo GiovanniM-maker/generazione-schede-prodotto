@@ -126,7 +126,15 @@ export function GuidedTour({
       className="fixed inset-0 z-[70]"
       role="dialog"
       aria-label={`Guida: ${step.title}`}
-      onClick={() => (last ? onClose(true) : setIdx((i) => i + 1))}
+      // Un clic fuori dal fumetto CHIUDE la guida, non la fa avanzare.
+      //
+      // Prima avanzava: il velo copre tutta la pagina, quindi il primo clic su
+      // qualunque cosa veniva mangiato dalla guida. Su un wizard di undici
+      // passi, ognuno col suo fumetto, significava un clic sprecato a ogni
+      // passo — e chi voleva solo lavorare doveva combattere con l'aiuto. Per
+      // scorrere i fumetti c'è «Avanti» dentro il fumetto, che è dove uno lo
+      // cerca.
+      onClick={() => onClose(true)}
     >
       {/* Alone scuro con "buco" sull'elemento (box-shadow gigante). */}
       <div
