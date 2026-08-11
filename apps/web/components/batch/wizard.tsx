@@ -299,6 +299,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 7
   const [skuHeader, setSkuHeader] = useState('');
   const [categoryHeader, setCategoryHeader] = useState('');
+  // Il nome del prodotto: colonna dedicata come SKU e categoria. Prima non
+  // c'era e ogni prodotto importato si chiamava come il suo codice.
+  const [nameHeader, setNameHeader] = useState('');
   // Rimappatura manuale dei valori categoria non riconosciuti: valore file → categoryId.
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
   const [parentHeader, setParentHeader] = useState('');
@@ -313,7 +316,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
-  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
+  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; senzaNome: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
@@ -427,6 +430,16 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (guess) setCategoryHeader(guess);
   }, [stepId, spreadsheetResult, categoryHeader]);
 
+  // Step 7: e la colonna Nome. Il suggerimento arriva dal server insieme al
+  // file (come quello dello SKU): la logica sta in @app/core, che qui non si
+  // può importare — è un componente client e il pacchetto porta con sé
+  // `node:crypto`.
+  useEffect(() => {
+    if (stepId !== 7 || nameHeader) return;
+    const guess = spreadsheetResult?.suggestedNameHeader;
+    if (guess && guess !== skuHeader) setNameHeader(guess);
+  }, [stepId, spreadsheetResult, nameHeader, skuHeader]);
+
   // DEFAULT: appena il file è pronto, TUTTE le colonne vengono importate come
   // dati (fatti per SKU). L'utente può poi ESCLUDERE quelle che non servono.
   // Così non serve mappare nulla e la generazione ha sempre abbastanza dati.
@@ -440,16 +453,18 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     });
   }, [spreadsheetResult]);
 
-  // SKU e Categoria non sono "dati" da importare: rimuovili dai fatti.
+  // SKU, Nome e Categoria non sono "dati" da importare: sono l'identità della
+  // riga. Lasciarli fra i fatti farebbe raccontare all'AI il codice a barre.
   useEffect(() => {
     setExtraCols((prev) => {
-      if (!prev[skuHeader] && !prev[categoryHeader]) return prev;
+      if (!prev[skuHeader] && !prev[categoryHeader] && !prev[nameHeader]) return prev;
       const next = { ...prev };
       if (skuHeader) delete next[skuHeader];
       if (categoryHeader) delete next[categoryHeader];
+      if (nameHeader) delete next[nameHeader];
       return next;
     });
-  }, [skuHeader, categoryHeader]);
+  }, [skuHeader, categoryHeader, nameHeader]);
 
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
@@ -524,6 +539,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         batchId: bid,
         skuHeader: hasSpreadsheet ? skuHeader : '',
         attributeMapping: hasSpreadsheet ? mapping : {},
+        nameHeader: hasSpreadsheet && nameHeader ? nameHeader : undefined,
         categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
         categoryOverrides: hasSpreadsheet && Object.keys(categoryOverrides).length > 0 ? categoryOverrides : undefined,
         parentHeader: hasSpreadsheet && parentHeader ? parentHeader : undefined,
@@ -627,6 +643,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       invalid: res.data.failed,
       imageOnly: 0,
       factsInsertErrors: 0,
+      senzaNome: 0,
       categoriesMatched: 0,
       unmatchedCategories: [],
     });
@@ -911,6 +928,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           headers={spreadsheetResult?.headers ?? []}
           skuHeader={skuHeader}
           setSkuHeader={setSkuHeader}
+          nameHeader={nameHeader}
+          setNameHeader={setNameHeader}
           categoryHeader={categoryHeader}
           setCategoryHeader={setCategoryHeader}
           parentHeader={parentHeader}
@@ -924,7 +943,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         />
       )}
 
-      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
+      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} nameHeader={nameHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
 
       {stepId === 9 && batchId && (
         <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} categoryFromFile={hasSpreadsheet && Boolean(categoryHeader)} />
@@ -1818,6 +1837,8 @@ function Step7({
   headers,
   skuHeader,
   setSkuHeader,
+  nameHeader,
+  setNameHeader,
   categoryHeader,
   setCategoryHeader,
   parentHeader,
@@ -1835,6 +1856,8 @@ function Step7({
   headers: string[];
   skuHeader: string;
   setSkuHeader: (v: string) => void;
+  nameHeader: string;
+  setNameHeader: (v: string) => void;
   categoryHeader: string;
   setCategoryHeader: (v: string) => void;
   parentHeader: string;
@@ -1863,6 +1886,30 @@ function Step7({
             ))}
           </Select>
           <p className="mt-1 text-xs text-gray-500">Le righe senza SKU in questa colonna verranno scartate.</p>
+        </div>
+      )}
+
+      {hasSpreadsheet && (
+        <div className="rounded-lg border border-gray-200 p-4">
+          <Label htmlFor="name-header">
+            Colonna Nome prodotto
+            <HelpBubble text="Come si chiama il prodotto nel tuo file. È il titolo che vedrai nei risultati e il punto di partenza della scheda. Senza, il prodotto si chiama come il suo codice." />
+          </Label>
+          <Select id="name-header" value={nameHeader} onChange={(e) => setNameHeader(e.target.value)}>
+            <option value="">— Nessuna colonna: userò il codice come nome —</option>
+            {headers.map((h) => (
+              <option key={h} value={h} disabled={h === skuHeader}>
+                {h}
+                {h === skuHeader ? ' (colonna SKU)' : ''}
+              </option>
+            ))}
+          </Select>
+          {nameHeader === '' && (
+            <p className="mt-1.5 text-xs text-amber-700">
+              Senza questa colonna i prodotti si chiameranno come il loro codice
+              (es. <span className="font-mono">OLI-001</span>).
+            </p>
+          )}
         </div>
       )}
 
@@ -2000,6 +2047,7 @@ function Step8({
   mapping,
   setMapping,
   skuHeader,
+  nameHeader,
   categoryHeader,
   extraCols,
   setExtraCols,
@@ -2009,6 +2057,7 @@ function Step8({
   mapping: Record<string, string>;
   setMapping: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
   skuHeader: string;
+  nameHeader: string;
   categoryHeader: string;
   extraCols: Record<string, string>;
   setExtraCols: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
@@ -2020,8 +2069,8 @@ function Step8({
       </div>
     );
   }
-  // Colonne non ancora usate (né SKU, né Categoria, né mappate a un attributo).
-  const usedHeaders = new Set<string>([skuHeader, categoryHeader, ...Object.values(mapping)].filter(Boolean));
+  // Colonne non ancora usate (né SKU, né Nome, né Categoria, né mappate).
+  const usedHeaders = new Set<string>([skuHeader, nameHeader, categoryHeader, ...Object.values(mapping)].filter(Boolean));
   const importableAll = headers.filter((h) => !usedHeaders.has(h));
   const importedCount = importableAll.filter((h) => h in extraCols).length;
   function includeAll() {
@@ -2082,9 +2131,14 @@ function Step8({
             >
               <option value="">— Nessuna colonna —</option>
               {headers.map((h) => (
-                <option key={h} value={h} disabled={h === skuHeader || h === categoryHeader}>
+                <option
+                  key={h}
+                  value={h}
+                  disabled={h === skuHeader || h === nameHeader || h === categoryHeader}
+                >
                   {h}
                   {h === skuHeader ? ' (colonna SKU)' : ''}
+                  {h === nameHeader ? ' (colonna Nome)' : ''}
                   {h === categoryHeader ? ' (colonna Categoria)' : ''}
                 </option>
               ))}
@@ -2195,7 +2249,7 @@ function Step9({
   categoryFromFile,
 }: {
   products: BatchProductRow[] | null;
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; senzaNome: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   batchId: string;
   hasImages: boolean;
   analyzing: boolean;
@@ -2269,6 +2323,11 @@ function Step9({
               il buco a generazione fatta. */}
           {importSummary.factsInsertErrors > 0 && (
             <Badge tone="red">{importSummary.factsInsertErrors} senza dati (scrittura rifiutata)</Badge>
+          )}
+          {/* Era il caso di TUTTI i prodotti di ogni catalogo, e nessuno lo
+              diceva: si scopriva guardando i risultati. */}
+          {importSummary.senzaNome > 0 && (
+            <Badge tone="amber">{importSummary.senzaNome} col codice al posto del nome</Badge>
           )}
           {importSummary.categoriesMatched > 0 && (
             <Badge tone="green">{importSummary.categoriesMatched} collegati a categoria</Badge>
@@ -2464,7 +2523,7 @@ function Step11({
   notifyByEmail,
   setNotifyByEmail,
 }: {
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; senzaNome: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
   notifyByEmail: boolean;
   setNotifyByEmail: (v: boolean) => void;
 }) {

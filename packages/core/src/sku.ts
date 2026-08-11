@@ -188,3 +188,48 @@ export function suggestSkuHeader(headers: string[]): string | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Il NOME del prodotto.
+//
+// Non è un attributo come gli altri: è l'identità della riga, come lo SKU e la
+// categoria. Trattarlo da attributo è la ragione per cui è sparito — il codice
+// dell'import cercava un attributo di chiave `product_name` che non è mai
+// esistito, né nel seed né in produzione, quindi il ripiego «chiamalo come il
+// suo codice» scattava per ogni prodotto di ogni catalogo.
+//
+// Ora ha la sua colonna dedicata, come SKU e categoria, e si suggerisce da sé.
+// ---------------------------------------------------------------------------
+
+/** Intestazioni riconosciute come possibile colonna NOME (da confermare). */
+export const NAME_HEADER_SYNONYMS = [
+  'nome',
+  'nome prodotto',
+  'nome articolo',
+  'denominazione',
+  'descrizione breve',
+  'titolo',
+  'prodotto',
+  'articolo',
+  'name',
+  'product name',
+  'title',
+];
+
+/**
+ * Suggerisce l'header più probabile per il nome (l'utente deve confermare).
+ *
+ * Non restituisce mai la colonna già scelta come SKU: un catalogo con
+ * «Codice» e «Prodotto» non deve finire col nome uguale al codice, che è
+ * esattamente il difetto da cui nasce questa funzione.
+ */
+export function suggestNameHeader(headers: string[], skuHeader?: string | null): string | null {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const escluso = skuHeader ? norm(skuHeader) : null;
+  for (const sinonimo of NAME_HEADER_SYNONYMS) {
+    for (const h of headers) {
+      if (norm(h) === sinonimo && norm(h) !== escluso) return h;
+    }
+  }
+  return null;
+}
