@@ -100,19 +100,38 @@ function parseNameList(raw: string): string[] {
   return out;
 }
 
-/** Risolve sessione + organizzazione + appartenenza in un colpo solo. */
-async function requireOrg(): Promise<Ctx | Fail> {
+/**
+ * Risolve sessione + organizzazione + RUOLO in un colpo solo.
+ *
+ * **Di default pretende il proprietario.** È una scelta: il catalogo (preset,
+ * categorie, attributi) è il vocabolario condiviso di tutta l'organizzazione, e
+ * un membro che lo riscrive cambia quello che genera chiunque altro. Prima il
+ * ruolo era controllato in due soli file su tutto il progetto: l'interfaccia
+ * mostrava il badge «Proprietario / Membro» e il server non ne teneva conto —
+ * una distinzione promessa e non mantenuta, che è peggio di nessuna distinzione.
+ *
+ * Chi legge e basta passa `{ ancheMembri: true }`: un membro deve poter vedere
+ * la configurazione per fare il suo lavoro. Il default al contrario significa
+ * che **un'azione nuova nasce protetta**, e per aprirla bisogna dirlo.
+ */
+async function requireOrg(opts: { ancheMembri?: boolean } = {}): Promise<Ctx | Fail> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: 'Non autenticato' };
   const service = getServiceClient();
   const { data: member } = await service
     .from('organization_members')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   if (!member) return { ok: false, error: 'Nessuna organizzazione associata' };
+  if (!opts.ancheMembri && member.role !== 'owner') {
+    return {
+      ok: false,
+      error: 'Solo il proprietario può modificare la configurazione del catalogo.',
+    };
+  }
   return {
     ok: true,
     service,
@@ -302,7 +321,7 @@ export async function listSectors(): Promise<
   Ok<{ sectors: SectorRow[] }> | Fail
 > {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { data, error } = await auth.service
       .from('sectors')
@@ -333,7 +352,7 @@ export async function listPresets(): Promise<
   Ok<{ presets: PresetListItem[] }> | Fail
 > {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
 
@@ -822,7 +841,7 @@ export async function getPresetDetail(input: {
   presetId: string;
 }): Promise<Ok<{ detail: PresetDetail }> | Fail> {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
     const preset = await loadOwnedPreset(service, organizationId, input.presetId);
@@ -1320,7 +1339,7 @@ export async function listCategories(input?: {
   sectorId?: string;
 }): Promise<Ok<{ categories: CategoryListItem[] }> | Fail> {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
 
@@ -1474,7 +1493,7 @@ export async function getCategoryDetail(input: {
   categoryId: string;
 }): Promise<Ok<{ detail: CategoryDetail }> | Fail> {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
 
@@ -1819,7 +1838,7 @@ export async function listAttributes(input?: {
   kind?: string;
 }): Promise<Ok<{ attributes: AttributeListItem[] }> | Fail> {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
 
@@ -1951,7 +1970,7 @@ export async function getAttributeDetail(input: {
   attributeId: string;
 }): Promise<Ok<{ detail: AttributeDetail }> | Fail> {
   try {
-    const auth = await requireOrg();
+    const auth = await requireOrg({ ancheMembri: true });
     if (!auth.ok) return auth;
     const { service, organizationId } = auth;
 

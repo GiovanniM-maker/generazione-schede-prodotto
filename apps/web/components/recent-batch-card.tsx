@@ -25,7 +25,7 @@ export interface RecentBatch {
   isCompleted: boolean;
 }
 
-export function RecentBatchCard({ batch }: { batch: RecentBatch }) {
+export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwner: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -131,18 +131,22 @@ export function RecentBatchCard({ batch }: { batch: RecentBatch }) {
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setError(null);
-              setConfirmOpen(true);
-            }}
-            aria-label={`Elimina batch ${batch.name}`}
-            title="Elimina batch"
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
+          {/* Cancellare distrugge il lavoro di tutti: il cestino si mostra solo
+              a chi il server lascerebbe premerlo. */}
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setConfirmOpen(true);
+              }}
+              aria-label={`Elimina batch ${batch.name}`}
+              title="Elimina batch"
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          )}
         </div>
       </CardContent>
 

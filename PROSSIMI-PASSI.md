@@ -128,15 +128,36 @@ seconda volta in questo progetto che un finto diverge dalla produzione e nascond
 un bug — la prima fu la cancellazione a cascata. La regola resta: **si corregge
 il finto, non il test.**
 
-### 2.3 I ruoli sono promessi e non mantenuti — 1-2 giorni
+### 2.3 ~~I ruoli sono promessi e non mantenuti~~ — **fatto**
 
-`role` è controllato in due soli file (`team.ts`, `account.ts`). Tutto il resto
-passa dal client di servizio, che **scavalca le regole di accesso senza mai
-guardare il ruolo**: un semplice membro compra crediti, cancella batch interi,
-riscrive i preset.
+La linea: **il membro fa il lavoro, il proprietario decide i soldi e le regole.**
 
-Nell'interfaccia il badge «Proprietario / Membro» c'è. Una distinzione mostrata e
-non applicata è peggio di nessuna distinzione.
+| di tutti | del proprietario |
+|---|---|
+| creare batch, caricare, importare, generare | comprare crediti |
+| rivedere, esportare, rispondere ai dubbi | eliminare un batch |
+| *vedere* preset, categorie, attributi | *modificare* preset, categorie, attributi |
+
+Il pezzo che conta non è il controllo, è **dove** sta. Tutte e 32 le azioni del
+catalogo passano da un unico guardiano, `requireOrg`, che ora **pretende il
+proprietario per difetto**: chi legge e basta lo dichiara con
+`{ ancheMembri: true }`. Un'azione nuova nasce quindi protetta, e per aprirla
+bisogna scriverlo — il contrario di com'era, dove bisognava ricordarsi di
+chiudere.
+
+A reggere la regola c'è un test che **enumera le azioni del modulo** e verifica
+che ognuna, se non è fra le sette letture dichiarate, rifiuti un membro. Se
+qualcuno ne aggiunge una saltando il guardiano, quel test diventa rosso. È lì
+che una regola del genere si perde: non quando la si scrive, sei mesi dopo.
+
+L'interfaccia non offre più quello che il server rifiuterebbe: a un membro il
+cestino del batch non compare, e la pagina crediti spiega perché l'acquisto
+spetta al proprietario invece di lasciarlo sbattere contro un errore.
+
+**Resta aperto**: `batches` non registra chi ha creato il batch, quindi non c'è
+una regola più fine di «solo il proprietario elimina». Con una colonna
+`created_by` un membro potrebbe cancellare il proprio lavoro senza toccare
+quello degli altri.
 
 ### 2.4 ~~Il wizard che perde il lavoro~~ — **fatto**
 
