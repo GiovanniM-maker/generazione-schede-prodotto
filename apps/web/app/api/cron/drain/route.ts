@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createAiProviders } from '@app/ai';
-import { runProductGeneration, handleJobFailure, type GenerationContext } from '@app/pipeline';
+import {
+  runProductGeneration,
+  handleJobFailure,
+  riconciliaBatchBloccati,
+  type GenerationContext,
+} from '@app/pipeline';
 import { queueRead, queueDelete } from '@app/database';
 import { getServerEnv } from '@/lib/env.server';
 import { getServiceClient } from '@/lib/supabase/service';
@@ -30,7 +35,15 @@ function isCronRequest(request: Request): boolean {
   return !!cronSecret && authHeader === `Bearer ${cronSecret}`;
 }
 
-async function drain(): Promise<{ processed: number; empty: boolean; error?: string }> {
+interface EsitoDrain {
+  processed: number;
+  empty: boolean;
+  /** Batch rimessi in carreggiata da questo giro: 0 è la situazione normale. */
+  sbloccati?: { fantasma: number; chiusi: number; jobRipresi: number; creditiRestituiti: number };
+  error?: string;
+}
+
+async function drain(): Promise<EsitoDrain> {
   const env = getServerEnv();
   const service = getServiceClient();
   const providers = createAiProviders(env);
@@ -52,7 +65,10 @@ async function drain(): Promise<{ processed: number; empty: boolean; error?: str
       await resumeVisualAnalysis(service, { deadline });
       await finalizeDoubtsForCompletedBatches(service);
       await notifyCompletedBatches(service);
-      return { processed, empty: true };
+      // Per ultimo il controllo dei batch fermi: la coda è vuota, quindi
+      // "nessun job attivo" adesso vuol dire davvero nessun job attivo.
+      const sbloccati = await riconciliaBatchBloccati(service, { deadline });
+      return { processed, empty: true, sbloccati };
     }
     await Promise.all(
       messages.map(async (m) => {

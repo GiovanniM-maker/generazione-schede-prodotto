@@ -11,7 +11,7 @@ non a memoria.
 
 | | |
 |---|---|
-| Test | **366** unitari + **100** con browser vero, verdi |
+| Test | **382** unitari + **100** con browser vero, verdi |
 | Typecheck / lint | puliti su tutto il repo |
 | Build | OK |
 | Job falliti in coda | 0 |
@@ -30,7 +30,7 @@ Sul database di produzione: 3 organizzazioni, 11 preset, 51 categorie,
 | `packages/core` | 210 | logica pura: SKU, qualità, prompt, export, sicurezza URL |
 | `apps/web` | 111 | **server action** e rotte API — a inizio agosto erano 0 |
 | `packages/ai` | 14 | provider, traduzioni, miglioramento prompt |
-| `packages/pipeline` | 26 | accodamento, generazione, crediti, tracce |
+| `packages/pipeline` | 42 | accodamento, generazione, crediti, tracce, batch bloccati |
 | `apps/worker` | 5 | fallimenti e retry |
 | interfaccia (Playwright) | 100 | pagine pubbliche, wizard, risultati — su desktop e telefono |
 
@@ -108,6 +108,30 @@ Un effetto collaterale che si vede: l'import ora **dice** quanti prodotti sono
 entrati senza i loro dati. Prima il conteggio finiva solo nella telemetria e
 chi importava lo scopriva a generazione fatta.
 
+### Il presidio che guarda gli altri
+Tutti i controlli qui sopra coprono **una causa alla volta**. Un batch però si
+pianta anche per ragioni che nessun controllo puntuale intercetta: il processo
+che muore fra la riserva dei crediti e la creazione dei job, il messaggio in
+coda che si perde, l'invocazione interrotta a metà generazione.
+
+Il sintomo è sempre lo stesso: **un batch fermo in uno stato di lavoro senza
+niente che stia lavorando**. Il cron del drain lo cerca a ogni giro, quando la
+coda è vuota, e ripara:
+
+| cosa trova | cosa fa |
+|---|---|
+| batch in lavorazione senza un solo job | lo riporta a `sample_ready` e **restituisce i crediti riservati** |
+| tutti i job finiti, stato rimasto indietro | ricalcola e chiude (`completed` / `partial_failed` / `failed`) |
+| job fermo in `processing` | lo rimette in coda (la cache evita di ripagare il modello) |
+
+Due regole lo rendono sicuro da eseguire ogni minuto: **non tocca niente che si
+sia mosso negli ultimi 10 minuti** — il drain ha 5 minuti di tempo massimo,
+quindi dieci minuti di immobilità non sono spiegabili con del lavoro in corso —
+e **azzera `credits_reserved` nello stesso passaggio in cui restituisce**, perché
+`release_credits` non ha nessun freno lato database: chiamarla due volte regala
+crediti. Dei 16 test, dieci verificano che NON faccia niente: un presidio che
+interferisce col lavoro in corso fa più danni di quanti ne eviti.
+
 ### I vincoli dello schema in un posto solo
 Enum, unicità e cancellazioni a cascata sono definiti una volta e condivisi dai
 test. Ripeterli file per file è il modo in cui in questo progetto sono già nati
@@ -162,6 +186,10 @@ dei bug: la stessa regola scritta due volte, e le due copie che divergono.
 - `batches.source_type` è NULL su tutti i batch. Il percorso di scrittura è
   corretto e ora controllato; nessun punto del codice legge quel campo. È un
   residuo storico su una colonna di fatto inutilizzata.
+- **Nessun batch bloccato in produzione**, al momento della verifica: zero batch
+  in `queued`/`processing` fermi da più di dieci minuti, zero job appesi in
+  `processing`. Il rilevatore non ha niente da riparare — è lì per quando ne
+  avrà.
 - **Il registro crediti è in pari, riga per riga.** Riservati 233, rilasciati
   233 (209 per consumo, 23 per job falliti, 1 per una cache hit), consumati 209.
   Saldo 99.800, uguale alla somma dei tre saldi per organizzazione. Nessuna
