@@ -18,6 +18,7 @@ import type { AiProviders } from '@app/ai';
 import { sectorSafetyRules, sectorSensitiveClaims, type ServerEnv } from '@app/config';
 import type { TypedClient, Json, Database } from '@app/database';
 import { loadProductFactsV2 } from './facts.js';
+import { creditOp } from './credits.js';
 
 // Spec di generazione derivata dal preset: settore + istruzioni per attributo.
 export interface PresetGenerationSpec {
@@ -493,12 +494,12 @@ export async function runProductGeneration(
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', jobItemId));
     // Cache hit: rilascia il credito riservato (nessun consumo).
-    await client.rpc('release_credits', {
-      org: job.organization_id,
-      amt: 1,
-      ref_type: 'cache_hit',
-      ref_id: jobItemId,
-    });
+    await creditOp(
+      client,
+      'release_credits',
+      { org: job.organization_id, amt: 1, ref_type: 'cache_hit', ref_id: jobItemId },
+      { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+    );
     await updateBatchProgress(client, job.batch_id);
     return { outcome: 'cache_hit' };
   }
@@ -537,11 +538,15 @@ export async function runProductGeneration(
     .eq('id', job.product_id));
 
   // Consuma definitivamente il credito riservato.
-  await client.rpc('consume_reserved_credit', {
-    org: job.organization_id,
-    ref_type: 'job_item',
-    ref_id: jobItemId,
-  });
+  // La scheda c'e' gia': un consumo fallito non deve buttare via il lavoro
+  // (e far ripagare l'AI). Resta pero' una riserva mai convertita, quindi il
+  // fallimento va a finire dove qualcuno lo puo' trovare.
+  await creditOp(
+    client,
+    'consume_reserved_credit',
+    { org: job.organization_id, ref_type: 'job_item', ref_id: jobItemId },
+    { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+  );
 
   const jobStatus = genStatus === 'needs_review' || genStatus === 'rejected' ? 'needs_review' : 'completed';
   await mustWrite('job_items.update', client

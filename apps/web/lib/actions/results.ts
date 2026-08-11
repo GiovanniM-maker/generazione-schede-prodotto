@@ -6,6 +6,7 @@ import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
 import { writeOrThrow } from '@app/core';
+import { creditOp } from '@app/pipeline';
 
 // Azioni sulla pagina risultati: edit (salvato separato), accetta, rifiuta, rigenera.
 
@@ -224,12 +225,12 @@ export async function regenerateProductAction(input: {
   if (error || !job) {
     // L'insert può fallire se esiste già un job attivo per il prodotto
     // (unique index). Rilascia il credito riservato per non addebitarlo a vuoto.
-    await service.rpc('release_credits', {
-      org: orgId,
-      amt: 1,
-      ref_type: 'regen_failed',
-      ref_id: input.productId,
-    });
+    await creditOp(
+      service,
+      'release_credits',
+      { org: orgId, amt: 1, ref_type: 'regen_failed', ref_id: input.productId },
+      { organizationId: orgId, batchId: input.batchId, refId: input.productId },
+    );
     return {
       ok: false,
       error: 'Rigenerazione già in corso per questo prodotto. Attendi il completamento.',
