@@ -43,6 +43,7 @@ export default async function BillingPage({
   const { success, canceled } = await searchParams;
   const org = await getUserOrg(user.id);
   if (!org) redirect('/app/onboarding');
+  const isOwner = org.role === 'owner';
 
   const credits = await getCreditBalance(org.organizationId);
   const supabase = await createSupabaseServerClient();
@@ -122,6 +123,17 @@ export default async function BillingPage({
             </span>
           </div>
         )}
+        {/* Un pulsante che il server rifiuterebbe non va offerto: si dice
+            perché, invece di far sbattere contro un errore. */}
+        {!isOwner && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+            <span>
+              L’acquisto di crediti spetta al proprietario dell’organizzazione. Puoi
+              usare i crediti disponibili per generare le tue schede.
+            </span>
+          </div>
+        )}
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {packs.length === 0 && (
             <p className="text-sm text-gray-500">
@@ -140,10 +152,12 @@ export default async function BillingPage({
                 </div>
                 <div className="text-sm text-gray-500">crediti</div>
                 <div className="mt-6">
+                  {isOwner && (
                   <PurchaseButton
                     packKey={p.key}
                     variant={i === 1 ? 'primary' : 'outline'}
                   />
+                  )}
                 </div>
               </CardContent>
             </Card>

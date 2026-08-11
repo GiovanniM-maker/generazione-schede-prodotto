@@ -307,6 +307,7 @@ export default async function DashboardPage() {
           <div className="grid gap-4">
             {batches.map((b) => (
               <RecentBatchCard
+                isOwner={org.role === 'owner'}
                 key={b.id}
                 batch={{
                   id: b.id,

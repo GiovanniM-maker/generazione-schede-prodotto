@@ -18,6 +18,13 @@ export async function POST(request: Request) {
 
   const org = await getUserOrg(user.id);
   if (!org) return NextResponse.json({ error: 'Organizzazione mancante' }, { status: 400 });
+  // Sono soldi: li spende chi è intestatario dell'organizzazione.
+  if (org.role !== 'owner') {
+    return NextResponse.json(
+      { error: "Solo il proprietario dell'organizzazione può acquistare crediti." },
+      { status: 403 },
+    );
+  }
 
   const body = (await request.json().catch(() => ({}))) as { packKey?: string };
   const packKey = body.packKey;

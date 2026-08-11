@@ -3,7 +3,7 @@
 import { logWrite } from '@app/core';
 import { getSessionUser } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
-import { assertBatchAccess } from '@/lib/ownership';
+import { assertBatchAccess, soloProprietario } from '@/lib/ownership';
 
 // ---------------------------------------------------------------------------
 // Quel che resta del flusso batch della prima versione.
@@ -33,6 +33,11 @@ export async function deleteBatchAction(input: {
   if (!user) return { ok: false, error: 'Non autenticato' };
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return { ok: false, error: 'Batch non accessibile' };
+  // Cancellare un batch distrugge il lavoro di tutti, e `batches` non registra
+  // chi l'ha creato: senza quella colonna non c'è una regola più fine di
+  // questa.
+  const permesso = await soloProprietario('eliminare un batch');
+  if (!permesso.ok) return { ok: false, error: permesso.error };
   const service = getServiceClient();
 
   const { data: batch } = await service
