@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Avviso } from '@/components/ui/avviso';
 import {
   COMPLETENESS_LABELS,
   COMPLETENESS_TONES,
@@ -315,7 +316,7 @@ export function SampleRunner({
               </h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {sample.facts.length === 0 && (
-                  <span className="text-sm text-gray-400">Nessun fatto</span>
+                  <span className="text-sm text-gray-500">Nessun fatto</span>
                 )}
                 {sample.facts.map((f, i) => (
                   <Badge key={i} tone="gray">
@@ -352,14 +353,14 @@ export function SampleRunner({
               />
 
               {sample.content.warnings.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <Avviso tono="attenzione">
                   <p className="font-medium">Avvisi</p>
                   <ul className="mt-1 list-inside list-disc">
                     {sample.content.warnings.map((w, i) => (
                       <li key={i}>{w}</li>
                     ))}
                   </ul>
-                </div>
+                </Avviso>
               )}
             </CardContent>
           </Card>
@@ -422,7 +423,7 @@ export function SampleRunner({
                 <RefreshCw className="h-4 w-4" />
                 Rigenera il campione
               </Button>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 {remaining} rigenerazioni rimaste
               </span>
             </div>

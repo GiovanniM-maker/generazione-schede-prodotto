@@ -131,7 +131,7 @@ export default async function StoricoPage() {
                 const meta = EVENT_META[ev.event_name] ?? {
                   label: ev.event_name,
                   icon: Circle,
-                  tone: 'text-gray-400',
+                  tone: 'text-gray-500',
                 };
                 const Icon = meta.icon;
                 const detail = describe(ev);
@@ -148,7 +148,7 @@ export default async function StoricoPage() {
                         <p className="truncate text-xs text-gray-500">{detail}</p>
                       )}
                     </div>
-                    <time className="shrink-0 whitespace-nowrap text-xs text-gray-400">
+                    <time className="shrink-0 whitespace-nowrap text-xs text-gray-500">
                       {formatDate(ev.created_at)}
                     </time>
                   </li>

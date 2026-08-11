@@ -187,7 +187,7 @@ export function WizardGuide({ autoOpen }: { autoOpen?: boolean }) {
                 type="button"
                 onClick={restart}
                 aria-label="Ricomincia la guida"
-                className="rounded p-1 text-gray-400 hover:text-gray-700"
+                className="rounded p-1 text-gray-500 hover:text-gray-700"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
@@ -195,7 +195,7 @@ export function WizardGuide({ autoOpen }: { autoOpen?: boolean }) {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Chiudi la guida"
-                className="rounded p-1 text-gray-400 hover:text-gray-700"
+                className="rounded p-1 text-gray-500 hover:text-gray-700"
               >
                 <X className="h-4 w-4" />
               </button>

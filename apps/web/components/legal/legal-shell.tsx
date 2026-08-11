@@ -28,7 +28,7 @@ export function LegalShell({
           Torna alla home
         </Link>
         <h1 className="text-3xl font-semibold text-gray-900">{title}</h1>
-        <p className="mt-1 text-sm text-gray-400">Ultimo aggiornamento: {updated}</p>
+        <p className="mt-1 text-sm text-gray-500">Ultimo aggiornamento: {updated}</p>
         {!datiTitolare().completo && (
           <div className="mt-6 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

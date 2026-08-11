@@ -39,7 +39,7 @@ export function WelcomeCard({ pronto }: { pronto: boolean }) {
         type="button"
         onClick={dismiss}
         aria-label="Chiudi il benvenuto"
-        className="absolute right-3 top-3 rounded p-1 text-gray-400 hover:text-gray-700"
+        className="absolute right-3 top-3 rounded p-1 text-gray-500 hover:text-gray-700"
       >
         <X className="h-4 w-4" />
       </button>

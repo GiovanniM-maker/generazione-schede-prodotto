@@ -32,6 +32,17 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      {/* Dieci tappe di Tab prima di arrivare al contenuto, e quarantatré per
+          l'ultima azione dei risultati con tre soli prodotti. Chi naviga da
+          tastiera rifaceva l'intera intestazione a ogni pagina. Il
+          collegamento è invisibile finché non riceve il fuoco: allora
+          compare. */}
+      <a
+        href="#contenuto"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-gray-900 focus:shadow-lg focus:ring-2 focus:ring-brand-accent"
+      >
+        Salta al contenuto
+      </a>
       {/* Le etichette compaiono da `lg`, non da `sm`.
           Con le parole accanto alle icone la barra vuole 928px, ma comparivano
           già a 640: fra 640 e 928 il documento scorreva di lato fino a 288px e
@@ -75,7 +86,7 @@ export default async function AppLayout({
             >
               <Coins className="h-4 w-4 text-amber-500" />
               {credits}
-              <span className="hidden text-gray-400 lg:inline">crediti</span>
+              <span className="hidden text-gray-500 lg:inline">crediti</span>
             </span>
 
             <Link href="/app/billing">
@@ -96,7 +107,9 @@ export default async function AppLayout({
 
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <main id="contenuto" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6 focus:outline-none">
+        {children}
+      </main>
       <AppFooter />
     </div>
   );

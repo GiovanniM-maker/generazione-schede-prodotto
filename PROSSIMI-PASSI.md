@@ -361,22 +361,41 @@ conto suo.
 display* per i titoli, diverso da quello del testo. È una scelta di marchio, non
 di codice.
 
-### 3.2 Accessibilità — 2-3 giorni
+### 3.2 ~~Accessibilità~~ — **fatto**
 
-- **Zero `aria-live`, `role="status"`, `role="alert"`** in tutto il prodotto, su
-  55 riquadri di feedback: chi usa un lettore di schermo non sa mai se
-  un'operazione è riuscita. Verificato a runtime su filtro, accettazione scheda
-  ed errore di login.
-- **Le modali non sono modali**: nessun `role="dialog"` (le due che ce l'hanno
-  sono del tour di onboarding), il fuoco non entra all'apertura, 20 Tab su 25
-  finiscono fuori, non torna al punto di partenza alla chiusura. Esc funziona.
-- **14 combinazioni di contrasto sotto soglia** su 23 viste, le peggiori a
-  2,40:1.
-- **Nessun «salta al contenuto»**: 10 tappe di Tab prima del contenuto, 43 per
-  arrivare all'ultima azione dei risultati con soli 3 prodotti.
+Non era «poca»: era **niente**. Zero `aria-live`, zero `role="status"`, zero
+`role="alert"` su 55 riquadri di riscontro. Si premeva «Salva» e non arrivava
+nessuna notizia — né buona né cattiva. Sono difetti che non si vedono
+guardando: la pagina, a occhio, funzionava benissimo.
 
-*Già a posto*: fuoco visibile su 111 tappe su 111, un solo `<h1>` su 22 rotte su
-23, nomi accessibili ovunque tranne una textarea.
+**I riquadri parlano.** C'è un `Avviso` solo, e la distinzione fra i due ruoli
+non è una sfumatura: l'errore usa `alert` e **interrompe** (qualcosa non è
+successo, e finché non lo si sa si continua a credere il contrario), la
+conferma usa `status` e aspetta il suo turno. Per strada sono spariti anche
+trenta riquadri rossi scritti a mano con quattro spaziature diverse.
+
+**Le modali sono modali.** Erano riquadri sopra la pagina e nient'altro: nessun
+`role="dialog"`, il fuoco restava sul pulsante che le aveva aperte, e
+continuando con Tab si finiva a navigare la pagina sottostante — coperta e
+inutilizzabile. Ora il fuoco **entra**, **resta dentro** (Tab e Shift+Tab
+girano) e **torna dove stava** alla chiusura. La terza è quella che si dimentica
+sempre ed è quella che si sente di più.
+
+Provato con la tastiera vera: aperta la modale, **nove Tab e zero fughe**, Esc
+chiude e il fuoco torna esattamente su «Nuovo preset».
+
+**«Salta al contenuto».** Servivano dieci tappe di Tab per arrivare al
+contenuto, a ogni pagina, e quarantatré per l'ultima azione dei risultati con
+tre soli prodotti. Ora il salto è la prima tappa, invisibile finché non riceve
+il fuoco, e il bersaglio può riceverlo — senza `tabIndex={-1}` il salto
+sposterebbe la vista ma non il punto di lettura.
+
+**Il testo si legge.** 87 righe di testo erano a `gray-400`: 2,4:1 sul nostro
+fondo crema, contro un minimo di 4,5:1. Portate a `gray-500`. Le 17 rimaste
+sono icone, che sono decorative ed esenti.
+
+*Già a posto e rimasto tale*: fuoco visibile su 111 tappe su 111, nomi
+accessibili ovunque tranne una textarea.
 
 ### 3.3 Prestazioni — 2-3 giorni
 

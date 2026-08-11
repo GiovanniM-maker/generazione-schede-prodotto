@@ -4,6 +4,7 @@ import {
   listSectors,
 } from '@/lib/actions/catalog';
 import { AttributesClient } from '@/components/settings/attributes-client';
+import { Avviso } from '@/components/ui/avviso';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,8 +36,8 @@ export default async function AttributesPage({
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <Avviso tono="errore">
       {message}
-    </div>
+    </Avviso>
   );
 }

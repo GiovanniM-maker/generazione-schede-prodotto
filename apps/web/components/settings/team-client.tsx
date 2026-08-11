@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
+import { Avviso } from '@/components/ui/avviso';
 
 export function TeamClient({
   members,
@@ -89,9 +90,9 @@ export function TeamClient({
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       {isOwner && (
@@ -129,7 +130,7 @@ export function TeamClient({
               </Button>
             </div>
           )}
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs text-gray-500">
             Condividi il link con la persona invitata: dovrà accedere con questa email per
             entrare nell’organizzazione.
           </p>
@@ -153,7 +154,7 @@ export function TeamClient({
               <TR key={m.userId}>
                 <TD className="text-gray-900">
                   {m.email}
-                  {m.isYou && <span className="ml-2 text-xs text-gray-400">(tu)</span>}
+                  {m.isYou && <span className="ml-2 text-xs text-gray-500">(tu)</span>}
                 </TD>
                 <TD>
                   <Badge tone={m.role === 'owner' ? 'violet' : 'gray'}>

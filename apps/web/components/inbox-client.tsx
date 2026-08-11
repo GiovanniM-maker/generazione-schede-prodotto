@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avviso } from '@/components/ui/avviso';
 
 export function InboxClient({ initial }: { initial: DoubtView[] }) {
   const router = useRouter();
@@ -48,7 +49,7 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <Avviso tono="errore">{error}</Avviso>
       )}
       {doubts.map((d) => (
         <Card key={d.id}>

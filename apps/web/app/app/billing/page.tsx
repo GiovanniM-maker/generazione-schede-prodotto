@@ -163,7 +163,7 @@ export default async function BillingPage({
                   )}
                 </div>
                 {p.price_cents != null && (
-                  <div className="mt-1 text-xs text-gray-400">IVA esclusa</div>
+                  <div className="mt-1 text-xs text-gray-500">IVA esclusa</div>
                 )}
                 <div className="mt-6">
                   {isOwner && (

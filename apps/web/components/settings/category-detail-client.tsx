@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
+import { Avviso } from '@/components/ui/avviso';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -102,9 +103,9 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <RecognitionHintCard
@@ -134,7 +135,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
         </div>
 
         {detail.attributes.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">
+          <p className="py-6 text-center text-sm text-gray-500">
             Nessun attributo collegato.
           </p>
         ) : (
@@ -156,7 +157,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
           Preset che la usano
         </h3>
         {detail.usedByPresets.length === 0 ? (
-          <p className="text-sm text-gray-400">Nessun preset la utilizza.</p>
+          <p className="text-sm text-gray-500">Nessun preset la utilizza.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {detail.usedByPresets.map((p) => (
@@ -306,7 +307,7 @@ function CategoryAttributeRow({
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
-          <span className="text-xs text-gray-400">{attr.dataType}</span>
+          <span className="text-xs text-gray-500">{attr.dataType}</span>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-sm text-gray-600">
@@ -363,7 +364,7 @@ function CategoryAttributeRow({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           Le modifiche hanno effetto sulla prossima generazione.
         </p>
         {editable && dirty && (

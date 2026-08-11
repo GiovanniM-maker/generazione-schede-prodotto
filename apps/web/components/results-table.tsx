@@ -971,7 +971,7 @@ function SchedaLettura({
             </a>
           )}
           {/* Occhiello discreto: identificativo e categoria non rubano la scena. */}
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-400">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
             <span className="font-mono">{riga.externalId}</span>
             {riga.category && (
               <>
@@ -1031,7 +1031,7 @@ function SchedaLettura({
                   )}
                   {eff?.faq && eff.faq.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                         Domande frequenti
                       </p>
                       <dl className="mt-2 max-w-prose space-y-2">
@@ -1183,7 +1183,7 @@ function ImprovementModal({
               </div>
               <div className="grid gap-0 sm:grid-cols-2">
                 <div className="border-b border-gray-100 p-3 sm:border-b-0 sm:border-r">
-                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
                     Prima
                   </p>
                   <p className="whitespace-pre-wrap text-sm text-gray-500">
@@ -1459,7 +1459,7 @@ function ProductAttributesPanel({
         correggili.
       </p>
       {attrs === null && !error && (
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Carico i campi…
         </div>
       )}
@@ -1783,7 +1783,7 @@ function DetailDrawer({
               )}
               {row.completeness.missingAttributes.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Attributi mancanti
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -1809,7 +1809,7 @@ function DetailDrawer({
             <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
               {base.altText && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Alt text immagine
                   </p>
                   <p className="mt-0.5 text-sm text-gray-700">{base.altText}</p>
@@ -1817,7 +1817,7 @@ function DetailDrawer({
               )}
               {(base.faq?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">FAQ</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">FAQ</p>
                   <div className="mt-1 space-y-2">
                     {base.faq.map((f, i) => (
                       <div key={i}>

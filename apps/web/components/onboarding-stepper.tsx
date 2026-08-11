@@ -441,7 +441,7 @@ export function OnboardingStepper({
             />
           ))}
         </div>
-        <p className="mb-6 text-xs font-medium text-gray-400">
+        <p className="mb-6 text-xs font-medium text-gray-500">
           Passaggio {step} di {TOTAL} · {STEP_TITLES[step - 1]}
         </p>
 
@@ -599,7 +599,7 @@ export function OnboardingStepper({
                 );
               })}
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               Potrai modificare tutto successivamente.
             </p>
           </div>
@@ -750,7 +750,7 @@ export function OnboardingStepper({
                             <span
                               className={cn(
                                 'font-medium',
-                                e.enabled ? 'text-gray-900' : 'text-gray-400 line-through',
+                                e.enabled ? 'text-gray-900' : 'text-gray-500 line-through',
                               )}
                             >
                               {attr.name}
@@ -1087,15 +1087,15 @@ function ChecklistRow({
       <span
         className={cn(
           'flex h-5 w-5 items-center justify-center rounded-full',
-          done ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-400',
+          done ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500',
         )}
       >
         <Check className="h-3 w-3" />
       </span>
-      <span className={cn('text-gray-700', !done && 'text-gray-400')}>
+      <span className={cn('text-gray-700', !done && 'text-gray-500')}>
         {label}
         {optional && !done && (
-          <span className="ml-1 text-xs text-gray-400">(opzionale)</span>
+          <span className="ml-1 text-xs text-gray-500">(opzionale)</span>
         )}
       </span>
     </div>

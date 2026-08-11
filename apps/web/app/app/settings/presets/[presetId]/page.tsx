@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { getPresetDetail } from '@/lib/actions/catalog';
 import { PresetDetailClient } from '@/components/settings/preset-detail-client';
+import { Avviso } from '@/components/ui/avviso';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,9 +18,9 @@ export default async function PresetDetailPage({
     return (
       <div className="space-y-4">
         <BackLink />
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Avviso tono="errore">
           {res.error}
-        </div>
+        </Avviso>
       </div>
     );
   }

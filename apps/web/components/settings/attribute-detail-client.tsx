@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Avviso } from '@/components/ui/avviso';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -136,9 +137,9 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <Card className="space-y-4 p-5">
@@ -207,7 +208,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             placeholder="Come usare il valore nella copy generata…"
           />
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           Le modifiche hanno effetto sulla prossima esecuzione.
         </p>
       </Card>
@@ -246,7 +247,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             Categorie che lo usano
           </h3>
           {detail.usedByCategories.length === 0 ? (
-            <p className="text-sm text-gray-400">Nessuna categoria.</p>
+            <p className="text-sm text-gray-500">Nessuna categoria.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {detail.usedByCategories.map((c) => (
@@ -266,7 +267,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             Preset che lo usano
           </h3>
           {detail.usedByPresets.length === 0 ? (
-            <p className="text-sm text-gray-400">Nessun preset.</p>
+            <p className="text-sm text-gray-500">Nessun preset.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {detail.usedByPresets.map((p) => (

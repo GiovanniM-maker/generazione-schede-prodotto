@@ -39,6 +39,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
 import { PresetCopilotPanel } from '@/components/settings/preset-copilot-panel';
+import { Avviso } from '@/components/ui/avviso';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -246,16 +247,16 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
         {/* Sidebar categorie */}
         <Card className="h-fit p-3">
           <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               Categorie
             </span>
           </div>
@@ -272,13 +273,13 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                 )}
               >
                 <span className="truncate">{c.name}</span>
-                <span className="ml-2 text-xs text-gray-400">
+                <span className="ml-2 text-xs text-gray-500">
                   {c.attributes.length}
                 </span>
               </button>
             ))}
             {detail.categories.length === 0 && (
-              <p className="px-2 py-3 text-xs text-gray-400">
+              <p className="px-2 py-3 text-xs text-gray-500">
                 Nessuna categoria.
               </p>
             )}
@@ -346,7 +347,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               />
 
               {current.attributes.length === 0 ? (
-                <p className="py-6 text-center text-sm text-gray-400">
+                <p className="py-6 text-center text-sm text-gray-500">
                   Nessun attributo in questa categoria.
                 </p>
               ) : (
@@ -410,7 +411,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                 </Badge>
               ))}
               {detail.generatedFields.length === 0 && (
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-500">
                   Nessun campo generato configurato.
                 </p>
               )}
@@ -466,9 +467,9 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             </p>
           </div>
           {importMsg && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <Avviso tono="riuscito">
               {importMsg}
-            </div>
+            </Avviso>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setImportAttrOpen(false)}>
@@ -507,9 +508,9 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             </p>
           </div>
           {importCatMsg && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <Avviso tono="riuscito">
               {importCatMsg}
-            </div>
+            </Avviso>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setImportCatOpen(false)}>
@@ -717,7 +718,7 @@ function AttributeEditor({
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
-          <span className="text-xs text-gray-400">{attr.dataType}</span>
+          <span className="text-xs text-gray-500">{attr.dataType}</span>
         </div>
         <div className="flex items-center gap-1">
           <label
@@ -793,7 +794,7 @@ function AttributeEditor({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           Le modifiche hanno effetto sulla prossima generazione.
         </p>
         {editable && dirty && (
@@ -906,7 +907,7 @@ function AddCategoryModal({
         />
         <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-1">
           {filtered.length === 0 ? (
-            <p className="px-2 py-4 text-center text-sm text-gray-400">
+            <p className="px-2 py-4 text-center text-sm text-gray-500">
               Nessuna categoria disponibile.
             </p>
           ) : (
@@ -923,9 +924,9 @@ function AddCategoryModal({
                 />
                 <span className="flex-1 text-gray-900">
                   {c.name}
-                  {c.isSystem && <span className="ml-1 text-xs text-gray-400">(sistema)</span>}
+                  {c.isSystem && <span className="ml-1 text-xs text-gray-500">(sistema)</span>}
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-500">
                   {new Date(c.createdAt).toLocaleDateString('it-IT')}
                 </span>
               </label>

@@ -1437,11 +1437,11 @@ function Step2({
                       {aopen && (
                         <div className="space-y-2 border-t border-gray-100 px-3 py-2 text-sm text-gray-600">
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Istruzione di estrazione</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Istruzione di estrazione</span>
                             <p className="mt-0.5">{attr.extractionInstruction ?? '—'}</p>
                           </div>
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Istruzione di generazione</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Istruzione di generazione</span>
                             <p className="mt-0.5">{attr.generationInstruction ?? '—'}</p>
                           </div>
                         </div>
@@ -1730,7 +1730,7 @@ function Step5({
           >
             <UploadCloud className="h-6 w-6 text-gray-400" />
             <span className="text-sm text-gray-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
-            <span className="text-xs text-gray-400">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
+            <span className="text-xs text-gray-500">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
             <input
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.zip"
@@ -1850,7 +1850,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record
           </tbody>
         </table>
       </div>
-      <p className="border-t border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-400">
+      <p className="border-t border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
         {headers.length} colonne · anteprima di {shown.length} righe {rows.length > shown.length ? `(su ${rows.length})` : ''}
       </p>
     </div>
@@ -1898,7 +1898,7 @@ function CategoryColumnValidator({
   const norm = (s: string) =>
     s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
-  if (loading) return <p className="mt-2 text-xs text-gray-400">Verifico i valori della colonna…</p>;
+  if (loading) return <p className="mt-2 text-xs text-gray-500">Verifico i valori della colonna…</p>;
   if (cats.length === 0) return null;
 
   const catByNorm = new Map(cats.map((c) => [norm(c.name), c] as const));
@@ -2223,7 +2223,7 @@ function SkuList({ title, skus, tone }: { title: string; skus: string[]; tone: B
                 {s}
               </span>
             ))}
-            {skus.length > 30 && <span className="text-xs text-gray-400">+{skus.length - 30}</span>}
+            {skus.length > 30 && <span className="text-xs text-gray-500">+{skus.length - 30}</span>}
           </div>
         )}
       </CardContent>
@@ -2426,7 +2426,7 @@ function FreeColumnsSection({
               </label>
               {checked ? (
                 <>
-                  <span className="hidden text-center text-xs text-gray-400 sm:block">→</span>
+                  <span className="hidden text-center text-xs text-gray-500 sm:block">→</span>
                   <Input
                     value={extraCols[h] ?? h}
                     onChange={(e) =>
@@ -2437,7 +2437,7 @@ function FreeColumnsSection({
                   />
                 </>
               ) : (
-                <span className="text-xs text-gray-400 sm:col-span-2">non importata</span>
+                <span className="text-xs text-gray-500 sm:col-span-2">non importata</span>
               )}
             </div>
           );
@@ -2661,25 +2661,25 @@ function SampleOutput({ content }: { content: SampleCopy }) {
     <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
       {content.title && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Titolo</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Titolo</p>
           <p className="mt-0.5 text-base font-semibold text-gray-900">{content.title}</p>
         </div>
       )}
       {content.shortDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descrizione breve</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Descrizione breve</p>
           <p className="mt-0.5 text-sm text-gray-700">{content.shortDescription}</p>
         </div>
       )}
       {content.longDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descrizione lunga</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Descrizione lunga</p>
           <p className="mt-0.5 whitespace-pre-line text-sm text-gray-700">{content.longDescription}</p>
         </div>
       )}
       {bullets.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Punti chiave</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Punti chiave</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-gray-700">
             {bullets.map((b, i) => (
               <li key={i}>{b}</li>
@@ -2689,7 +2689,7 @@ function SampleOutput({ content }: { content: SampleCopy }) {
       )}
       {content.metaDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Meta description</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Meta description</p>
           <p className="mt-0.5 text-sm text-gray-500">{content.metaDescription}</p>
         </div>
       )}
@@ -2712,7 +2712,7 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
       )}
       {completeness.missingAttributes.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Attributi mancanti</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Attributi mancanti</p>
           <div className="mt-1 flex flex-wrap gap-1">
             {completeness.missingAttributes.map((a) => (
               <span key={a} className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">

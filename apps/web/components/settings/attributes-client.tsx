@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal } from '@/components/settings/modal';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
+import { Avviso } from '@/components/ui/avviso';
 
 const KINDS = [
   { value: 'factual', label: 'Fattuale' },
@@ -216,9 +217,9 @@ export function AttributesClient({
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -387,9 +388,9 @@ export function AttributesClient({
             </p>
           </div>
           {importMsg && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <Avviso tono="riuscito">
               {importMsg}
-            </div>
+            </Avviso>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>

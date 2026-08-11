@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avviso } from '@/components/ui/avviso';
 
 export function AccountClient({ email, isOwner }: { email: string; isOwner: boolean }) {
   const router = useRouter();
@@ -59,9 +60,9 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <Card className="p-5">

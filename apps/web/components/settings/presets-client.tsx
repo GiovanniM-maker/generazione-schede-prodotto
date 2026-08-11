@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { Avviso } from '@/components/ui/avviso';
 
 export function PresetsClient({
   presets,
@@ -122,9 +123,9 @@ export function PresetsClient({
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <Card>

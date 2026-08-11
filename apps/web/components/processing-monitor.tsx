@@ -134,7 +134,7 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
       </Card>
 
       {!finished && (
-        <p className="text-center text-sm text-gray-400">
+        <p className="text-center text-sm text-gray-500">
           Aggiornamento automatico ogni 3 secondi.
         </p>
       )}
