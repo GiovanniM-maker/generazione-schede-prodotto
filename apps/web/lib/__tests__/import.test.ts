@@ -53,7 +53,7 @@ function seedScenario(opts: { csv?: string; immagini?: string[] } = {}) {
   db.seed('batches', [{ id: BATCH, organization_id: ORG, preset_version_id: 'v1' }]);
 
   db.seed('attributes', [
-    { id: 'a-nome', key: 'product_name', name: 'Nome prodotto', data_type: 'text', sector_id: 'food', status: 'active', owner_organization_id: null },
+    { id: 'a-nome', key: 'nome_commerciale', name: 'Nome commerciale', data_type: 'text', sector_id: 'food', status: 'active', owner_organization_id: null },
     { id: 'a-cat', key: 'category', name: 'Categoria', data_type: 'text', sector_id: 'food', status: 'active', owner_organization_id: null },
     { id: 'a-formato', key: null, name: 'Formato', data_type: 'text', sector_id: 'food', status: 'active', owner_organization_id: ORG },
     { id: 'a-origine', key: null, name: 'Origine', data_type: 'text', sector_id: 'food', status: 'active', owner_organization_id: ORG },
@@ -123,7 +123,11 @@ beforeEach(() => seedScenario());
 
 describe('import: il percorso normale', () => {
   it('crea un prodotto per riga, con SKU e nome', async () => {
-    const res = await importa();
+    // `nameHeader` e' la colonna dedicata del nome. Questo test passava anche
+    // senza, ma solo perche' il finto catalogo dichiarava un attributo di
+    // chiave `product_name` — una chiave magica che in produzione non esiste.
+    // Il finto database mentiva, e mentendo teneva verde un difetto reale.
+    const res = await importa({ nameHeader: 'nome' });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.data.imported).toBe(2);
@@ -172,14 +176,12 @@ describe('import: eleggibilità alla generazione', () => {
     expect(prodotti().every((p) => p.verification_status === 'eligible')).toBe(true);
   });
 
-  it('SKU e nome soltanto non bastano: nome e categoria non contano come fatti', async () => {
-    // Due valori mappati, ma entrambi identificativi: devono valere ZERO fatti
-    // aggiuntivi. Con un solo valore il test non distinguerebbe una regola
-    // giusta da una che conta tutto.
+  it('SKU, nome e categoria soltanto non bastano: sono identità, non fatti', async () => {
+    // Tre colonne valorizzate, ma tutte identificative: devono valere ZERO
+    // fatti. Con una sola il test non distinguerebbe una regola giusta da una
+    // che conta tutto.
     seedScenario({ csv: 'sku,nome,categoria\nX-1,Solo nome,Olio EVO' });
-    const res = await importa({
-      attributeMapping: { 'a-nome': 'nome', 'a-cat': 'categoria' },
-    });
+    const res = await importa({ nameHeader: 'nome', attributeMapping: {} });
     if (!res.ok) throw new Error(res.error);
     expect(res.data.valid).toBe(0);
     expect(db.row('products').verification_status).toBe('excluded');
@@ -188,10 +190,12 @@ describe('import: eleggibilità alla generazione', () => {
   it('un solo fatto vero non basta: la soglia è due', async () => {
     seedScenario({ csv: 'sku,nome,formato\nX-1,Nome,500 ml' });
     const res = await importa({
-      attributeMapping: { 'a-nome': 'nome', 'a-formato': 'formato' },
+      nameHeader: 'nome',
+      attributeMapping: { 'a-formato': 'formato' },
       categoryHeader: undefined,
     });
     if (!res.ok) throw new Error(res.error);
+    // Il nome non conta: resta un solo fatto vero, e la soglia è due.
     expect(res.data.valid).toBe(0);
   });
 
@@ -593,5 +597,66 @@ describe('import: quando una scrittura fallisce', () => {
     const meta = tracce[0]!.metadata_json as Record<string, unknown>;
     expect(String(meta.operazione)).toContain('product_attribute_values');
     expect(String(meta.errore)).toContain('value too long');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('import: il nome del prodotto', () => {
+  // Il nome era trattato come un attributo del preset: l'import cercava un
+  // attributo di chiave `product_name` che non è mai esistito — non nel seed,
+  // non in produzione. Quel ramo non poteva scattare, e il ripiego «chiamalo
+  // come il suo codice» scattava per OGNI prodotto di OGNI catalogo. Si
+  // caricava un Excel con la colonna «Nome» e si otteneva un catalogo di
+  // prodotti chiamati come codici a barre.
+
+  it('prende il nome dalla colonna indicata', async () => {
+    await importa({ nameHeader: 'nome' });
+    const nomi = prodotti().map((p) => p.name);
+    expect(nomi).toContain('Olio EVO Coratina');
+    expect(nomi).toContain('Pecorino stagionato');
+  });
+
+  it('senza colonna nome ripiega sul codice, e lo dichiara', async () => {
+    const res = await importa();
+    expect(prodotti().every((p) => p.name === p.sku)).toBe(true);
+    // Il ripiego resta, ma smette di essere silenzioso: chi importa lo vede.
+    expect((res as { data: { senzaNome: number } }).data.senzaNome).toBe(2);
+  });
+
+  it('con la colonna nome il conteggio è a zero', async () => {
+    const res = await importa({ nameHeader: 'nome' });
+    expect((res as { data: { senzaNome: number } }).data.senzaNome).toBe(0);
+  });
+
+  it('una cella nome vuota ricade sul codice solo per quella riga', async () => {
+    seedScenario({
+      csv: ['sku,nome,categoria', 'OLIO-1,Olio EVO Coratina,Olio EVO', 'FORM-1,,Formaggi'].join('\n'),
+    });
+    const res = await importa({ nameHeader: 'nome', attributeMapping: {} });
+    const byId = new Map(prodotti().map((p) => [p.sku, p.name]));
+    expect(byId.get('OLIO-1')).toBe('Olio EVO Coratina');
+    expect(byId.get('FORM-1')).toBe('FORM-1');
+    expect((res as { data: { senzaNome: number } }).data.senzaNome).toBe(1);
+  });
+
+  it('il nome non diventa anche un fatto da raccontare all’AI', async () => {
+    await importa({ nameHeader: 'nome' });
+    // Il nome è l'identità della riga, non un dato del prodotto: infilarlo fra
+    // i fatti farebbe scrivere all'AI frasi sul proprio titolo.
+    const valori = db.rows('product_attribute_values').map((f) => String(f.value_json));
+    expect(valori).not.toContain('Olio EVO Coratina');
+  });
+
+  it('gli spazi nel file non arrivano al nome del prodotto', async () => {
+    // Garanzia di percorso, non di funzione: a togliere gli spazi è già il
+    // parser (`normalizeCell`), e il `.trim()` nell'import è una seconda
+    // cintura. Il test resta perché a contare è il risultato in fondo alla
+    // catena: cambiando parser, questo se ne accorge.
+    seedScenario({
+      csv: ['sku,nome,categoria', 'OLIO-1,  Olio EVO Coratina  ,Olio EVO'].join('\n'),
+    });
+    await importa({ nameHeader: 'nome', attributeMapping: {} });
+    expect(db.row('products').name).toBe('Olio EVO Coratina');
   });
 });

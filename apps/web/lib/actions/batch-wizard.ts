@@ -18,6 +18,7 @@ import {
   parseXlsx,
   pickCategoryVocabulary,
   suggestImageType,
+  suggestNameHeader,
   suggestSkuHeader,
   validateRowSku,
   type BuiltProduct,
@@ -395,6 +396,8 @@ export interface UploadSpreadsheetResult {
   headers: string[];
   previewRows: Array<Record<string, string>>;
   suggestedSkuHeader: string | null;
+  /** Colonna che sembra contenere il nome del prodotto (mai quella dello SKU). */
+  suggestedNameHeader: string | null;
   totalRows: number;
   file: UploadedFileSummary;
 }
@@ -530,6 +533,7 @@ export async function uploadBatchFiles(
       headers: parsed.headers,
       previewRows: parsed.rows.slice(0, 100),
       suggestedSkuHeader: suggestSkuHeader(parsed.headers),
+      suggestedNameHeader: suggestNameHeader(parsed.headers, suggestSkuHeader(parsed.headers)),
       totalRows: parsed.rows.length,
       file: {
         filename: file.name,
@@ -1018,6 +1022,12 @@ export interface ImportResultV2 {
    * scopriva il buco a generazione fatta.
    */
   factsInsertErrors: number;
+  /**
+   * Prodotti rimasti col codice al posto del nome perché nel file non è stata
+   * indicata una colonna nome. Era il caso di *tutti* i prodotti di ogni
+   * catalogo, e nessuno lo diceva.
+   */
+  senzaNome: number;
   /** Prodotti collegati a una categoria merceologica dell'organizzazione. */
   categoriesMatched: number;
   /** Nomi di categoria presenti nel file ma non riconosciuti (da creare). */
@@ -1148,6 +1158,15 @@ async function loadPresetCategoryScope(
 export async function confirmImportV2(input: {
   batchId: string;
   skuHeader: string;
+  /**
+   * Colonna del file che contiene il NOME del prodotto.
+   *
+   * Il nome non è un attributo del preset ma l'identità della riga, come lo SKU
+   * e la categoria. Trattarlo da attributo è la ragione per cui è sparito:
+   * l'import cercava un attributo `product_name` che non è mai esistito, e il
+   * ripiego «chiamalo come il suo codice» scattava per ogni prodotto.
+   */
+  nameHeader?: string;
   attributeMapping: Record<string, string>; // attributeId -> header
   /** Colonna del file che contiene la categoria merceologica (opzionale). */
   categoryHeader?: string;
@@ -1186,6 +1205,8 @@ export async function confirmImportV2(input: {
   let categoriesMatched = 0;
   // Quanti prodotti hanno perso i fatti per un errore di scrittura (deve restare 0).
   let factsInsertErrors = 0;
+  /** Prodotti rimasti col codice al posto del nome: va detto a chi importa. */
+  let senzaNome = 0;
   const unmatchedCategories = new Set<string>();
 
   // Colonne LIBERE del file: importa qualsiasi campo come fatto, creando al volo
@@ -1372,13 +1393,17 @@ export async function confirmImportV2(input: {
 
       for (const [attributeId, header] of Object.entries(input.attributeMapping)) {
         if (!header) continue;
+        // La colonna del nome non diventa anche un fatto: il nome e' l'identita'
+        // della riga, non un dato del prodotto. Infilarlo fra i fatti farebbe
+        // scrivere all'AI frasi sul titolo che sta scrivendo. L'interfaccia lo
+        // impedisce gia', ma il wizard e' uno dei chiamanti, non l'unico.
+        if (input.nameHeader && header === input.nameHeader) continue;
         const attr = attrById.get(attributeId);
         if (!attr) continue;
         const value = (row[header] ?? '').trim();
         if (value === '') continue;
         canonical[canonicalKey(attr)] = value;
         addFact(attributeId, value);
-        if (attr.key === 'product_name' && !name) name = value;
         if (attr.key === 'category' && !category) category = value;
       }
       // Colonne libere: ogni valore diventa un fatto passato all'AI.
@@ -1391,6 +1416,14 @@ export async function confirmImportV2(input: {
         addFact(attr.id, value);
       }
 
+      // La colonna Nome dedicata: è il modo esplicito con cui l'utente dice
+      // come si chiama il prodotto. Prima non c'era e ci si ritrovava un
+      // catalogo di codici a barre.
+      if (input.nameHeader) {
+        const nomeVal = (row[input.nameHeader] ?? '').trim();
+        if (nomeVal) name = nomeVal;
+      }
+
       // La colonna Categoria dedicata (se scelta) ha la priorità: è il modo
       // esplicito con cui l'utente assegna la categoria, indipendentemente dagli
       // attributi del preset.
@@ -1398,7 +1431,13 @@ export async function confirmImportV2(input: {
         const catVal = (row[input.categoryHeader] ?? '').trim();
         if (catVal) category = catVal;
       }
-      if (!name) name = sku;
+      // Ripiego, non regola: senza una colonna nome il prodotto si chiama come
+      // il suo codice. Prima era il caso normale, ora è l'eccezione — e il
+      // conteggio qui sotto lo dice a chi importa.
+      if (!name) {
+        name = sku;
+        senzaNome++;
+      }
 
       // Codice padre (varianti): raggruppa colore/taglia dello stesso prodotto.
       let parentExternalId: string | null = null;
@@ -1729,6 +1768,8 @@ export async function confirmImportV2(input: {
     // Prodotti entrati senza fatti perche' la scrittura e' stata rifiutata:
     // finiva solo nella telemetria, quindi l'utente non lo sapeva.
     factsInsertErrors,
+    /** Prodotti che si chiamano come il loro codice: manca la colonna nome. */
+    senzaNome,
     categoriesMatched,
     unmatchedCategories: unmatched.slice(0, 50),
   });

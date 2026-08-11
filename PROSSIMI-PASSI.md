@@ -107,17 +107,26 @@ perché insegna a ignorare i fallimenti.
 
 </details>
 
-### 2.2 Il nome dei prodotti — mezza giornata
+### 2.2 ~~Il nome dei prodotti~~ — **fatto**
 
-Dopo l'import **tutti i prodotti si chiamano come il loro codice** (`PAS-002`,
-`OLI-001`). La causa non è un campo dimenticato nell'interfaccia: nel codice c'è
-`if (attr.key === 'product_name' && !name) name = value`, ma **l'attributo
-`product_name` non esiste** — non nel seed, non nella configurazione, non nel
-database di produzione. Quel ramo non scatta mai e il ripiego `name = sku`
-scatta sempre.
+Il nome ha ora **una colonna dedicata**, come SKU e categoria, suggerita in
+automatico dal server (e mai uguale alla colonna SKU: sarebbe tornare al
+difetto). Se la colonna manca il ripiego sul codice resta, ma smette di essere
+silenzioso — il riepilogo dell'import dice quanti prodotti ne sono rimasti
+senza.
 
-Si carica un Excel con la colonna «Nome», il passo 8 dice «non devi mappare
-nulla», e si ottiene un catalogo di prodotti chiamati come codici a barre.
+Trattarlo come attributo era la causa: il codice cercava un attributo di chiave
+`product_name` che **in produzione non esiste** (verificato: nessuna riga in
+`attributes` ha quella chiave). Il nome non è un dato del prodotto, è
+l'identità della riga — e infilarlo fra i fatti farebbe raccontare all'AI il
+titolo che sta scrivendo, quindi ora l'import lo esclude.
+
+**Il finto database mentiva.** Il fixture dei test dichiarava un attributo di
+chiave `product_name`: era l'unico posto al mondo dove quel ramo scattava, ed è
+il motivo per cui 39 test dell'import erano verdi su un difetto reale. È la
+seconda volta in questo progetto che un finto diverge dalla produzione e nasconde
+un bug — la prima fu la cancellazione a cascata. La regola resta: **si corregge
+il finto, non il test.**
 
 ### 2.3 I ruoli sono promessi e non mantenuti — 1-2 giorni
 
