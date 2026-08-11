@@ -64,7 +64,12 @@ export default async function ResultsPage({
     .from('products')
     .select('id, external_id, name, category, verification_status')
     .eq('batch_id', batchId)
-    .order('created_at', { ascending: true });
+    // Un secondo criterio dopo la data: un import inserisce tutte le righe
+    // nello stesso istante, e a parità di timestamp Postgres non promette
+    // nessun ordine. Con l'elenco paginato vorrebbe dire vedere una scheda
+    // su due pagine, o su nessuna, ricaricando.
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
 
   const productIds = (products ?? []).map((p) => p.id);
 

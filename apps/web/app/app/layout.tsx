@@ -7,9 +7,8 @@ import {
   Settings,
   Inbox,
 } from 'lucide-react';
-import { requireUser, getUserOrg } from '@/lib/auth';
-import { getCreditBalance } from '@/lib/credits';
-import { countOpenDoubtsAction } from '@/lib/actions/doubts';
+import { requireUser } from '@/lib/auth';
+import { contestoApp } from '@/lib/contesto';
 import { signOut } from '@/lib/actions/auth';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
@@ -23,12 +22,12 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const org = await getUserOrg(user.id);
-  // Indipendenti: in parallelo per non sommare le latenze di rete.
-  const [credits, openDoubts] = await Promise.all([
-    org ? getCreditBalance(org.organizationId) : Promise.resolve(0),
-    countOpenDoubtsAction(),
-  ]);
+  // Una chiamata sola invece di tre in fila. Erano già «in parallelo» le ultime
+  // due, ma potevano partire solo dopo aver saputo l'organizzazione: la fila
+  // restava lunga tre.
+  const contesto = await contestoApp(user.id);
+  const credits = contesto?.credits ?? 0;
+  const openDoubts = contesto?.openDoubts ?? 0;
 
   return (
     <div className="min-h-screen bg-[var(--background)]">

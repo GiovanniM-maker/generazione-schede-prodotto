@@ -46,7 +46,12 @@ export default async function InputPage({
       'id, external_id, name, product_type, canonical_attributes_json, data_quality_score, verification_status',
     )
     .eq('batch_id', batchId)
-    .order('created_at', { ascending: true });
+    // Un secondo criterio dopo la data: un import inserisce tutte le righe
+    // nello stesso istante, e a parità di timestamp Postgres non promette
+    // nessun ordine. Con l'elenco paginato vorrebbe dire vedere una scheda
+    // su due pagine, o su nessuna, ricaricando.
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
 
   const rows: InputProduct[] = (data ?? []).map((p) => {
     const canonical = (p.canonical_attributes_json ?? {}) as Record<

@@ -397,21 +397,49 @@ sono icone, che sono decorative ed esenti.
 *Già a posto e rimasto tale*: fuoco visibile su 111 tappe su 111, nomi
 accessibili ovunque tranne una textarea.
 
-### 3.3 Prestazioni — 2-3 giorni
+### 3.3 ~~Prestazioni~~ — **fatto**, con una precisazione
 
-- **Pavimento di ~800 ms su ogni pagina autenticata** (pubbliche 111-246 ms,
-  autenticate 870-1358 ms), da tre andate-e-ritorno sequenziali nel layout con
-  `force-dynamic`. Un giro singolo verso Supabase misura 165-300 ms: sono
-  parallelizzabili.
-- **Risultati senza paginazione**: con 153 prodotti → 9.252 nodi, 33.519 px di
-  pagina su telefono, 974 ms di blocco. Metà del DOM è la vista dell'altro
-  dispositivo, presente e nascosta via CSS.
-- **Il chunk del wizard è 2,5-4× ogni altra rotta** (583 kB contro 229 kB):
-  `wizard.tsx` è un unico componente client da 2.516 righe con tutti i passi, il
-  controllo qualità immagini e il tour.
+**Il pavimento di ~800 ms.** Ogni pagina dietro l'accesso pagava tre andate e
+ritorno in fila: verifica del token, «di che organizzazione fa parte questo
+utente», e infine saldo crediti più dubbi aperti. Le ultime due partivano
+insieme, ma solo dopo che la seconda era finita — perché servono l'id
+dell'organizzazione. Le ultime due sono una domanda sola, e ora lo sono davvero
+(`contesto_app`).
 
-*Già a posto*: **CLS = 0 ovunque**, anche con 153 prodotti. Zero errori
-JavaScript su 23 rotte.
+Misurato contro il database vero, ripetuto: **290 ms → 143 ms**. La verifica del
+token resta e non si toglie da qui: servirebbe verificare la firma in locale,
+che richiede chiavi asimmetriche sul progetto — configurazione, non codice.
+
+Il saldo **non è ricalcolato** dentro la nuova funzione: chiama
+`get_credit_balance`, che resta l'unico posto dove è scritto come si somma un
+registro di crediti. Due versioni della stessa somma, prima o poi, divergono — e
+qui la somma sono soldi.
+
+**Il muro dei risultati.** Cinquanta schede per volta. Misurato con 153
+prodotti: **9.428 nodi e 9.261 px → 3.253 nodi e 3.447 px**. Su telefono la
+pagina passa da un rotolo infinito a 8.078 px.
+
+Per strada è saltato fuori un difetto che la paginazione avrebbe *creato*:
+l'elenco era ordinato per data e un import inserisce tutte le righe nello stesso
+istante — a parità di timestamp Postgres non promette nessun ordine, e ricaricando
+si sarebbe vista una scheda su due pagine o su nessuna. Aggiunto un secondo
+criterio.
+
+**La precisazione, sul chunk del wizard.** L'affermazione «2,5-4× ogni altra
+rotta (583 kB contro 229 kB)» **non regge**. Misurato sulla compilazione di
+produzione: `/app/batches/new` fa 177 kB di primo caricamento contro i 129 kB dei
+risultati — 1,4×, non 2,5-4×. Il pezzo di rotta suo è davvero 64 kB contro 16, e
+quello resta grosso.
+
+Ho provato a spostare fuori i due pannelli che servono solo su un passo:
+**64,8 → 64,1 kB**, cioè niente. L'ho tolto: una macchina in più e uno sfarfallio
+di caricamento per un chilobyte sono peggio del problema. Il peso vero sono i
+nove passi dentro un unico file da 2.516 righe, e spezzarli è un lavoro di
+ristrutturazione su un flusso appena sistemato (§2.4), per 48 kB. **Non l'ho
+fatto**: il rapporto fra rischio e guadagno lo decide chi conosce le priorità,
+non io.
+
+*Già a posto e rimasto tale*: **CLS = 0 ovunque**, zero errori JavaScript.
 
 ### 3.4 Le cose che confondono — 1-2 giorni
 

@@ -49,6 +49,7 @@ import { StatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { fettaDiPagina } from '@/lib/paginazione';
 import {
   COMPLETENESS_LABELS,
   COMPLETENESS_TONES,
@@ -281,6 +282,31 @@ export function ResultsTable({
       return true;
     });
   }, [rows, filter, query]);
+
+  // ---------------------------------------------------------------------
+  // Paginazione.
+  //
+  // Con 153 prodotti la pagina faceva 9.252 nodi, 33.519 px di altezza su
+  // telefono e 974 ms di blocco: e sono numeri di un catalogo piccolo. Peggio,
+  // ogni riga è nel documento **due volte** — la vista del telefono e quella
+  // del desktop convivono e una delle due è nascosta dal CSS — quindi il costo
+  // è doppio rispetto a quello che si vede.
+  //
+  // Cinquanta per volta: abbastanza da lavorare senza continuare a girare
+  // pagina, poco abbastanza da non trasformare il documento in un muro.
+  // ---------------------------------------------------------------------
+  const PER_PAGINA = 50;
+  const [pagina, setPagina] = useState(0);
+  // Cambiando filtro o ricerca si torna in cima: restare a «pagina 4» di un
+  // elenco che ora ne ha due mostrerebbe il vuoto.
+  useEffect(() => {
+    setPagina(0);
+  }, [filter, query, vista]);
+  const fetta = fettaDiPagina(filtered.length, PER_PAGINA, pagina);
+  const visibili = useMemo(
+    () => filtered.slice(fetta.da, fetta.a),
+    [filtered, fetta.da, fetta.a],
+  );
 
   const counts = useMemo(() => {
     const byStatus = (s: CompletenessStatus) =>
@@ -646,7 +672,7 @@ export function ResultsTable({
             {/* LETTURA: una colonna, niente troncato, uguale su ogni schermo. */}
             {vista === 'lettura' && (
               <div className="divide-y divide-gray-100">
-                {filtered.map((r) => (
+                {visibili.map((r) => (
                   <SchedaLettura
                     key={r.id}
                     riga={r}
@@ -665,7 +691,7 @@ export function ResultsTable({
             {/* MOBILE: schede al posto della tabella (8 colonne su un telefono
                 sono illeggibili e costringono a scorrere in orizzontale). */}
             <div className={cn('divide-y divide-gray-100 sm:hidden', vista === 'lettura' && 'hidden')}>
-              {filtered.map((r) => {
+              {visibili.map((r) => {
                 const eff = effective(r);
                 return (
                   <div key={r.id} className="p-4">
@@ -728,7 +754,7 @@ export function ResultsTable({
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleSelectAll}
-                      aria-label="Seleziona tutti"
+                      aria-label="Seleziona tutte le schede che passano il filtro, anche nelle altre pagine"
                       className="h-6 w-6 rounded border-gray-300"
                     />
                   </TH>
@@ -742,7 +768,7 @@ export function ResultsTable({
                 </TR>
               </THead>
               <TBody>
-                {filtered.map((r) => {
+                {visibili.map((r) => {
                   const eff = effective(r);
                   return (
                     <TR key={r.id}>
@@ -843,6 +869,37 @@ export function ResultsTable({
             {filtered.length === 0 && (
               <div className="px-6 py-10 text-center text-sm text-gray-500">
                 Nessun risultato in questa categoria.
+              </div>
+            )}
+
+            {/* I comandi compaiono solo quando servono davvero: sotto le 50
+                schede una barra di paginazione è arredamento. */}
+            {fetta.pagine > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3">
+                <p className="text-sm text-gray-600" aria-live="polite">
+                  Schede {fetta.primo}–{fetta.ultimo} di {filtered.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPagina((p) => Math.max(0, p - 1))}
+                    disabled={fetta.pagina === 0}
+                  >
+                    Precedenti
+                  </Button>
+                  <span className="text-sm tabular-nums text-gray-600">
+                    {fetta.pagina + 1} / {fetta.pagine}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPagina((p) => Math.min(fetta.pagine - 1, p + 1))}
+                    disabled={fetta.pagina >= fetta.pagine - 1}
+                  >
+                    Successive
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
