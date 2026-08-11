@@ -118,3 +118,48 @@ test.describe('login', () => {
     await expect(email).toHaveValue('prova@esempio.it');
   });
 });
+
+// ---------------------------------------------------------------------------
+
+test.describe('pagine legali', () => {
+  // Erano pubbliche, rispondevano 200 e avevano l'aria di documenti veri, ma
+  // contenevano «[Ragione sociale]», «[email di contatto]», «[città]». Una
+  // privacy policy con le parentesi quadre dentro è peggio di una assente: la
+  // seconda si nota, la prima no.
+
+  for (const rotta of ['/privacy', '/termini', '/cookie']) {
+    test(`${rotta} non mostra segnaposto nel testo`, async ({ page }) => {
+      await page.goto(rotta, { waitUntil: 'networkidle' });
+      const testo = (await page.locator('body').innerText()) ?? '';
+      for (const segnaposto of [
+        '[Ragione sociale]',
+        '[indirizzo]',
+        '[email di contatto]',
+        '[città]',
+      ]) {
+        expect(testo, `${rotta} contiene ancora ${segnaposto}`).not.toContain(segnaposto);
+      }
+    });
+
+    test(`${rotta} dichiara di essere una bozza finché i dati non ci sono`, async ({ page }) => {
+      await page.goto(rotta, { waitUntil: 'networkidle' });
+      const testo = (await page.locator('body').innerText()) ?? '';
+      // O il documento è completo (nessuna dicitura, nessun «da indicare»), o
+      // lo dice apertamente. Le due cose insieme non possono stare.
+      const incompleto = testo.includes('da indicare');
+      const dichiarato = testo.includes('Documento non ancora valido');
+      expect(incompleto).toBe(dichiarato);
+    });
+  }
+
+  test('una bozza chiede ai motori di non indicizzarla', async ({ page }) => {
+    await page.goto('/privacy', { waitUntil: 'networkidle' });
+    const testo = (await page.locator('body').innerText()) ?? '';
+    if (!testo.includes('Documento non ancora valido')) test.skip();
+    // Una pagina legale incompleta, una volta indicizzata, resta in giro per mesi.
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+      'content',
+      /noindex/i,
+    );
+  });
+});

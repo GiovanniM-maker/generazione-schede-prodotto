@@ -169,7 +169,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <WelcomeCard />
+      <WelcomeCard pronto={canCreateBatch} />
 
       {/* Intestazione */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -89,9 +89,22 @@ export class FakeDb {
     this.files.set(`${bucket}/${path}`, Buffer.from(contenuto));
   }
 
-  /** Solo `download`: e' l'unica operazione che l'import usa in lettura. */
   readonly storage = {
     from: (bucket: string) => ({
+      /** Come l'upload vero: `upsert: false` rifiuta un percorso già occupato. */
+      upload: async (
+        path: string,
+        contenuto: Buffer | ArrayBuffer | Uint8Array,
+        opts?: { upsert?: boolean },
+      ) => {
+        const chiave = `${bucket}/${path}`;
+        this.calls.push({ table: `storage:${bucket}`, op: 'upload', rows: 1 });
+        if (this.files.has(chiave) && !opts?.upsert) {
+          return { data: null, error: { message: `Duplicate: ${path}` } };
+        }
+        this.files.set(chiave, Buffer.from(contenuto as Uint8Array));
+        return { data: { path }, error: null };
+      },
       download: async (path: string) => {
         const buf = this.files.get(`${bucket}/${path}`);
         this.calls.push({ table: `storage:${bucket}`, op: 'download', rows: buf ? 1 : 0 });

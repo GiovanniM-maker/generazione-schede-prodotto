@@ -471,9 +471,9 @@ export async function uploadBatchFiles(
       return fail('Formato non supportato: usa CSV o XLSX');
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    const persisted = await persistSourceFile(service, orgId, batchId, STORAGE_BUCKETS.sourceFiles, file, buffer, ext);
-    if ('error' in persisted) return fail(persisted.error);
 
+    // Si legge PRIMA di salvare: un file che verrà rifiutato non ha motivo di
+    // finire su storage e di occupare spazio per sempre.
     let parsed: ParseResult;
     try {
       parsed = ext === '.csv' ? parseCsv(buffer) : await parseXlsx(buffer);
@@ -483,6 +483,20 @@ export async function uploadBatchFiles(
     if (parsed.rows.length > MAX_ROWS) {
       return fail(`Troppe righe (${parsed.rows.length}). Massimo ${MAX_ROWS} per file: dividi il catalogo.`);
     }
+    // Un file senza righe dati non e' un catalogo. Prima veniva accettato con
+    // la spunta verde e i tre passi successivi mostravano "ok" prima che
+    // l'import confessasse "Nessun prodotto importato": quattro schermate di
+    // rassicurazione su niente.
+    if (parsed.rows.length === 0) {
+      return fail(
+        parsed.headers.length === 0
+          ? 'Il file è vuoto: non contiene né intestazioni né righe.'
+          : 'Il file ha solo la riga di intestazione, nessun prodotto. Controlla di aver esportato anche i dati.',
+      );
+    }
+
+    const persisted = await persistSourceFile(service, orgId, batchId, STORAGE_BUCKETS.sourceFiles, file, buffer, ext);
+    if ('error' in persisted) return fail(persisted.error);
 
     const batchSourceId = await getOrCreateBatchSource(service, orgId, batchId, SPREADSHEET_SOURCE);
     if (!batchSourceId) return fail('Registrazione sorgente fallita');
@@ -521,7 +535,7 @@ export async function uploadBatchFiles(
         filename: file.name,
         sku: null,
         status: 'ready',
-        problem: parsed.rows.length === 0 ? 'Nessuna riga dati rilevata' : null,
+        problem: null,
       },
     });
   }

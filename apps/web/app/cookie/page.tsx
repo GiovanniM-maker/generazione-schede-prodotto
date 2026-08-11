@@ -1,14 +1,24 @@
 import type { Metadata } from 'next';
 import { LegalShell } from '@/components/legal/legal-shell';
+import { datiTitolare, oppureDaDefinire } from '@/lib/legale';
 
-export const metadata: Metadata = { title: 'Cookie Policy' };
+// Finché il documento è una bozza chiediamo ai motori di non indicizzarlo:
+// una pagina legale incompleta indicizzata resta in giro per mesi.
+export function generateMetadata(): Metadata {
+  return {
+    title: 'Cookie Policy',
+    robots: datiTitolare().completo ? undefined : { index: false, follow: false },
+  };
+}
+
+
 
 export default function CookiePage() {
   return (
     <LegalShell title="Cookie Policy" updated="luglio 2026">
       <p>
         Questa pagina spiega come il Servizio utilizza i cookie e tecnologie
-        simili. È una bozza operativa da validare legalmente.
+        simili.
       </p>
 
       <h2>1. Cosa sono i cookie</h2>
@@ -43,7 +53,7 @@ export default function CookiePage() {
       </p>
 
       <h2>4. Contatti</h2>
-      <p>Per domande scrivi a [email di contatto].</p>
+      <p>Per domande scrivi a {oppureDaDefinire(datiTitolare().email, 'indirizzo email')}.</p>
     </LegalShell>
   );
 }

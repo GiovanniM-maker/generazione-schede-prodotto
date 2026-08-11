@@ -327,3 +327,17 @@ test.describe('wizard nuovo batch', () => {
     expect(box!.y).toBeLessThan(altezza);
   });
 });
+
+test.describe('fatturazione', () => {
+  test('non dichiara acquisti simulati quando non lo sono', async ({ page }) => {
+    await page.goto('/app/billing', { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: /pacchetti di crediti/i })).toBeVisible();
+    // La frase «l'acquisto è simulato: i crediti vengono accreditati senza
+    // addebito reale» era scritta fissa. In produzione sarebbe rimasta a
+    // schermo nel punto esatto in cui si incassa — e ENABLE_MOCK_BILLING non
+    // può nemmeno essere true in produzione, quindi era falsa per costruzione.
+    const testo = (await page.locator('body').innerText()) ?? '';
+    expect(testo).not.toMatch(/acquisto è simulato/i);
+    expect(testo).not.toMatch(/senza addebito reale/i);
+  });
+});

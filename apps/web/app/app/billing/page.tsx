@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Coins, CheckCircle2, Info, Beaker } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
+import { getServerEnv } from '@/lib/env.server';
 import { getCreditBalance } from '@/lib/credits';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { formatDate } from '@/lib/utils';
@@ -38,6 +39,7 @@ export default async function BillingPage({
   searchParams: Promise<{ success?: string; canceled?: string }>;
 }) {
   const user = await requireUser();
+  const mockBilling = getServerEnv().ENABLE_MOCK_BILLING;
   const { success, canceled } = await searchParams;
   const org = await getUserOrg(user.id);
   if (!org) redirect('/app/onboarding');
@@ -106,13 +108,20 @@ export default async function BillingPage({
         <h2 className="text-lg font-semibold text-gray-900">
           Pacchetti di crediti
         </h2>
-        <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          <Beaker className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            In ambiente demo l’acquisto è simulato: i crediti vengono accreditati
-            senza addebito reale.
-          </span>
-        </div>
+        {/* Questo avviso vale SOLO quando la fatturazione è finta. Era scritto
+            fisso: in produzione sarebbe rimasto a schermo nel punto in cui si
+            incassa, dicendo che non si paga. `ENABLE_MOCK_BILLING` non può
+            nemmeno essere true in produzione (lo impedisce lo schema di env),
+            quindi era una frase falsa per costruzione. */}
+        {mockBilling && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+            <Beaker className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              In ambiente demo l’acquisto è simulato: i crediti vengono accreditati
+              senza addebito reale.
+            </span>
+          </div>
+        )}
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {packs.length === 0 && (
             <p className="text-sm text-gray-500">
