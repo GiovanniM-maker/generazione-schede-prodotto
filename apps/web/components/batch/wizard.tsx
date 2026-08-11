@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
@@ -21,6 +21,7 @@ import {
 import {
   listPublishedPresets,
   createBatchV2,
+  riprendiBatch,
   getPresetExplorer,
   setBatchSources,
   uploadBatchFiles,
@@ -230,6 +231,21 @@ const STEP_TOURS: Record<number, TourStep[]> = {
 
 const SPREADSHEET_STEPS = new Set([7, 8]);
 
+/**
+ * Messaggio per un guaio di rete durante una server action.
+ *
+ * Senza questo l'errore restava un `Failed to fetch` inglese, o peggio: la
+ * pagina restava su «Caricamento in corso…» per sempre, anche tornando
+ * online, perché il `setBusy(false)` stava dopo un `await` che aveva lanciato.
+ */
+function messaggioDiRete(e: unknown): string {
+  const grezzo = e instanceof Error ? e.message : String(e);
+  if (/fetch|network|load failed|connessione/i.test(grezzo)) {
+    return 'Connessione persa. Controlla la rete e riprova: il lavoro fatto finora è salvo.';
+  }
+  return grezzo || 'Errore imprevisto. Riprova.';
+}
+
 function normalize(s: string): string {
   return s
     .trim()
@@ -256,8 +272,11 @@ function fuzzyHeader(attr: PresetAttributeOption, headers: string[]): string {
 
 export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) {
   const router = useRouter();
+  const parametri = useSearchParams();
 
   const [stepId, setStepId] = useState(1);
+  /** Ripresa in corso: finché non finisce non si mostra il passo 1 a vuoto. */
+  const [ripresaInCorso, setRipresaInCorso] = useState(false);
 
   // Tour guidato del passo corrente: si apre da solo la prima volta, poi solo
   // dal pulsante "Guida".
@@ -270,6 +289,17 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * Il passo che sta ancora caricando i suoi dati.
+   *
+   * `busy` copriva solo le azioni esplicite (crea, importa, genera): i
+   * caricamenti dei passi 2, 6, 8 e 9 giravano in un effetto e non lo
+   * toccavano. Risultato: «Continua» restava premibile e cliccando al ritmo
+   * normale si attraversavano mappatura e verifica SENZA VEDERLE, arrivando
+   * alla generazione su dati mai controllati. Tre revisioni indipendenti
+   * dell'audit ci sono inciampate.
+   */
+  const [passoInCaricamento, setPassoInCaricamento] = useState<number | null>(null);
 
   // Step 1
   const [name, setName] = useState(() => {
@@ -376,29 +406,39 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   useEffect(() => {
     if (stepId !== 2 || !presetVersionId) return;
     setExplorer(null);
-    void getPresetExplorer({ presetVersionId }).then((res) => {
-      if (res.ok) setExplorer(res.data);
-      else setError(res.error);
-    });
+    setPassoInCaricamento(2);
+    void getPresetExplorer({ presetVersionId })
+      .then((res) => {
+        if (res.ok) setExplorer(res.data);
+        else setError(res.error);
+      })
+      .catch((e: unknown) => setError(messaggioDiRete(e)))
+      .finally(() => setPassoInCaricamento((p) => (p === 2 ? null : p)));
   }, [stepId, presetVersionId]);
 
   // Step 6: analisi.
   useEffect(() => {
     if (stepId !== 6 || !batchId) return;
     setAnalysis(null);
-    void analyzeBatch({ batchId }).then((res) => {
-      if (res.ok) {
-        setAnalysis(res.data);
-        if (!skuHeader && res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
-      } else setError(res.error);
-    });
+    setPassoInCaricamento(6);
+    void analyzeBatch({ batchId })
+      .then((res) => {
+        if (res.ok) {
+          setAnalysis(res.data);
+          if (!skuHeader && res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
+        } else setError(res.error);
+      })
+      .catch((e: unknown) => setError(messaggioDiRete(e)))
+      .finally(() => setPassoInCaricamento((p) => (p === 6 ? null : p)));
   }, [stepId, batchId, skuHeader]);
 
   // Step 8: attributi + header per mapping.
   useEffect(() => {
     if (stepId !== 8 || !batchId) return;
     setAttributes(null);
-    void getBatchPresetAttributes({ batchId }).then((res) => {
+    setPassoInCaricamento(8);
+    void getBatchPresetAttributes({ batchId })
+      .then((res) => {
       if (!res.ok) {
         setError(res.error);
         return;
@@ -415,7 +455,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         }
         return next;
       });
-    });
+      })
+      .catch((e: unknown) => setError(messaggioDiRete(e)))
+      .finally(() => setPassoInCaricamento((p) => (p === 8 ? null : p)));
   }, [stepId, batchId, skuHeader]);
 
   // Step 7: prova a indovinare la colonna Categoria dalle intestazioni.
@@ -565,6 +607,75 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     };
   }, [stepId, batchId]);
 
+  // -------------------------------------------------------------------------
+  // Lo stato nell'URL.
+  //
+  // Prima il wizard viveva in un solo indirizzo e teneva tutto in memoria: F5
+  // riportava al passo 1, Indietro usciva dall'applicazione, e il batch creato
+  // restava `draft` senza alcun modo di riprenderlo. Ora `?batch=…&passo=…`
+  // dice dove siamo, e alla ricarica si ricostruisce dal server.
+  //
+  // `replace` e non `push`: ogni passo che aggiunge una voce alla cronologia
+  // renderebbe il tasto Indietro del browser un secondo pulsante «indietro»,
+  // in conflitto con quello della pagina.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!batchId || ripresaInCorso) return;
+    const atteso = `?batch=${batchId}&passo=${stepId}`;
+    if (window.location.search !== atteso) {
+      router.replace(`/app/batches/new${atteso}`, { scroll: false });
+    }
+  }, [batchId, stepId, ripresaInCorso, router]);
+
+  // Ripresa: `?batch=…` all'apertura significa che stiamo tornando su un
+  // lavoro lasciato a metà.
+  const batchDaRiprendere = parametri.get('batch');
+  const passoDaRiprendere = Number(parametri.get('passo') ?? '');
+  useEffect(() => {
+    if (!batchDaRiprendere || batchId) return;
+    let annullato = false;
+    setRipresaInCorso(true);
+    void riprendiBatch({ batchId: batchDaRiprendere })
+      .then((res) => {
+        if (annullato) return;
+        if (!res.ok) {
+          setError(`Non riesco a riprendere questo batch: ${res.error}`);
+          return;
+        }
+        const d = res.data;
+        setBatchId(d.batchId);
+        setName(d.name);
+        if (d.presetId) setSelectedPresetId(d.presetId);
+        setPresetVersionId(d.presetVersionId);
+        if (d.sourceType === 'mixed') setSourceMode('both');
+        else if (d.sourceType === 'spreadsheet' || d.sourceType === 'images') setSourceMode(d.sourceType);
+        if (d.spreadsheet) {
+          setSpreadsheetResult({
+            kind: 'spreadsheet',
+            headers: d.spreadsheet.headers,
+            previewRows: d.spreadsheet.previewRows,
+            suggestedSkuHeader: d.spreadsheet.suggestedSkuHeader,
+            suggestedNameHeader: d.spreadsheet.suggestedNameHeader,
+            totalRows: d.spreadsheet.totalRows,
+            file: { filename: d.spreadsheet.filename, sku: null, status: 'ready', problem: null },
+          });
+          if (d.spreadsheet.suggestedSkuHeader) setSkuHeader(d.spreadsheet.suggestedSkuHeader);
+        }
+        // Non si riprende oltre il punto che i dati reggono: senza file
+        // caricato il massimo è il passo delle fonti.
+        const massimo = d.spreadsheet || d.immagini > 0 ? 9 : d.sourceType ? 4 : 3;
+        const voluto = Number.isFinite(passoDaRiprendere) && passoDaRiprendere >= 1 ? passoDaRiprendere : 1;
+        setStepId(Math.max(1, Math.min(voluto, massimo)));
+      })
+      .catch((e: unknown) => setError(messaggioDiRete(e)))
+      .finally(() => {
+        if (!annullato) setRipresaInCorso(false);
+      });
+    return () => {
+      annullato = true;
+    };
+  }, [batchDaRiprendere, batchId, passoDaRiprendere]);
+
   // --- Azioni di transizione ---
 
   async function submitStep1() {
@@ -576,10 +687,23 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       setError('Seleziona un preset');
       return;
     }
+    // Il batch è già stato creato: tornare al passo 1 e ripremere «Crea e
+    // continua» ne creava un SECONDO, che restava a ingombrare la dashboard.
+    if (batchId) {
+      nextStep();
+      return;
+    }
     setBusy(true);
     setError(null);
-    const res = await createBatchV2({ name, description: description || undefined, presetId: selectedPresetId });
-    setBusy(false);
+    let res;
+    try {
+      res = await createBatchV2({ name, description: description || undefined, presetId: selectedPresetId });
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!res.ok) {
       setError(res.error);
       return;
@@ -604,8 +728,15 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       sourceMode === 'both' ? ['spreadsheet', 'images'] : sourceMode === 'spreadsheet' ? ['spreadsheet'] : ['images'];
     setBusy(true);
     setError(null);
-    const res = await setBatchSources({ batchId, sourceTypes });
-    setBusy(false);
+    let res;
+    try {
+      res = await setBatchSources({ batchId, sourceTypes });
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!res.ok) {
       setError(res.error);
       return;
@@ -625,8 +756,15 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     }
     setBusy(true);
     setError(null);
-    const res = await importFromUrls({ batchId, urls });
-    setBusy(false);
+    let res;
+    try {
+      res = await importFromUrls({ batchId, urls });
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!res.ok) {
       setError(res.error);
       return;
@@ -658,8 +796,15 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     fd.set('batchId', batchId);
     fd.set('sourceType', 'spreadsheet');
     fd.set('files', file);
-    const res = await uploadBatchFiles(fd);
-    setBusy(false);
+    let res;
+    try {
+      res = await uploadBatchFiles(fd);
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!res.ok) {
       setError(res.error);
       return;
@@ -963,7 +1108,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {/* Navigazione — SEMPRE raggiungibile: su mobile resta agganciata in basso
           (con passi lunghi altrimenti bisogna scorrere tutta la pagina). */}
-      <div className="sticky bottom-0 z-20 -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:border-gray-100 sm:bg-transparent sm:px-0 sm:pt-4 sm:backdrop-blur-none">
+      {/* z-[60] e non z-20: in fondo alla pagina vivono anche il banner cookie
+          (z-50) e il pulsante d'aiuto, e alla prima visita coprivano proprio il
+          comando principale. Chi sta lavorando ha la precedenza sull'avviso. */}
+      <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:border-gray-100 sm:bg-transparent sm:px-0 sm:pt-4 sm:backdrop-blur-none">
         <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
           <ArrowLeft className="h-4 w-4" />
           Indietro
@@ -971,7 +1119,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
         <StepPrimaryAction
           stepId={stepId}
-          busy={busy || analyzingImages}
+          // Il passo che carica blocca «Continua»: senza, si attraversavano
+          // mappatura e verifica senza vederle.
+          busy={busy || analyzingImages || passoInCaricamento === stepId}
           step3Label={sourceMode === 'url' ? 'Importa da URL' : 'Continua'}
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,

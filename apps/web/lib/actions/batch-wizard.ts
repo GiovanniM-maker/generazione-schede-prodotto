@@ -840,6 +840,8 @@ interface LoadedSpreadsheet {
   parsed: ParseResult;
   sourceItemId: string;
   isCsv: boolean;
+  /** Il nome del file come l'ha caricato l'utente: serve per riconoscerlo. */
+  filename: string;
 }
 
 async function loadBatchSpreadsheet(
@@ -870,7 +872,7 @@ async function loadBatchSpreadsheet(
   const buffer = Buffer.from(await blob.arrayBuffer());
   const isCsv = sf.original_filename.toLowerCase().endsWith('.csv');
   const parsed = isCsv ? parseCsv(buffer) : await parseXlsx(buffer);
-  return { parsed, sourceItemId: item.id, isCsv };
+  return { parsed, sourceItemId: item.id, isCsv, filename: item.filename ?? sf.original_filename };
 }
 
 async function loadImageItems(
@@ -2255,4 +2257,97 @@ export async function importFromUrls(input: {
   }
 
   return ok({ imported, failed: failures.length, imagesAttached, failures: failures.slice(0, 20) });
+}
+
+// ---------------------------------------------------------------------------
+// Ripresa di un batch interrotto.
+//
+// Il wizard teneva tutto nella memoria del browser: F5 al passo 4 riportava al
+// passo 1 e il batch creato restava `draft` nel database, irraggiungibile —
+// `/mapping` diceva «anteprima non più in memoria», `/results` era una pagina
+// vuota. Chi caricava un catalogo da 2.000 righe e sbagliava un tasto
+// ricominciava da capo. Tre revisioni indipendenti dell'audit ci sono
+// inciampate.
+//
+// Qui si ricostruisce dal server tutto quello che serve per riaprire il wizard
+// dov'era. L'anteprima del file NON viene da `sessionStorage` ma dal file vero
+// su storage, ri-letto: è l'unica fonte che sopravvive a una chiusura di
+// scheda.
+//
+// NOTA: la «Descrizione (facoltativa)» del passo 1 non si può riprendere
+// perché non viene salvata da nessuna parte — finisce solo nel
+// `metadata_json` di un evento di telemetria, che non è un posto da cui si
+// legge. È un difetto a sé: chi la scrive la perde comunque, anche senza F5.
+// ---------------------------------------------------------------------------
+
+export interface BatchRipreso {
+  batchId: string;
+  name: string;
+  presetId: string | null;
+  presetVersionId: string | null;
+  /** 'spreadsheet' | 'images' | 'mixed' | null, come salvato sul batch. */
+  sourceType: string | null;
+  status: string;
+  /** Il file già caricato, ri-letto da storage. Null se non c'è. */
+  spreadsheet: {
+    filename: string;
+    headers: string[];
+    previewRows: Array<Record<string, string>>;
+    suggestedSkuHeader: string | null;
+    suggestedNameHeader: string | null;
+    totalRows: number;
+  } | null;
+  /** Quante immagini risultano già caricate. */
+  immagini: number;
+}
+
+export async function riprendiBatch(input: {
+  batchId: string;
+}): Promise<ActionResult<BatchRipreso>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+
+  const { data: batch } = await service
+    .from('batches')
+    .select('id, name, status, source_type, preset_version_id')
+    .eq('id', input.batchId)
+    .maybeSingle();
+  if (!batch) return fail('Batch non trovato');
+
+  // Dalla versione risaliamo al preset: il passo 1 mostra il preset, non la
+  // sua versione.
+  let presetId: string | null = null;
+  if (batch.preset_version_id) {
+    const { data: pv } = await service
+      .from('preset_versions')
+      .select('preset_id')
+      .eq('id', batch.preset_version_id)
+      .maybeSingle();
+    presetId = pv?.preset_id ?? null;
+  }
+
+  const caricato = await loadBatchSpreadsheet(service, input.batchId);
+  const immagini = (await loadImageItems(service, input.batchId)).length;
+
+  const sku = caricato ? suggestSkuHeader(caricato.parsed.headers) : null;
+  return ok<BatchRipreso>({
+    batchId: batch.id,
+    name: batch.name ?? '',
+    presetId,
+    presetVersionId: batch.preset_version_id ?? null,
+    sourceType: batch.source_type ?? null,
+    status: batch.status,
+    spreadsheet: caricato
+      ? {
+          filename: caricato.filename,
+          headers: caricato.parsed.headers,
+          previewRows: caricato.parsed.rows.slice(0, 100),
+          suggestedSkuHeader: sku,
+          suggestedNameHeader: suggestNameHeader(caricato.parsed.headers, sku),
+          totalRows: caricato.parsed.rows.length,
+        }
+      : null,
+    immagini,
+  });
 }

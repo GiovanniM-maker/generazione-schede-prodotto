@@ -34,12 +34,23 @@ test.afterEach(async () => {
   utenteId = null;
 });
 
-/** Il banner cookie copre il fondo pagina: va tolto prima di misurare. */
+/**
+ * Il banner cookie copre il fondo pagina: va tolto prima di misurare.
+ *
+ * Si cerca DENTRO il suo riquadro: il fumetto della guida dice «Ho capito» con
+ * le stesse parole, e prendere il primo che capita chiudeva quello sbagliato
+ * lasciando il banner a intercettare i clic.
+ */
 async function chiudiBanner(page: Page) {
-  await page
+  // Il banner si monta dopo l'idratazione: cercarlo subito significa non
+  // trovarlo e ritrovarselo un attimo dopo sopra al pulsante principale.
+  const banner = page.getByRole('region', { name: /avviso cookie/i });
+  await banner.waitFor({ state: 'visible', timeout: 4000 }).catch(() => undefined);
+  await banner
     .getByRole('button', { name: /ho capito/i })
     .click({ timeout: 3000 })
     .catch(() => undefined);
+  await banner.waitFor({ state: 'detached', timeout: 4000 }).catch(() => undefined);
 }
 
 /** Comandi sotto la soglia di tocco, esclusi gli involucri e l'overlay di Next. */
@@ -339,5 +350,83 @@ test.describe('fatturazione', () => {
     const testo = (await page.locator('body').innerText()) ?? '';
     expect(testo).not.toMatch(/acquisto è simulato/i);
     expect(testo).not.toMatch(/senza addebito reale/i);
+  });
+});
+
+test.describe('wizard · non perde il lavoro', () => {
+  // Questi percorrono il wizard davvero: creano un batch e ricaricano.
+  test.setTimeout(120_000);
+
+  /** Il velo della guida copre i pulsanti: un clic lo chiude. */
+  async function chiudiGuida(page: Page) {
+    for (let i = 0; i < 4; i++) {
+      const velo = page.locator('[role="dialog"][aria-label^="Guida"]');
+      if ((await velo.count()) === 0) break;
+      await velo.first().click({ position: { x: 5, y: 5 }, force: true }).catch(() => undefined);
+      await page.waitForTimeout(300);
+    }
+  }
+
+  test('il ricaricamento non riporta al primo passo', async ({ page }) => {
+    // Era il difetto trovato da tre revisioni su sei: F5 al passo 4 riportava
+    // al passo 1 e il batch creato restava irraggiungibile nel database.
+    await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await chiudiGuida(page);
+
+    await page.locator('#batch-name').fill('Batch che sopravvive a F5');
+    await chiudiGuida(page);
+    // Il preset si sceglie da solo appena l'elenco arriva: prima di allora il
+    // pulsante è disabilitato, ed è giusto così.
+    const avanti = page.getByRole('button', { name: /crea e continua/i });
+    await expect(avanti).toBeEnabled({ timeout: 20000 });
+    // La guida va chiusa DOPO che il pulsante è pronto: il fumetto compare
+    // quando il passo ha finito di caricare, quindi prima sarebbe troppo presto.
+    await chiudiGuida(page);
+    await avanti.click();
+    await expect(page.getByText(/passo 2 di/i)).toBeVisible({ timeout: 15000 });
+
+    // L'indirizzo porta con sé dove siamo: è quello che rende possibile tornare.
+    await expect(page).toHaveURL(/\?batch=[0-9a-f-]{36}&passo=2/i);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await expect(page.getByText(/passo 2 di/i)).toBeVisible({ timeout: 15000 });
+  });
+
+  test('un batch riaperto ritrova il suo nome', async ({ page }) => {
+    await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await chiudiGuida(page);
+    await page.locator('#batch-name').fill('Catalogo da ritrovare');
+    await chiudiGuida(page);
+    const avanti = page.getByRole('button', { name: /crea e continua/i });
+    await expect(avanti).toBeEnabled({ timeout: 20000 });
+    await chiudiGuida(page);
+    await avanti.click();
+    await expect(page.getByText(/passo 2 di/i)).toBeVisible({ timeout: 15000 });
+    // L'indirizzo si aggiorna dopo il render: aspettarlo invece di leggerlo
+    // subito, altrimenti si legge quello di prima.
+    await expect(page).toHaveURL(/\?batch=[0-9a-f-]{36}/i, { timeout: 10000 });
+
+    const url = new URL(page.url());
+    const id = url.searchParams.get('batch');
+    expect(id).toBeTruthy();
+
+    // Si riapre al passo 1, come farebbe chi torna dalla dashboard.
+    await page.goto(`/app/batches/new?batch=${id}&passo=1`, { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    await expect(page.locator('#batch-name')).toHaveValue('Catalogo da ritrovare', { timeout: 15000 });
+  });
+
+  test('la guida si chiude con un clic invece di rubarlo', async ({ page }) => {
+    await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
+    await chiudiBanner(page);
+    const velo = page.locator('[role="dialog"][aria-label^="Guida"]');
+    if ((await velo.count()) === 0) test.skip();
+    // Prima un clic fuori dal fumetto FACEVA AVANZARE la guida: su undici passi,
+    // ognuno col suo fumetto, era un clic sprecato a ogni passo.
+    await velo.first().click({ position: { x: 5, y: 5 }, force: true });
+    await expect(velo).toHaveCount(0, { timeout: 5000 });
   });
 });
