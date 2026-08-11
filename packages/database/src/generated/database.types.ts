@@ -22,6 +22,21 @@ export interface Database {
           slug: string;
           stripe_customer_id: string | null;
           onboarding_completed_at: string | null;
+          /**
+           * Dati di fatturazione. Separati dal nome: «Cascina Verde» è come si
+           * chiamano, «Cascina Verde S.r.l.» è chi emette la fattura, e i due
+           * non coincidono quasi mai.
+           */
+          billing_name: string | null;
+          vat_number: string | null;
+          tax_code: string | null;
+          sdi_code: string | null;
+          pec_email: string | null;
+          billing_address: string | null;
+          billing_zip: string | null;
+          billing_city: string | null;
+          billing_province: string | null;
+          billing_country: string;
         } & Timestamps
       >;
       organization_members: T<{
@@ -302,6 +317,9 @@ export interface Database {
         name: string;
         stripe_price_id: string | null;
         credits: number;
+        /** Prezzo IVA esclusa in centesimi. null = pacchetto non acquistabile. */
+        price_cents: number | null;
+        currency: string;
         active: boolean;
         created_at: string;
       }>;
@@ -538,7 +556,14 @@ export interface Database {
         Returns: undefined;
       };
       apply_credit_purchase: {
-        Args: { org: string; amt: number; stripe_event: string; price_key: string };
+        Args: {
+          org: string;
+          amt: number;
+          stripe_event: string;
+          price_key: string;
+          amount_cents?: number | null;
+          currency?: string;
+        };
         Returns: undefined;
       };
       create_organization_for_user: {

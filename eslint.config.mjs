@@ -52,8 +52,13 @@ export default tseslint.config(
           // vera è `.update({...}).eq('id', x)`. Quindi si cerca la write in
           // QUALSIASI punto dell'espressione attesa — compresa dentro un
           // Promise.all — e si esclude solo ciò che passa già dagli helper.
+          //
+          // `stripe.*.update(...)` è escluso perché non è una scrittura al
+          // nostro database: il client Stripe solleva un'eccezione invece di
+          // restituire un errore da controllare, quindi qui non c'è niente da
+          // ignorare.
           selector:
-            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite|writeOrTrace|creditOp)$/])) CallExpression[callee.property.name=/^(insert|update|upsert|delete)$/]",
+            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite|writeOrTrace|creditOp)$/])) CallExpression[callee.property.name=/^(insert|update|upsert|delete)$/][callee.object.object.name!='stripe']",
           message:
             "Scrittura al database con l'errore ignorato. Usa `const { error } = await ...` e controllalo, oppure uno degli helper: `mustWrite`/`writeOrThrow`/`logWrite` (@app/core), `writeOrTrace`/`creditOp` (@app/pipeline).",
         },

@@ -191,16 +191,47 @@ riprendere perché **non viene salvata da nessuna parte** — finisce solo nel
 `metadata_json` di un evento di telemetria. Chi la scrive la perde comunque,
 anche senza F5. Serve una colonna, quindi una migrazione: voce a sé.
 
-### 2.5 Poter comprare — 2-3 giorni
+### 2.5 ~~Poter comprare~~ — **fatto** (i prezzi sono segnaposto)
 
-- prezzo in euro visibile **prima** del checkout: landing, `/app/billing`, e una
-  colonna prezzo in `billing_products`;
-- pacchetti popolati anche fuori dal seed (su staging la tabella è vuota e la
-  pagina dice «Nessun pacchetto disponibile» senza spiegare perché);
-- ricevuta dopo l'acquisto e storico dei pagamenti;
-- **dati fiscali italiani**: P.IVA, codice destinatario/SDI. Oggi non c'è
-  traccia di nessuno dei due in tutto il repository — nessun cliente B2B
-  italiano può comprare.
+Il prezzo esisteva solo dentro Stripe: si scopriva dopo essere stati rimbalzati
+sul checkout. Adesso `billing_products` ha una colonna `price_cents`, e la cifra
+compare sulla landing e su `/app/billing` insieme al **prezzo per scheda**, che è
+il numero che si cerca davvero confrontando due pacchetti. Un pacchetto senza
+prezzo non si mostra e **non si vende**: la rotta di checkout lo rifiuta, non
+solo l'interfaccia.
+
+I prezzi in archivio sono **segnaposto** — 29,00 / 99,00 / 199,00 € — e stanno
+nel database, non nel codice: cambiarli non richiede un rilascio. Vanno decisi
+prima di vendere; è l'unica cosa rimasta da fare qui, e la decide chi vende.
+
+Staging aveva `billing_products` vuota: popolata, e il seed ora include i prezzi
+così un progetto nuovo non nasce con la pagina che dice «Nessun pacchetto
+disponibile» senza spiegare perché.
+
+**I dati fiscali italiani** non esistevano da nessuna parte: nessun campo,
+nessun controllo, nessuna schermata. Ora `organizations` ha ragione sociale
+(separata dal nome dell'organizzazione: «Cascina Verde» è come si chiamano,
+«Cascina Verde S.r.l.» è chi emette la fattura), partita IVA, codice fiscale,
+codice destinatario SDI, PEC e indirizzo; `/app/billing` ha il form, riservato al
+proprietario. La partita IVA è validata col carattere di controllo — undici cifre
+qualsiasi tornerebbero indietro dallo SDI giorni dopo il pagamento — ma **solo per
+l'Italia**: applicare la regola italiana a una VAT francese valida la boccerebbe.
+
+Il checkout **non fa pagare** se quei dati mancano: incassare senza poter
+emettere fattura costa più che fermarsi un attimo prima. L'errore non è un vicolo
+cieco — porta al form, sulla stessa pagina. A Stripe arrivano ragione sociale,
+indirizzo e partita IVA col prefisso paese (`eu_vat`, e solo dentro l'Unione:
+dichiararlo per un paese extra-UE farebbe fallire l'acquisto), e la sessione
+chiede la fattura con codice destinatario, PEC e codice fiscale scritti sopra —
+lo SDI non è un campo nativo di Stripe.
+
+La cronologia mostra l'**importo pagato allora**, non il prezzo di oggi: è
+scritto nel registro nel momento dell'incasso, e viene da Stripe, non dal
+listino. Con uno sconto o dopo un cambio di prezzo le due cifre divergono, e una
+ricevuta che si riscrive da sola quando si tocca il listino non è una ricevuta.
+
+**Rimasto al proprietario del prodotto:** decidere i prezzi veri (`update
+billing_products set price_cents = …`), le chiavi Stripe live e il webhook.
 
 ### 2.6 ~~Un modo di chiedere aiuto~~ — **fatto**
 
@@ -404,8 +435,8 @@ prova fatta apposta per romperle.
 2. **Il nome dei prodotti** (§2.2) — mezza giornata. Un catalogo di codici a
    barre non è un catalogo.
 3. **Il wizard** (§2.4) — 2-3 giorni. Il difetto trovato da tre revisioni su sei.
-4. **Poter comprare** (§2.5) — 2-3 giorni.
-5. **I ruoli** (§2.3) — 1-2 giorni.
+4. ~~**Poter comprare** (§2.5)~~ — fatto. Restano solo i prezzi da decidere.
+5. ~~**I ruoli** (§2.3)~~ — fatto.
 6. **Il resto del §2** — circa 2 giorni in totale.
 
 Poi si lancia, e §3 si fa con gli utenti veri davanti.

@@ -127,13 +127,18 @@ on conflict (preset_id, version) do nothing;
 -- =====================================================================
 -- Pacchetti crediti (billing_products)
 -- stripe_price_id resta null: valorizzato in deploy reale da variabili d'ambiente.
+--
+-- I PREZZI SONO SEGNAPOSTO. Vanno decisi prima di vendere. Stanno qui e non
+-- nel codice perche' cambiarli non deve richiedere un rilascio — e perche' un
+-- pacchetto senza prezzo non e' acquistabile: meglio che non compaia, piuttosto
+-- che comparire senza dire quanto costa.
 -- =====================================================================
 
-insert into billing_products (key, name, credits, stripe_price_id, active)
+insert into billing_products (key, name, credits, price_cents, currency, stripe_price_id, active)
 values
-  ('pack_50', 'Pacchetto 50 crediti', 50, null, true),
-  ('pack_200', 'Pacchetto 200 crediti', 200, null, true),
-  ('pack_500', 'Pacchetto 500 crediti', 500, null, true)
+  ('pack_50', 'Pacchetto 50 crediti', 50, 2900, 'EUR', null, true),
+  ('pack_200', 'Pacchetto 200 crediti', 200, 9900, 'EUR', null, true),
+  ('pack_500', 'Pacchetto 500 crediti', 500, 19900, 'EUR', null, true)
 on conflict (key) do nothing;
 
 -- =====================================================================

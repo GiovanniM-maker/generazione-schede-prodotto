@@ -230,7 +230,27 @@ export class FakeDb {
     return { data: [], error: null };
   }
 
-  _select(table: string, filters: Filter[], order?: { col: string; asc: boolean }, limit?: number) {
+  /**
+   * Colonne chieste nel `select`, in forma semplice.
+   *
+   * Serve solo a sapere quali chiavi devono esistere nel risultato: le
+   * relazioni innestate (`prodotti(nome)`) e le `*` non contano.
+   */
+  static colonneChieste(cols?: string): string[] {
+    if (!cols || cols.includes('*')) return [];
+    return cols
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => c !== '' && !c.includes('(') && !c.includes(')'));
+  }
+
+  _select(
+    table: string,
+    filters: Filter[],
+    order?: { col: string; asc: boolean },
+    limit?: number,
+    cols?: string,
+  ) {
     let out = (this.tables[table] ?? []).filter((r) => filters.every((f) => f(r)));
     if (order) {
       const col = order.col;
@@ -243,7 +263,15 @@ export class FakeDb {
     }
     if (limit !== undefined) out = out.slice(0, limit);
     this.calls.push({ table, op: 'select', rows: out.length });
-    return out.map((r) => ({ ...r }));
+    // Una colonna chiesta e mai valorizzata torna `null` da Postgres, non
+    // `undefined`: chi legge fa `?? 'IT'` o `=== null` e il finto client, non
+    // dandogliela affatto, faceva passare test che in produzione cadevano.
+    const chieste = FakeDb.colonneChieste(cols);
+    return out.map((r) => {
+      const copia = { ...r };
+      for (const c of chieste) if (!(c in copia)) copia[c] = null;
+      return copia;
+    });
   }
 }
 
@@ -261,8 +289,11 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     private readonly table: string,
   ) {}
 
-  select(_cols?: string): this {
+  private cols?: string;
+
+  select(cols?: string): this {
     if (this.mode === 'select') this.mode = 'select';
+    this.cols = cols;
     return this;
   }
   insert(rows: Row | Row[]): this {
@@ -331,7 +362,7 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     if (this.mode === 'update') return this.db._update(this.table, this.patch, this.filters);
     if (this.mode === 'delete') return this.db._delete(this.table, this.filters);
     return {
-      data: this.db._select(this.table, this.filters, this.orderBy, this.limitN),
+      data: this.db._select(this.table, this.filters, this.orderBy, this.limitN, this.cols),
       error: null,
     };
   }
