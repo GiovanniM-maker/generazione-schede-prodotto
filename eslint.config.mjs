@@ -57,6 +57,16 @@ export default tseslint.config(
           message:
             "Scrittura al database con l'errore ignorato. Usa `const { error } = await ...` e controllalo, oppure `mustWrite`/`writeOrThrow`/`logWrite` da @app/core.",
         },
+        {
+          // `rpc` non passava dalla regola sopra, e sono proprio le funzioni
+          // che toccano il registro dei crediti: accredito dopo il pagamento,
+          // rimborso di una generazione fallita, consumo del credito riservato.
+          // Un errore ignorato lì significa soldi che non tornano.
+          selector:
+            "ExpressionStatement > AwaitExpression:not(:has(CallExpression[callee.name=/^(mustWrite|writeOrThrow|logWrite)$/])) CallExpression[callee.property.name='rpc']",
+          message:
+            "Chiamata `rpc` con l'errore ignorato. Sono le funzioni del registro crediti: usa `mustWrite`/`writeOrThrow`/`logWrite` da @app/core.",
+        },
       ],
     },
   },

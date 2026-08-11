@@ -36,12 +36,17 @@ export async function POST(request: Request) {
   // --- Mock billing: accredito diretto in modalità test (mai in produzione) ---
   if (env.ENABLE_MOCK_BILLING) {
     const fakeEventId = crypto.randomUUID();
-    await service.rpc('apply_credit_purchase', {
+    const accredito = await mustWrite('crediti.apply_credit_purchase', service.rpc('apply_credit_purchase', {
       org: org.organizationId,
       amt: product.credits,
       stripe_event: fakeEventId,
       price_key: packKey,
-    });
+    }));
+    // Meglio un errore onesto che una pagina "acquisto riuscito" davanti a un
+    // saldo rimasto identico.
+    if (!accredito.ok) {
+      return NextResponse.json({ error: 'Accredito non riuscito' }, { status: 500 });
+    }
     await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: org.organizationId,
       user_id: user.id,

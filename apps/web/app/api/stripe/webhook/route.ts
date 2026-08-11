@@ -6,6 +6,7 @@ import { getStripe, packForPriceId } from '@/lib/stripe';
 import {
   logWrite,
   mustWrite,
+  writeOrThrow,
 } from '@app/core';
 
 // POST /api/stripe/webhook — body RAW, firma verificata, idempotente.
@@ -92,12 +93,16 @@ export async function POST(request: Request) {
             .eq('key', packKey)
             .single();
           if (product) {
-            await service.rpc('apply_credit_purchase', {
+            // Se l'accredito fallisce l'eccezione arriva al catch qui sotto,
+            // che segna l'evento 'failed' e risponde 500: Stripe riprova.
+            // Ignorare l'errore significava incassare senza dare i crediti,
+            // marcare l'evento 'processed' e non lasciare traccia.
+            await writeOrThrow('crediti.apply_credit_purchase', service.rpc('apply_credit_purchase', {
               org: orgId,
               amt: product.credits,
               stripe_event: eventUuid,
               price_key: packKey,
-            });
+            }));
             await logWrite('app_events.insert', service.from('app_events').insert({
               organization_id: orgId,
               event_name: 'payment_completed',
@@ -108,10 +113,17 @@ export async function POST(request: Request) {
       }
     }
 
-    await mustWrite('stripe_events.update', service
+    // Se la marcatura fallisce l'evento resta 'pending': rispondendo 200
+    // Stripe non riproverebbe piu' e la riga resterebbe a mentire per sempre.
+    // Chiedere il retry e' sicuro: `apply_credit_purchase` e' idempotente
+    // sull'uuid dell'evento, quindi il secondo giro non accredita due volte.
+    const marcato = await mustWrite('stripe_events.update', service
       .from('stripe_events')
       .update({ status: 'processed', processed_at: new Date().toISOString() })
       .eq('stripe_event_id', event.id));
+    if (!marcato.ok) {
+      return NextResponse.json({ error: 'Evento non marcato' }, { status: 500 });
+    }
   } catch (err) {
     // Segna l'errore per un retry sicuro (l'evento resta registrato).
     await mustWrite('stripe_events.update', service

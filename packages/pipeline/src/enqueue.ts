@@ -7,6 +7,7 @@ import type { ErrorCode } from '@app/config';
 import type { ServerEnv } from '@app/config';
 import { queueSend, type TypedClient } from '@app/database';
 import { updateBatchProgress } from './generate.js';
+import { creditOp } from './credits.js';
 
 // ---------------------------------------------------------------------------
 // Prenotazione crediti + creazione job items + invio messaggi in coda.
@@ -124,12 +125,12 @@ export async function enqueueBatch(
   // Rilascia i crediti riservati ma non usati (item saltati per doppioni/errore),
   // così nessun credito resta bloccato.
   if (skipped > 0) {
-    await client.rpc('release_credits', {
-      org: batch.organization_id,
-      amt: skipped,
-      ref_type: 'enqueue_skip',
-      ref_id: batchId,
-    });
+    await creditOp(
+      client,
+      'release_credits',
+      { org: batch.organization_id, amt: skipped, ref_type: 'enqueue_skip', ref_id: batchId },
+      { organizationId: batch.organization_id, batchId, refId: batchId },
+    );
   }
 
   await mustWrite('batches.update', client
@@ -210,12 +211,13 @@ export async function handleJobFailure(
     .from('job_items')
     .update({ status: 'failed', attempts, last_error_code: code, last_error_message: message })
     .eq('id', jobItemId));
-  await client.rpc('release_credits', {
-    org: job.organization_id,
-    amt: 1,
-    ref_type: 'job_failed',
-    ref_id: jobItemId,
-  });
+  // Rimborso di una scheda mai prodotta: se salta, l'utente resta addebitato.
+  await creditOp(
+    client,
+    'release_credits',
+    { org: job.organization_id, amt: 1, ref_type: 'job_failed', ref_id: jobItemId },
+    { organizationId: job.organization_id, batchId: job.batch_id, refId: jobItemId },
+  );
   await updateBatchProgress(client, job.batch_id);
   return { retry: false, code };
 }

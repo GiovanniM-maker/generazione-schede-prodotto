@@ -11,7 +11,7 @@ non a memoria.
 
 | | |
 |---|---|
-| Test | **338**, verdi |
+| Test | **355** unitari + **100** con browser vero, verdi |
 | Typecheck / lint | puliti su tutto il repo |
 | Build | OK |
 | Job falliti in coda | 0 |
@@ -28,10 +28,11 @@ Sul database di produzione: 3 organizzazioni, 11 preset, 51 categorie,
 | strato | test | note |
 |---|---|---|
 | `packages/core` | 210 | logica pura: SKU, qualità, prompt, export, sicurezza URL |
-| `apps/web` | 98 | **server action** — a inizio agosto erano 0 |
+| `apps/web` | 108 | **server action** e rotte API — a inizio agosto erano 0 |
 | `packages/ai` | 14 | provider, traduzioni, miglioramento prompt |
-| `packages/pipeline` | 11 | accodamento e crediti |
+| `packages/pipeline` | 18 | accodamento, generazione, registro crediti |
 | `apps/worker` | 5 | fallimenti e retry |
+| interfaccia (Playwright) | 100 | pagine pubbliche, wizard, risultati — su desktop e telefono |
 
 Le tre funzioni più rischiose del prodotto sono coperte end-to-end:
 
@@ -74,6 +75,19 @@ Le categorie di un batch sono quelle del preset scelto, non quelle del settore.
 Prima un preset con 17 categorie ne offriva 31, e i prodotti finivano in
 categorie senza attributi — quindi senza niente da estrarre.
 
+### Il registro dei crediti non sbaglia in silenzio
+Le funzioni che spostano crediti si chiamano con `rpc`, e `rpc` restituisce
+l'errore invece di sollevarlo — esattamente come `insert`. La regola di lint
+guardava solo `insert/update/upsert/delete`, quindi **sette chiamate** al
+registro buttavano via l'esito. Erano i punti dove passano i soldi: accredito
+dopo il pagamento, rimborso di un job fallito, consumo del credito riservato.
+
+Ora la regola copre anche `rpc`; l'accredito dopo il pagamento **interrompe e
+risponde 500**, così Stripe riprova (la funzione è idempotente sull'evento,
+non accredita due volte); i rimborsi nel worker, dove non c'è nessuno a cui
+dirlo, lasciano una riga `credit_ledger_failed` in `app_events` — perché nel
+worker i log del server non li legge nessuno.
+
 ### I vincoli dello schema in un posto solo
 Enum, unicità e cancellazioni a cascata sono definiti una volta e condivisi dai
 test. Ripeterli file per file è il modo in cui in questo progetto sono già nati
@@ -85,9 +99,11 @@ dei bug: la stessa regola scritta due volte, e le due copie che divergono.
 
 ### P1 — Robustezza
 
-1. **Scritture ancora solo loggate** (~40). Sono telemetria e stati intermedi del
-   cron, dove il log è la scelta giusta — ma vanno riviste una per una per
-   confermarlo.
+1. **Scritture solo loggate: verificate una per una.** Sono 20, e sono *tutte*
+   `app_events.insert`, cioè telemetria pura: il log è la scelta giusta.
+   Restano invece **58 `mustWrite` il cui esito nessuno legge** — al sito della
+   chiamata sono indistinguibili da `logWrite`, ma il nome promette un
+   controllo che non c'è. Da rivedere una per una.
 2. **Selettore del foglio Excel.** Il ripiego automatico c'è; manca la scelta
    esplicita quando i fogli sono più d'uno.
 3. **Test end-to-end con AI reale** su ogni sorgente (Excel, foto, URL, misto).
@@ -97,8 +113,9 @@ dei bug: la stessa regola scritta due volte, e le due copie che divergono.
 
 ### P2 — Prodotto
 
-5. **Seconda vista dei risultati**, più comoda di una tabella per chi non è
-   pratico di Excel. ← *concordata come prossimo passo*
+5. ~~Seconda vista dei risultati~~ — **fatta**: vista "Lettura" con la foto del
+   prodotto accanto al testo, e su telefono la barra strumenti si apre solo se
+   serve.
 6. **Dashboard admin**: consumi, costo per prodotto, spesa AI, utenti.
 7. **Azioni in blocco** nei risultati: accetta tutte le complete, rigenera le fallite.
 8. **Ricerca e filtri** sui risultati (per categoria, per campo mancante).
@@ -126,13 +143,32 @@ dei bug: la stessa regola scritta due volte, e le due copie che divergono.
 - `batches.source_type` è NULL su tutti i batch. Il percorso di scrittura è
   corretto e ora controllato; nessun punto del codice legge quel campo. È un
   residuo storico su una colonna di fatto inutilizzata.
+- **Il registro crediti è in pari, riga per riga.** Riservati 233, rilasciati
+  233 (209 per consumo, 23 per job falliti, 1 per una cache hit), consumati 209.
+  Saldo 99.800, uguale alla somma dei tre saldi per organizzazione. Nessuna
+  riserva rimasta bloccata: i sette `rpc` senza controllo erano
+  un'**esposizione**, non un danno già avvenuto. Il pagamento vero non è mai
+  passato — `stripe_events` è vuota — quindi il buco peggiore non ha mai avuto
+  occasione di aprirsi.
 
 ---
 
-## 6. Limite dichiarato
+## 6. Limiti dichiarati
 
-In questo ambiente **non posso pilotare un browser** (il proxy blocca Chromium):
-niente prove dei flussi come li farebbe una persona davanti allo schermo. Posso
-invece testare la logica reale con dati veri, interrogare il database di
-produzione e fare chiamate API autenticate. I bug di interfaccia continuano a
-emergere dall'uso, non dalle mie verifiche: è il buco più grande che resta.
+**Il browser adesso c'è.** La versione precedente di questo documento diceva che
+non potevo pilotarne uno: era sbagliato. Chromium era già installato, il
+pacchetto Playwright ne cercava una build diversa e l'errore sembrava un muro.
+Oggi 100 test aprono le pagine vere — comprese quelle dietro il login, con dati
+seminati su un progetto Supabase di staging dedicato. Dettagli in
+`docs/qa-browser.md`.
+
+Restano tre limiti veri:
+
+- **La rete del container non arriva agli host esterni dal browser.** Un `<img>`
+  verso Storage resta vuoto; `curl` allo stesso indirizzo risponde. Non tocca i
+  test (guardano markup e testo alternativo), tocca solo gli screenshot.
+- **La generazione è provata con un modello finto.** Nessun test end-to-end
+  paga davvero l'AI.
+- **Il pagamento vero non è mai stato eseguito.** Il webhook Stripe ora ha 10
+  test, ma `stripe_events` in produzione è vuota: il primo pagamento reale sarà
+  il primo collaudo reale.
