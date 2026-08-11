@@ -13,6 +13,8 @@ import {
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { formattaPrezzo, prezzoPerCredito } from '@app/core';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 const steps = [
   { icon: UploadCloud, title: 'Carica', text: 'Importa il catalogo in CSV o Excel.' },
@@ -31,11 +33,41 @@ const generati = [
   'Meta description',
 ];
 
-const packs = [
-  { name: 'Starter', credits: 50, hint: 'Per un primo catalogo o test approfonditi.' },
-  { name: 'Business', credits: 200, hint: 'Per aggiornamenti stagionali ricorrenti.' },
-  { name: 'Pro', credits: 500, hint: 'Per cataloghi ampi e team.' },
-];
+/**
+ * I pacchetti mostrati sulla landing.
+ *
+ * Nomi e descrizioni stanno qui; il PREZZO e i crediti vengono dal database,
+ * dove li si può cambiare senza un rilascio. Un pacchetto senza prezzo non
+ * compare: meglio non mostrarlo che mostrarlo senza dire quanto costa — ed era
+ * esattamente il difetto, una sezione «Prezzi» che elencava solo «50 / 200 /
+ * 500 crediti».
+ */
+const DESCRIZIONI: Record<string, { name: string; hint: string }> = {
+  pack_50: { name: 'Starter', hint: 'Per un primo catalogo o test approfonditi.' },
+  pack_200: { name: 'Business', hint: 'Per aggiornamenti stagionali ricorrenti.' },
+  pack_500: { name: 'Pro', hint: 'Per cataloghi ampi e team.' },
+};
+
+async function pacchettiInVendita() {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('billing_products')
+    .select('key, credits, price_cents, currency')
+    .eq('active', true)
+    .not('price_cents', 'is', null)
+    .order('credits', { ascending: true });
+  return (data ?? []).map((p) => {
+    const d = DESCRIZIONI[p.key] ?? { name: p.key, hint: '' };
+    return {
+      name: d.name,
+      hint: d.hint,
+      credits: p.credits,
+      prezzo: p.price_cents == null ? null : formattaPrezzo(p.price_cents, p.currency ?? 'EUR'),
+      perCredito:
+        p.price_cents == null ? null : prezzoPerCredito(p.price_cents, p.credits, p.currency ?? 'EUR'),
+    };
+  });
+}
 
 const faq = [
   {
@@ -60,7 +92,8 @@ const faq = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const packs = await pacchettiInVendita();
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
@@ -265,10 +298,15 @@ export default function LandingPage() {
                     <div className="text-sm font-medium text-gray-500">
                       {p.name}
                     </div>
+                    {/* Il PREZZO prima di tutto: era l'unica cosa che mancava,
+                        e senza di lui la sezione «Prezzi» non diceva prezzi. */}
                     <div className="mt-3 text-4xl font-bold text-gray-900">
-                      {p.credits}
+                      {p.prezzo ?? '—'}
                     </div>
-                    <div className="text-sm text-gray-500">crediti</div>
+                    <div className="text-sm text-gray-500">
+                      {p.credits} crediti
+                      {p.perCredito && <> · {p.perCredito} a scheda</>}
+                    </div>
                     <p className="mt-3 text-sm text-gray-600">{p.hint}</p>
                     <Link href="/login" className="mt-6 block">
                       <Button

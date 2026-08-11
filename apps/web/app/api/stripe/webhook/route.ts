@@ -89,10 +89,15 @@ export async function POST(request: Request) {
         if (orgId && packKey) {
           const { data: product } = await service
             .from('billing_products')
-            .select('credits')
+            .select('credits, price_cents, currency')
             .eq('key', packKey)
             .single();
           if (product) {
+            // L'importo lo dice Stripe, non il listino: se c'era uno sconto o
+            // il prezzo è cambiato dopo, il listino racconterebbe un'altra
+            // cifra rispetto a quella addebitata.
+            const importo = session.amount_total ?? product.price_cents ?? null;
+            const valuta = (session.currency ?? product.currency ?? 'EUR').toUpperCase();
             // Se l'accredito fallisce l'eccezione arriva al catch qui sotto,
             // che segna l'evento 'failed' e risponde 500: Stripe riprova.
             // Ignorare l'errore significava incassare senza dare i crediti,
@@ -102,11 +107,13 @@ export async function POST(request: Request) {
               amt: product.credits,
               stripe_event: eventUuid,
               price_key: packKey,
+              amount_cents: importo,
+              currency: valuta,
             }));
             await logWrite('app_events.insert', service.from('app_events').insert({
               organization_id: orgId,
               event_name: 'payment_completed',
-              metadata_json: { packKey, credits: product.credits },
+              metadata_json: { packKey, credits: product.credits, amount_cents: importo, currency: valuta },
             }));
           }
         }

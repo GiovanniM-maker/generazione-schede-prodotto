@@ -25,6 +25,8 @@ interface StatoFinto {
   paymentStatus?: string;
   metadata?: Record<string, string>;
   mock?: boolean;
+  /** Quanto ha davvero incassato Stripe (puo' differire dal listino). */
+  amountTotal?: number | null;
 }
 
 let stato: StatoFinto = {};
@@ -50,6 +52,8 @@ vi.mock('@/lib/stripe', () => ({
             object: {
               id: 'cs_1',
               payment_status: stato.paymentStatus ?? 'paid',
+              amount_total: stato.amountTotal === undefined ? 2900 : stato.amountTotal,
+              currency: 'eur',
               metadata: stato.metadata ?? { organization_id: 'org-1', pack_key: 'pack_50' },
             },
           },
@@ -121,7 +125,7 @@ vi.mock('@/lib/supabase/service', () => ({
               : { data: null, error: null },
           single: async () =>
             tabella === 'billing_products'
-              ? { data: { credits: 50 }, error: null }
+              ? { data: { credits: 50, price_cents: 2900, currency: 'EUR' }, error: null }
               : { data: null, error: null },
           then: (r: (v: unknown) => unknown) => Promise.resolve(esito()).then(r),
         });
@@ -155,10 +159,32 @@ describe('webhook Stripe', () => {
     expect(rpcChiamate).toEqual([
       {
         fn: 'apply_credit_purchase',
-        args: { org: 'org-1', amt: 50, stripe_event: 'uuid-evento', price_key: 'pack_50' },
+        args: {
+          org: 'org-1',
+          amt: 50,
+          stripe_event: 'uuid-evento',
+          price_key: 'pack_50',
+          amount_cents: 2900,
+          currency: 'EUR',
+        },
       },
     ]);
     expect(aggiornamenti.some((a) => a.status === 'processed')).toBe(true);
+  });
+
+  it('registra l\u2019importo incassato da Stripe, non quello del listino', async () => {
+    // Con uno sconto (o dopo un cambio di prezzo) le due cifre divergono: in
+    // cronologia deve restare quella addebitata, altrimenti la ricevuta si
+    // riscrive da sola ogni volta che si tocca il listino.
+    stato.amountTotal = 2400;
+    await POST(richiesta());
+    expect(rpcChiamate[0]!.args.amount_cents).toBe(2400);
+  });
+
+  it('senza importo da Stripe ripiega sul listino, senza inventare', async () => {
+    stato.amountTotal = null;
+    await POST(richiesta());
+    expect(rpcChiamate[0]!.args.amount_cents).toBe(2900);
   });
 
   it('rifiuta una firma non valida senza toccare il registro', async () => {

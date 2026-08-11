@@ -9,6 +9,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { PurchaseButton } from '@/components/purchase-button';
+import { DatiFatturazioneForm } from '@/components/billing/dati-fatturazione-form';
+import { leggiDatiFatturazione } from '@/lib/actions/fatturazione';
+import { formattaPrezzo, prezzoPerCredito } from '@app/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +29,14 @@ interface PackRow {
   key: string;
   name: string;
   credits: number;
+  price_cents: number | null;
+  currency: string;
 }
 interface LedgerRow {
   amount: number;
   entry_type: string;
   created_at: string;
+  metadata_json: { amount_cents?: number | null; currency?: string | null } | null;
 }
 
 export default async function BillingPage({
@@ -50,19 +56,20 @@ export default async function BillingPage({
 
   const { data: packsData } = await supabase
     .from('billing_products')
-    .select('key, name, credits')
+    .select('key, name, credits, price_cents, currency')
     .eq('active', true)
     .order('credits', { ascending: true });
 
   const { data: ledgerData } = await supabase
     .from('credit_ledger')
-    .select('amount, entry_type, created_at')
+    .select('amount, entry_type, created_at, metadata_json')
     .eq('organization_id', org.organizationId)
     .order('created_at', { ascending: false })
     .limit(20);
 
   const packs = (packsData ?? []) as PackRow[];
   const ledger = (ledgerData ?? []) as LedgerRow[];
+  const fatturazione = await leggiDatiFatturazione();
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -147,10 +154,20 @@ export default async function BillingPage({
             >
               <CardContent className="p-6 text-center">
                 <div className="text-sm font-medium text-gray-500">{p.name}</div>
+                {/* Il prezzo davanti: era l'unica cosa che mancava, e senza di
+                    lui si compra alla cieca. */}
                 <div className="mt-3 text-4xl font-bold text-gray-900">
-                  {p.credits}
+                  {p.price_cents == null ? '—' : formattaPrezzo(p.price_cents, p.currency)}
                 </div>
-                <div className="text-sm text-gray-500">crediti</div>
+                <div className="text-sm text-gray-500">
+                  {p.credits} crediti
+                  {p.price_cents != null && (
+                    <> · {prezzoPerCredito(p.price_cents, p.credits, p.currency)} a scheda</>
+                  )}
+                </div>
+                {p.price_cents != null && (
+                  <div className="mt-1 text-xs text-gray-400">IVA esclusa</div>
+                )}
                 <div className="mt-6">
                   {isOwner && (
                   <PurchaseButton
@@ -164,6 +181,11 @@ export default async function BillingPage({
           ))}
         </div>
       </div>
+
+      {/* Dati per la fattura */}
+      {fatturazione.ok && (
+        <DatiFatturazioneForm iniziali={fatturazione.data} isOwner={isOwner} />
+      )}
 
       {/* Cronologia */}
       <div>
@@ -180,6 +202,7 @@ export default async function BillingPage({
                   <TR>
                     <TH>Data</TH>
                     <TH>Tipo</TH>
+                    <TH className="text-right">Importo</TH>
                     <TH className="text-right">Crediti</TH>
                   </TR>
                 </THead>
@@ -193,6 +216,19 @@ export default async function BillingPage({
                         <Badge tone="gray">
                           {ENTRY_LABELS[l.entry_type] ?? l.entry_type}
                         </Badge>
+                      </TD>
+                      {/* L'importo è quello pagato allora, non il prezzo di
+                          oggi: i listini cambiano, una ricevuta no. Le righe
+                          che non sono un pagamento (consumo, rilascio) non ne
+                          hanno uno, e inventarne uno sarebbe peggio del
+                          trattino. */}
+                      <TD className="text-right tabular-nums text-gray-700">
+                        {l.metadata_json?.amount_cents != null
+                          ? formattaPrezzo(
+                              l.metadata_json.amount_cents,
+                              l.metadata_json.currency ?? 'EUR',
+                            )
+                          : '—'}
                       </TD>
                       <TD
                         className={
