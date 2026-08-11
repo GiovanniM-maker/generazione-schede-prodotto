@@ -79,7 +79,24 @@ pulsante primario e *ogni* link del prodotto. In configurazione esiste già
 
 ## 2. Prima del lancio
 
-### 2.1 Bugie a schermo — mezza giornata, e non è rimandabile
+### 2.1 ~~Bugie a schermo~~ — **fatto**
+
+| cosa | com'è adesso |
+|---|---|
+| Il banner «l'acquisto è simulato» | Compare **solo** con `ENABLE_MOCK_BILLING` attivo — che in produzione lo schema di env vieta. |
+| Le pagine legali coi segnaposto | I dati vengono da `LEGAL_ENTITY_NAME` / `LEGAL_ADDRESS` / `LEGAL_EMAIL` / `LEGAL_CITY`. Finché mancano, ogni pagina si apre con **«Documento non ancora valido»** e chiede ai motori di non indicizzarla. **Restano da compilare: sono dati che solo il titolare ha.** |
+| File vuoti con la spunta verde | Un file senza righe dati viene **respinto al caricamento**, con due messaggi distinti (file vuoto ≠ solo intestazione) e senza finire su storage. |
+| La dashboard che si contraddice | La card di benvenuto offre «Inizia: nuovo batch» **solo se il catalogo è configurato**; altrimenti il primo pulsante è «Comincia: configura il preset». |
+
+Come contorno è stato sistemato anche un **test rosso da mesi**: `flow.spec.ts`
+cercava la headline «Trasforma il tuo catalogo **moda**…», rimasta da quando il
+prodotto era solo moda. Un test rosso da mesi è peggio di un test assente,
+perché insegna a ignorare i fallimenti.
+
+<details>
+<summary>Com'era</summary>
+
+### Bugie a schermo — mezza giornata, e non è rimandabile
 
 | cosa | dove | perché non si può lanciare così |
 |---|---|---|
@@ -87,6 +104,8 @@ pulsante primario e *ogni* link del prodotto. In configurazione esiste già
 | Pagine legali online **con i segnaposto in chiaro**: `[Ragione sociale]`, `[email di contatto]`, `[città]`, e la dicitura «bozza operativa» | privacy, termini, cookie | Sono pubbliche e rispondono 200. Chiunque le legge. |
 | File vuoti e file con la sola intestazione ricevono la **spunta verde**, e i passi 6-8 mostrano quattro pastiglie «ok» prima che il passo 9 confessi «Nessun prodotto importato» | wizard | Quattro schermate di rassicurazione su niente. |
 | La dashboard dice «Termina la configurazione **per poter creare i tuoi batch**» e dieci centimetri sopra offre «Inizia: nuovo batch», che funziona | `/app` | Due affermazioni opposte nella stessa schermata. |
+
+</details>
 
 ### 2.2 Il nome dei prodotti — mezza giornata
 

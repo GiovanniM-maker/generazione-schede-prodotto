@@ -5,8 +5,13 @@ import Link from 'next/link';
 import { X, Sparkles, Settings2, PackageOpen, ArrowRight } from 'lucide-react';
 
 // Card di benvenuto (prima visita): spiega il percorso in 3 mosse. Si chiude
-// e non torna più (localStorage). Zero dipendenze dal server.
-export function WelcomeCard() {
+// e non torna più (localStorage).
+//
+// `pronto` dice se il catalogo è già configurato. Serve perché questa card
+// offriva sempre «Inizia: nuovo batch» mentre dieci centimetri sotto un'altra
+// card diceva «Termina la configurazione per poter creare i tuoi batch»: due
+// affermazioni opposte nella stessa schermata.
+export function WelcomeCard({ pronto }: { pronto: boolean }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -68,19 +73,30 @@ export function WelcomeCard() {
           </span>
         </li>
       </ol>
+      {/* Prima il preset, poi il batch: l'ordine dei pulsanti segue l'ordine
+          reale delle cose, così non si propone un passo che non è ancora
+          possibile fare. */}
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href="/app/settings/presets"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className={
+            pronto
+              ? 'inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50'
+              : 'inline-flex items-center gap-1.5 rounded-lg bg-brand-accent px-3.5 py-2 text-sm font-medium text-white hover:brightness-110'
+          }
         >
-          <Settings2 className="h-4 w-4" /> Configura il preset
+          <Settings2 className="h-4 w-4" />
+          {pronto ? 'Gestisci il preset' : 'Comincia: configura il preset'}
+          {!pronto && <ArrowRight className="h-4 w-4" />}
         </Link>
-        <Link
-          href="/app/batches/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-accent px-3.5 py-2 text-sm font-medium text-white hover:brightness-110"
-        >
-          Inizia: nuovo batch <ArrowRight className="h-4 w-4" />
-        </Link>
+        {pronto && (
+          <Link
+            href="/app/batches/new"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-accent px-3.5 py-2 text-sm font-medium text-white hover:brightness-110"
+          >
+            Inizia: nuovo batch <ArrowRight className="h-4 w-4" />
+          </Link>
+        )}
       </div>
     </div>
   );

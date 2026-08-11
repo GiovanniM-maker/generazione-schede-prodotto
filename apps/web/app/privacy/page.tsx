@@ -1,21 +1,30 @@
 import type { Metadata } from 'next';
 import { LegalShell } from '@/components/legal/legal-shell';
+import { datiTitolare, oppureDaDefinire } from '@/lib/legale';
 
-export const metadata: Metadata = { title: 'Privacy Policy' };
+// Finché il documento è una bozza chiediamo ai motori di non indicizzarlo:
+// una pagina legale incompleta indicizzata resta in giro per mesi.
+export function generateMetadata(): Metadata {
+  return {
+    title: 'Privacy Policy',
+    robots: datiTitolare().completo ? undefined : { index: false, follow: false },
+  };
+}
 
 export default function PrivacyPage() {
+  const t = datiTitolare();
   return (
     <LegalShell title="Informativa sulla privacy" updated="luglio 2026">
       <p>
         La presente informativa descrive come trattiamo i dati personali degli
         utenti del servizio di generazione di schede prodotto (il “Servizio”).
-        È una bozza operativa da completare con i dati del titolare prima del
-        lancio.
       </p>
 
       <h2>1. Titolare del trattamento</h2>
       <p>
-        Il titolare è [Ragione sociale], [indirizzo], email [email di contatto].
+        Il titolare è {oppureDaDefinire(t.ragioneSociale, 'ragione sociale')},{' '}
+        {oppureDaDefinire(t.indirizzo, 'indirizzo')}, email{' '}
+        {oppureDaDefinire(t.email, 'indirizzo email')}.
       </p>
 
       <h2>2. Dati trattati</h2>
@@ -56,7 +65,7 @@ export default function PrivacyPage() {
         Puoi esercitare i diritti di accesso, rettifica, cancellazione,
         limitazione, opposizione e portabilità. Dall’area Impostazioni → Account
         puoi esportare i tuoi dati e richiedere la cancellazione dell’account.
-        Per altre richieste scrivi a [email di contatto].
+        Per altre richieste scrivi a {oppureDaDefinire(t.email, 'indirizzo email')}.
       </p>
 
       <h2>7. Modifiche</h2>

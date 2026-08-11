@@ -1,14 +1,24 @@
 import type { Metadata } from 'next';
 import { LegalShell } from '@/components/legal/legal-shell';
+import { datiTitolare, oppureDaDefinire } from '@/lib/legale';
 
-export const metadata: Metadata = { title: 'Termini di servizio' };
+// Finché il documento è una bozza chiediamo ai motori di non indicizzarlo:
+// una pagina legale incompleta indicizzata resta in giro per mesi.
+export function generateMetadata(): Metadata {
+  return {
+    title: 'Termini di servizio',
+    robots: datiTitolare().completo ? undefined : { index: false, follow: false },
+  };
+}
+
+
 
 export default function TerminiPage() {
   return (
     <LegalShell title="Termini di servizio" updated="luglio 2026">
       <p>
         I presenti Termini regolano l’uso del Servizio. Utilizzandolo accetti
-        questi Termini. È una bozza operativa da validare legalmente.
+        questi Termini.
       </p>
 
       <h2>1. Il Servizio</h2>
@@ -61,7 +71,10 @@ export default function TerminiPage() {
       </p>
 
       <h2>8. Legge applicabile</h2>
-      <p>Si applica la legge italiana; foro competente [città].</p>
+      <p>
+        Si applica la legge italiana; foro competente{' '}
+        {oppureDaDefinire(datiTitolare().citta, 'città del foro')}.
+      </p>
     </LegalShell>
   );
 }

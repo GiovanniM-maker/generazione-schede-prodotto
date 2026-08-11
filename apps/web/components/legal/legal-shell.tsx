@@ -1,8 +1,13 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft } from 'lucide-react';
+import { datiTitolare } from '@/lib/legale';
 
-// Contenitore leggibile per le pagine legali. I contenuti sono una BOZZA
-// operativa da far validare legalmente prima del lancio.
+// Contenitore delle pagine legali.
+//
+// Se i dati del titolare non sono configurati, lo dice in cima con un avviso
+// che non si può non vedere. Prima le pagine erano pubbliche con
+// «[Ragione sociale]» dentro il testo e l'aria di documenti veri: chi le
+// leggeva non aveva modo di capire che erano bozze.
 export function LegalShell({
   title,
   updated,
@@ -24,6 +29,16 @@ export function LegalShell({
         </Link>
         <h1 className="text-3xl font-semibold text-gray-900">{title}</h1>
         <p className="mt-1 text-sm text-gray-400">Ultimo aggiornamento: {updated}</p>
+        {!datiTitolare().completo && (
+          <div className="mt-6 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>Documento non ancora valido.</strong> I dati del titolare del
+              trattamento non sono stati configurati: questo testo è una bozza e non
+              ha valore fino al completamento.
+            </span>
+          </div>
+        )}
         <div className="prose prose-sm mt-8 max-w-none text-gray-700 [&_h2]:mt-8 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_li]:my-1 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5">
           {children}
         </div>

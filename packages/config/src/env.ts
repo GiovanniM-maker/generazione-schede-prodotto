@@ -68,6 +68,15 @@ export const serverEnvSchema = z
 
     ENABLE_MOCK_AI: boolFromString.default('false'),
     ENABLE_MOCK_BILLING: boolFromString.default('false'),
+
+    // --- Titolare del trattamento -----------------------------------------
+    // Compaiono nelle pagine legali. Finché non ci sono, quelle pagine si
+    // dichiarano bozze e chiedono ai motori di ricerca di ignorarle: meglio di
+    // una privacy policy dall'aria ufficiale con «[Ragione sociale]» dentro.
+    LEGAL_ENTITY_NAME: z.string().min(1).optional(),
+    LEGAL_ADDRESS: z.string().min(1).optional(),
+    LEGAL_EMAIL: z.string().email().optional(),
+    LEGAL_CITY: z.string().min(1).optional(),
   })
   .superRefine((env, ctx) => {
     // I mock non devono MAI essere attivi in produzione.
