@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } from './sessione';
+import { seminaScenario } from './semina';
 
 // ---------------------------------------------------------------------------
 // I flussi che richiedono di essere dentro l'app.
@@ -97,4 +98,60 @@ test('nessun errore JavaScript durante l’onboarding', async ({ page }) => {
   await page.getByRole('button', { name: /continua/i }).click();
   await expect(page.getByText(/passaggio 2 di 7/i)).toBeVisible({ timeout: 15000 });
   expect(errori).toEqual([]);
+});
+
+test.describe('con un catalogo configurato', () => {
+  // L'utente del `beforeEach` sopra non ha un'organizzazione: `/app/settings`
+  // lo rimanda all'onboarding, e i test che vivono lì si saltano da soli senza
+  // dire niente. Qui se ne semina una.
+  test.beforeEach(async () => {
+    if (utenteId) await seminaScenario(utenteId);
+  });
+
+  test('l’errore di una modale si vede dentro la modale', async ({ page }) => {
+    // Era il difetto che avevo archiviato come «non riprodotto»: l'avviso viene
+    // reso nel corpo della pagina, la modale è `fixed inset-0`, quindi il
+    // messaggio finiva DIETRO la velatura. Riprovato con più pazienza, si
+    // riproduce: premendo «Crea» senza nome la modale resta aperta, l'avviso
+    // esiste con `role="alert"` — e nel suo punto centrale l'elemento davanti è
+    // il velo. Chi guarda non vede succedere niente e ripreme.
+    //
+    // Chi usa un lettore di schermo lo sentiva comunque: uno dei rari casi in cui
+    // era informato meglio di chi lo schermo lo guarda.
+    await page.goto('/app/settings/categories', { waitUntil: 'networkidle' });
+    const apri = page.getByRole('button', { name: /nuova categoria/i }).first();
+    if ((await apri.count()) === 0) test.skip();
+    await apri.click();
+
+    const modale = page.locator('[role="dialog"]');
+    await expect(modale).toBeVisible({ timeout: 15000 });
+    await modale.getByRole('button', { name: /^crea$/i }).click();
+
+    // L'avviso deve comparire DENTRO la modale…
+    const dentro = modale.getByRole('alert');
+    await expect(dentro).toBeVisible({ timeout: 15000 });
+    await expect(dentro).toContainText(/obbligatorio/i);
+
+    // …e non deve essercene una seconda copia coperta dal velo: due `role=alert`
+    // identici vengono annunciati due volte.
+    //
+    // Si contano le copie di QUESTO messaggio, non gli `alert` della pagina:
+    // l'overlay di sviluppo di Next ne tiene uno vuoto in fondo al body, e
+    // contando quello il test falliva solo sul profilo telefono — cioè per una
+    // ragione che col prodotto non c'entra niente.
+    await expect(page.getByRole('alert').filter({ hasText: /obbligatorio/i })).toHaveCount(1);
+
+    // Nessuno gli sta davanti: è la prova che vale, perché un elemento «visibile»
+    // per Playwright può comunque stare sotto una velatura.
+    const scoperto = await page.evaluate(() => {
+      const a = [...document.querySelectorAll('[role="alert"]')].find((x) =>
+        /obbligatorio/i.test(x.textContent || ''),
+      );
+      if (!a) return false;
+      const r = a.getBoundingClientRect();
+      const sopra = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!sopra && (a === sopra || a.contains(sopra));
+    });
+    expect(scoperto, 'l’avviso è coperto da qualcosa').toBe(true);
+  });
 });

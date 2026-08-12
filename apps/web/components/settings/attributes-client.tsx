@@ -163,7 +163,7 @@ export function AttributesClient({
             organizzazione.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -202,8 +202,15 @@ export function AttributesClient({
           </Button>
         </div>
       </div>
+      {/* Non due volte.
+          La modale mostra ora l'errore dell'azione che ha lanciato lei; questo
+          riquadro serve alle azioni della pagina. Lasciandoli accesi insieme,
+          lo stesso messaggio finiva nel DOM due volte — uno visibile e uno
+          dietro la velatura — e un lettore di schermo lo annunciava due volte.
+          `copilotOpen` non entra nel conto: il copilota ha i suoi errori. */}
 
-      {error && (
+      {error && !(createOpen || importOpen) && (
+
         <Avviso tono="errore">
           {error}
         </Avviso>
@@ -324,6 +331,7 @@ export function AttributesClient({
       </Card>
 
       <Modal
+        errore={error}
         open={importOpen}
         onClose={() => setImportOpen(false)}
         title="Importa attributi da lista"
@@ -392,6 +400,7 @@ export function AttributesClient({
       </Modal>
 
       <Modal
+        errore={error}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Nuovo attributo"
@@ -542,6 +551,7 @@ export function AttributesClient({
       </Modal>
 
       <Modal
+        errore={error}
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
         title="Crea un attributo con l'AI"

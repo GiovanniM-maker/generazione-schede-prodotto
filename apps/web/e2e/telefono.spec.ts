@@ -184,6 +184,39 @@ test.describe('dentro l’applicazione', () => {
     expect(await comandiChePerdonoIlTesto(page)).toEqual([]);
   });
 
+  test('ogni comando si prende col dito, anche dentro l’applicazione', async ({ page }) => {
+    // La soglia WCAG 2.2 AA è 24×24. Il controllo esisteva solo per le pagine
+    // pubbliche, e dentro l'applicazione restavano «Cosa significa?» e «Chiudi
+    // la guida» a 20×20, il pulsante di chiusura delle modali esattamente a 24
+    // — cioè sul filo, che non è un margine — e «Modifica preset» alto 17 px,
+    // perché un collegamento di testo è alto quanto il testo.
+    await page.setViewportSize(TELEFONO);
+    for (const rotta of ['/app/batches/new', '/app/settings/presets', '/app/settings/team']) {
+      await page.goto(rotta, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      const piccoli = await page.evaluate(() => {
+        const out: string[] = [];
+        for (const b of document.querySelectorAll('button, a')) {
+          const el = b as HTMLElement;
+          if (el.closest('nextjs-portal') || el.querySelector('button,a')) continue;
+          const s = getComputedStyle(el);
+          // `sr-only`: ritagliato a 1×1 finché non riceve il fuoco.
+          if (s.clipPath !== 'none' || s.clip !== 'auto') continue;
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          if (r.width < 24 || r.height < 24) {
+            out.push(
+              `${el.getAttribute('aria-label') ?? (el.textContent || '').trim().slice(0, 22)} ` +
+                `${Math.round(r.width)}x${Math.round(r.height)}`,
+            );
+          }
+        }
+        return [...new Set(out)];
+      });
+      expect(piccoli, `comandi sotto i 24px su ${rotta}`).toEqual([]);
+    }
+  });
+
   test('la barra dei comandi del wizard non è traslucida', async ({ page }) => {
     // Il 5% di trasparenza più la sfocatura non nascondono il testo sotto: lo
     // rendono illeggibile ma visibile.

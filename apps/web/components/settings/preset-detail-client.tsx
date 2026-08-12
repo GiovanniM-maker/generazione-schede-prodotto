@@ -140,7 +140,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       {/* Intestazione */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-gray-900">
               {detail.preset.name}
             </h1>
@@ -155,7 +155,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             Configura categorie, attributi e prompt del preset.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -242,8 +242,15 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
           bozza: le versioni pubblicate restano invariate.
         </Avviso>
       )}
+      {/* Non due volte.
+          La modale mostra ora l'errore dell'azione che ha lanciato lei; questo
+          riquadro serve alle azioni della pagina. Lasciandoli accesi insieme,
+          lo stesso messaggio finiva nel DOM due volte — uno visibile e uno
+          dietro la velatura — e un lettore di schermo lo annunciava due volte.
+          `copilotOpen` non entra nel conto: il copilota ha i suoi errori. */}
 
-      {error && (
+      {error && !(addCatOpen || addAttrOpen || importAttrOpen || importCatOpen) && (
+
         <Avviso tono="errore">
           {error}
         </Avviso>
@@ -301,7 +308,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
           {current ? (
             <Card className="p-5">
               <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-semibold text-gray-900">
                     {current.name}
                   </h3>
@@ -428,6 +435,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
 
       {/* Importa attributi da lista */}
       <Modal
+        errore={error}
         open={importAttrOpen}
         onClose={() => setImportAttrOpen(false)}
         title="Aggiungi attributi da lista"
@@ -486,6 +494,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
 
       {/* Importa categorie da lista */}
       <Modal
+        errore={error}
         open={importCatOpen}
         onClose={() => setImportCatOpen(false)}
         title="Aggiungi categorie da lista"
@@ -531,7 +540,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
           />
           <aside className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Sparkles className="h-5 w-5 text-brand-accent" />
                 <h2 className="font-semibold text-gray-900">Costruisci il preset con l’AI</h2>
               </div>
@@ -710,7 +719,7 @@ function AttributeEditor({
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-gray-900">{attr.name}</span>
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}

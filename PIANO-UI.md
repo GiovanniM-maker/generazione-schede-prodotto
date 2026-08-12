@@ -133,6 +133,67 @@ inciampa: è `sr-only`, cioè ritagliato a 1×1 finché non riceve il fuoco, e
 qualunque controllo sulle dimensioni lo prende per un difetto. Ora lo saltano
 tutti, per la stessa ragione scritta nello stesso modo.
 
+**§6 — i minori.** Sette voci su dodici corrette, una non riprodotta, quattro
+lasciate con la loro misura.
+
+Corrette: le barre di comandi vanno a capo (6.1/6.2 — vedi sotto); i bersagli
+tattili sotto i 24 px non ci sono più, «Cosa significa?» e «Chiudi la guida»
+erano 20×20, il chiudi delle modali era 24 esatti — sul filo, che non è un
+margine — e «Modifica preset» alto 17 (6.7); la colonna «Azioni» di Team
+compare solo se c'è qualcuno da rimuovere, prima era larga 134 px e vuota per
+un proprietario da solo (6.8); «Provincia» e «Paese» misurano entrambi 128 px,
+prima 254 e 128 per due campi da due caratteri (6.10); i termini non
+descrivono più un accesso «tramite link via email», che il prodotto ha smesso
+di usare — un documento legale che descrive un prodotto diverso da quello in
+uso è sbagliato in un modo che nessun test di interfaccia vede (6.12).
+
+**Non riprodotta:** il piede non ancorato (6.6). Su `/input` a 390 px la pagina
+è più alta dello schermo, quindi non c'è nessun vuoto sotto il piede.
+
+**Lasciate, con la misura:** 6.3 (il pulsante d'aiuto sui link legali), 6.4 (la
+barra di avanzamento che cambia larghezza fra i passi), 6.9 (i segnaposto
+tagliati nelle textarea) e 6.5 — il wizard largo 768 dentro un guscio da 1152.
+Il 6.5 in particolare **non lo correggo apposta**: allargarlo peggiora la
+leggibilità di un modulo, e centrarlo o stringere il guscio rimetterebbe il
+titolo a saltare di lato fra un passo e l'altro, che è esattamente il difetto
+chiuso col §3.1.
+
+### Correggendo il §6 ho trovato una regressione mia
+
+`categories` e `attributes` sforavano di **147 px** a 320. Il difetto di base
+era del piano (6.2, «escono dallo schermo sotto 343 px»), ma senza il
+`whitespace-nowrap` che avevo aggiunto col §5.4 lo sforo era di 23 px: la mia
+correzione l'ha reso **sei volte peggiore**. La causa vera è che quelle barre
+hanno tre pulsanti e non andavano a capo; ora vanno a capo, e lo sforo è zero.
+
+Era passata inosservata perché il test delle larghezze guardava **una sola**
+pagina di configurazione, `presets`, che di pulsanti ne ha due. Ora ne guarda
+tre. Una pagina campione non copre una sezione.
+
+---
+
+## 7. Non ha retto la verifica — riverificato
+
+La prima affermazione resta non riprodotta. **La seconda invece si riproduce**,
+e l'avevo archiviata io: premendo «Crea» senza nome, la modale resta aperta,
+l'avviso «Il nome è obbligatorio» esiste con `role="alert"` — e nel suo punto
+centrale l'elemento davanti è il velo della modale. Chi guarda non vede
+succedere niente e ripreme.
+
+Il messaggio veniva reso nel corpo della pagina mentre la modale è
+`fixed inset-0`. Chi usa un lettore di schermo lo sentiva comunque: uno dei
+rari casi in cui era informato meglio di chi lo schermo lo guarda.
+
+Corretto nel componente condiviso — `Modal` ha ora un posto per l'errore
+dell'azione che ha lanciato lei — e applicato agli undici punti che ne avevano
+bisogno. Il riquadro di pagina si spegne mentre una modale è aperta: altrimenti
+lo stesso messaggio finiva nel DOM due volte e veniva annunciato due volte.
+
+Lezione: «non sono riuscito a riprodurlo» non è «non c'è». La prima volta avevo
+provato con meno pazienza.
+
+---
+
 Un difetto l'ho introdotto io mentre correggevo il 4.2 — un `text-gray-400`, che
 sul nostro fondo fa 2,4:1 — e l'ha preso un test che c'era già. È il motivo per
 cui quel test esiste.
@@ -550,6 +611,8 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 6. ~~**§2.5** — l'anteprima quando si condivide il link.~~ **fatto**
 7. ~~**§4** — le cose che si leggono male.~~ **fatto**
 8. ~~**§5** — telefono.~~ **fatto**
-9. **§6** — la coda dei minori.
+9. ~~**§6** — la coda dei minori.~~ **fatto per sette voci su dodici**; le
+   quattro rimaste sono elencate sopra con la loro misura, e il §7 è
+   riverificato.
 
 Il §7 va riverificato prima di toccare qualsiasi cosa.

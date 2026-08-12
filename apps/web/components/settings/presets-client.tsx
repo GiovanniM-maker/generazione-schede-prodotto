@@ -141,8 +141,15 @@ export function PresetsClient({
           Nuovo preset
         </Button>
       </div>
+      {/* Non due volte.
+          La modale mostra ora l'errore dell'azione che ha lanciato lei; questo
+          riquadro serve alle azioni della pagina. Lasciandoli accesi insieme,
+          lo stesso messaggio finiva nel DOM due volte — uno visibile e uno
+          dietro la velatura — e un lettore di schermo lo annunciava due volte.
+          `copilotOpen` non entra nel conto: il copilota ha i suoi errori. */}
 
-      {error && (
+      {error && !(createOpen) && (
+
         <Avviso tono="errore">
           {error}
         </Avviso>
@@ -253,6 +260,7 @@ export function PresetsClient({
 
       {/* Nuovo preset */}
       <Modal
+        errore={error}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Nuovo preset"
@@ -299,6 +307,7 @@ export function PresetsClient({
 
       {/* Rinomina */}
       <Modal
+        errore={error}
         open={Boolean(renameTarget)}
         onClose={() => setRenameTarget(null)}
         title="Rinomina preset"

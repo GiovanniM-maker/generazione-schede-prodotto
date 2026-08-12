@@ -33,7 +33,7 @@ export default function TerminiPage() {
 
       <h2>2. Account</h2>
       <p>
-        L’accesso avviene tramite link via email. Sei responsabile della
+        L’accesso avviene tramite un codice a sei cifre inviato via email. Sei responsabile della
         sicurezza della tua casella di posta e delle attività svolte con il tuo
         account.
       </p>

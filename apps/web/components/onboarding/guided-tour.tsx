@@ -161,7 +161,7 @@ export function GuidedTour({
             type="button"
             onClick={() => onClose(true)}
             aria-label="Chiudi la guida"
-            className="rounded p-0.5 text-gray-500 hover:text-gray-700"
+            className="-m-1 rounded p-1 text-gray-500 hover:text-gray-700"
           >
             <X className="h-4 w-4" />
           </button>

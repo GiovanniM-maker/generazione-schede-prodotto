@@ -54,7 +54,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-gray-900">
               {detail.category.name}
             </h1>
@@ -71,7 +71,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {editable && (
             <Button
               variant="outline"
@@ -102,8 +102,15 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
           </span>
         </div>
       )}
+      {/* Non due volte.
+          La modale mostra ora l'errore dell'azione che ha lanciato lei; questo
+          riquadro serve alle azioni della pagina. Lasciandoli accesi insieme,
+          lo stesso messaggio finiva nel DOM due volte — uno visibile e uno
+          dietro la velatura — e un lettore di schermo lo annunciava due volte.
+          `copilotOpen` non entra nel conto: il copilota ha i suoi errori. */}
 
-      {error && (
+      {error && !(addOpen) && (
+
         <Avviso tono="errore">
           {error}
         </Avviso>
@@ -183,6 +190,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
       />
 
       <Modal
+        errore={error}
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
         title="Modifica la categoria con l'AI"
@@ -303,14 +311,14 @@ function CategoryAttributeRow({
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-gray-900">{attr.name}</span>
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
           <span className="text-xs text-gray-500">{etichettaTipoDato(attr.dataType)}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-sm text-gray-600">
             <input
               type="checkbox"

@@ -36,6 +36,9 @@ export function TeamClient({
   const [newLink, setNewLink] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
+  /** C'è qualcuno da rimuovere: non sé stessi, e solo se si è proprietari. */
+  const puoRimuovere = isOwner && members.some((m) => !m.isYou);
+
   function invite() {
     setError(null);
     setNewLink(null);
@@ -148,7 +151,12 @@ export function TeamClient({
             <TR>
               <TH>Email</TH>
               <TH>Ruolo</TH>
-              {isOwner && <TH className="text-right">Azioni</TH>}
+              {/* La colonna compare solo se c'è davvero qualcosa da fare.
+                  Un proprietario da solo vedeva un'intestazione «Azioni» larga
+                  134 px con sotto una cella vuota: l'unica riga è la sua, e da
+                  sé stessi non ci si rimuove. Una colonna vuota non è neutra —
+                  fa cercare quello che non c'è. */}
+              {puoRimuovere && <TH className="text-right">Azioni</TH>}
             </TR>
           </THead>
           <TBody>
@@ -163,7 +171,7 @@ export function TeamClient({
                     {m.role === 'owner' ? 'Proprietario' : 'Membro'}
                   </Badge>
                 </TD>
-                {isOwner && (
+                {puoRimuovere && (
                   <TD className="text-right">
                     {!m.isYou && (
                       <Button variant="ghost" size="sm" onClick={() => remove(m.userId)} disabled={pending}>

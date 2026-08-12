@@ -106,16 +106,28 @@ test.describe('nessuna pagina scorre di lato', () => {
       expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(0);
     });
 
-    test(`la configurazione non sfora a ${larghezza}px`, async ({ page }) => {
-      // Le tabelle di preset e attributi scorrono dentro il loro contenitore:
-      // quello che non deve succedere è che scorra la PAGINA.
-      await page.setViewportSize({ width: larghezza, height: 800 });
-      await page.goto('/app/settings/presets', { waitUntil: 'networkidle' });
-      await page.waitForTimeout(200);
+    // Tre pagine, non una.
+    //
+    // Questo test guardava solo `/app/settings/presets`, ed è per quello che
+    // non ha visto niente quando `categories` e `attributes` hanno cominciato
+    // a sforare di 147 px: hanno tre pulsanti in barra invece di due, e una
+    // barra che non va a capo. Una sola pagina campione non copre una sezione.
+    for (const rotta of [
+      '/app/settings/presets',
+      '/app/settings/categories',
+      '/app/settings/attributes',
+    ]) {
+      test(`${rotta} non sfora a ${larghezza}px`, async ({ page }) => {
+        // Le tabelle scorrono dentro il loro contenitore: quello che non deve
+        // succedere è che scorra la PAGINA.
+        await page.setViewportSize({ width: larghezza, height: 800 });
+        await page.goto(rotta, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(200);
 
-      const px = await sforo(page);
-      expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(0);
-    });
+        const px = await sforo(page);
+        expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(0);
+      });
+    }
 
     test(`i risultati non sforano a ${larghezza}px`, async ({ page }) => {
       await page.setViewportSize({ width: larghezza, height: 800 });
