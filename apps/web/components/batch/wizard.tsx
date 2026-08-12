@@ -1705,6 +1705,24 @@ function Step5({
               }}
             />
           </label>
+          {/* Provare il prodotto senza rischiare: chi arriva qui la prima volta
+              spesso non ha un file pronto, e chi ce l'ha non vuole darlo a uno
+              strumento che non ha ancora visto lavorare. Otto righe vere di un
+              listino di conserve, da scaricare e ricaricare qui sopra: fa il
+              giro completo senza mettere in mezzo il proprio catalogo. */}
+          {!spreadsheetResult && (
+            <p className="mt-2 text-xs text-gray-500">
+              Non hai un file sotto mano?{' '}
+              <a
+                href="/listino-di-esempio.csv"
+                download
+                className="font-medium text-brand-accent underline underline-offset-2"
+              >
+                Scarica un listino di esempio
+              </a>{' '}
+              e ricaricalo qui sopra.
+            </p>
+          )}
           {spreadsheetResult && (
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-center gap-2 text-emerald-700">

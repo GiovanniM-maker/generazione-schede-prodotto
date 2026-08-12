@@ -236,25 +236,57 @@ export default async function LandingPage() {
                   ))}
                 </ul>
               </div>
-              <Card>
-                <CardContent className="space-y-3 p-6 pt-6">
-                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                    Anteprima scheda
-                  </div>
-                  <div className="text-lg font-semibold text-gray-900">
-                    Blazer sartoriale in lana
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    Giacca dal taglio strutturato in pura lana vergine, con
-                    revers a lancia e chiusura monopetto.
-                  </p>
-                  <ul className="space-y-1 text-sm text-gray-600">
-                    <li>• Composizione: 100% lana vergine</li>
-                    <li>• Vestibilità regolare</li>
-                    <li>• Chiusura a un bottone</li>
-                  </ul>
-                </CardContent>
-              </Card>
+              {/* L'unico esempio era un blazer in lana, su un prodotto che
+                  vende soprattutto al food: chi arriva con un listino di
+                  conserve non si riconosceva in niente. Ora sono due, e sotto
+                  c'è la riga di partenza — che è il punto: la prosa esce dai
+                  dati, non dalla fantasia. */}
+              <div className="space-y-4">
+                <Card>
+                  <CardContent className="space-y-3 p-6 pt-6">
+                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Anteprima scheda · food
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      Passata di pomodoro datterino giallo
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Datterini gialli raccolti a mano e lavorati entro poche ore, per una
+                      passata densa e naturalmente dolce.
+                    </p>
+                    <ul className="space-y-1 text-sm text-gray-600">
+                      <li>• Ingredienti: pomodoro datterino giallo (99%), sale marino</li>
+                      <li>• Formato: vasetto in vetro 340 g</li>
+                      <li>• Origine: Sicilia</li>
+                    </ul>
+                    <p className="border-t border-gray-100 pt-3 text-xs text-gray-500">
+                      Dalla riga del listino:{' '}
+                      <span className="font-mono">
+                        PASS-DAT-340 · datterino giallo · 340 g · Sicilia · 99% pomodoro
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="space-y-3 p-6 pt-6">
+                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Anteprima scheda · moda
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      Blazer sartoriale in lana
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Giacca dal taglio strutturato in pura lana vergine, con revers a
+                      lancia e chiusura monopetto.
+                    </p>
+                    <ul className="space-y-1 text-sm text-gray-600">
+                      <li>• Composizione: 100% lana vergine</li>
+                      <li>• Vestibilità regolare</li>
+                      <li>• Chiusura a un bottone</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
         </section>
