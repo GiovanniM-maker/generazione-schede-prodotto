@@ -189,7 +189,10 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                   autoComplete="address-level2"
                 />
               </div>
-              <div>
+              {/* Larga quanto «Paese»: due campi che accettano due caratteri
+                  e si somigliano nel contenuto misuravano 254 px e 128 px, e
+                  la differenza faceva sembrare che il primo volesse di più. */}
+              <div className="sm:max-w-[8rem]">
                 <Label htmlFor="fat-prov">Provincia</Label>
                 <Input
                   id="fat-prov"

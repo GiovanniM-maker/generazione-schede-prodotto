@@ -917,7 +917,7 @@ export function ResultsTable({
                 <p className="text-sm text-gray-600" aria-live="polite">
                   Schede {fetta.primo}–{fetta.ultimo} di {filtered.length}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1252,7 +1252,7 @@ function ImprovementModal({
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
       <div className="relative my-4 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
         <div className="sticky top-0 flex items-center justify-between rounded-t-xl border-b border-gray-200 bg-white px-5 py-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Wand2 className="h-5 w-5 text-violet-600" />
             <h2 className="font-semibold text-gray-900">Miglioramento del prompt</h2>
           </div>
@@ -1855,7 +1855,7 @@ function DetailDrawer({
         <div className="flex-1 space-y-5 px-6 py-5">
           {row.completeness && (
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">
                   Completezza
                 </span>

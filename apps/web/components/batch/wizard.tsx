@@ -1418,7 +1418,14 @@ function Step1({
 
       {selected && (
         <div className="text-sm text-gray-500">
-          <Link href="/app/settings/presets" className="font-medium text-brand-accent underline underline-offset-2">
+          {/* `-my-1 py-1.5` porta l'area di tocco a 24px senza allargare la
+              riga: un collegamento di testo è alto quanto il testo — 17px — e
+              col dito non si prende. È lo stesso trattamento dei link legali
+              nel piede. */}
+          <Link
+            href="/app/settings/presets"
+            className="-my-1 inline-flex items-center py-1.5 font-medium text-brand-accent underline underline-offset-2"
+          >
             Modifica preset
           </Link>
         </div>

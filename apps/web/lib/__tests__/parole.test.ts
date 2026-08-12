@@ -244,3 +244,15 @@ describe('quello che manca a noi non si dice al cliente', () => {
     expect(admin).toMatch(/SUPPORT_EMAIL/);
   });
 });
+
+describe('i documenti legali descrivono il prodotto che c’è', () => {
+  it('i termini non promettono un accesso «tramite link»', () => {
+    // Il login manda un CODICE a sei cifre. I termini descrivevano l'accesso
+    // «tramite link via email», che era vero in una versione precedente: un
+    // documento legale che descrive un prodotto diverso da quello in uso è
+    // sbagliato in un modo che nessun test di interfaccia può vedere.
+    const termini = senzaCommenti(leggi('app/termini/page.tsx'));
+    expect(termini).not.toMatch(/tramite link via email/i);
+    expect(termini).toMatch(/codice a sei cifre/i);
+  });
+});

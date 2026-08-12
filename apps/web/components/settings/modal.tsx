@@ -4,6 +4,7 @@ import * as React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Avviso } from '@/components/ui/avviso';
 
 // ---------------------------------------------------------------------------
 // Una modale che è davvero modale.
@@ -40,12 +41,27 @@ export function Modal({
   title,
   children,
   className,
+  errore,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * L'errore dell'azione lanciata DA QUESTA modale.
+   *
+   * Senza, finiva nel corpo della pagina: la modale è `fixed inset-0`, quindi
+   * il messaggio veniva disegnato **dietro la velatura**. Misurato: premendo
+   * «Crea» senza nome, la modale resta aperta, l'avviso «Il nome è
+   * obbligatorio» esiste con `role="alert"` — e nel suo punto centrale
+   * l'elemento davanti è il velo della modale. Chi guarda non vede succedere
+   * niente, e ripreme.
+   *
+   * Il lettore di schermo lo annunciava lo stesso: è uno di quei casi in cui
+   * chi non vede lo schermo era informato meglio di chi lo vede.
+   */
+  errore?: string | null;
 }) {
   const riquadro = React.useRef<HTMLDivElement>(null);
   const titoloId = React.useId();
@@ -145,13 +161,16 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
+            className="-m-1 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
             aria-label="Chiudi"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="space-y-4 px-5 py-4">
+          {errore && <Avviso tono="errore">{errore}</Avviso>}
+          {children}
+        </div>
       </div>
     </div>
   );
