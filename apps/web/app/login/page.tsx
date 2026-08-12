@@ -3,13 +3,14 @@
 import { useActionState, use } from 'react';
 import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
-import { ArrowLeft, Mail, KeyRound, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Mail, KeyRound } from 'lucide-react';
 import { signInWithEmail, verifyOtpCode, type SignInState } from '@/lib/actions/auth';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avviso } from '@/components/ui/avviso';
 
 function SubmitButton({ idle, pendingLabel }: { idle: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
@@ -20,13 +21,16 @@ function SubmitButton({ idle, pendingLabel }: { idle: string; pendingLabel: stri
   );
 }
 
+/**
+ * L'errore dell'accesso, detto anche a chi non guarda lo schermo.
+ *
+ * Era un riquadro rosso scritto a mano: nessun `role`, nessun `aria-live`.
+ * Compariva e restava muto — su una pagina dove l'unica cosa che si può fare è
+ * aspettare un errore o un codice. `Avviso` con tono `errore` porta
+ * `role="alert"`, che interrompe: è il caso in cui serve.
+ */
 function ErrorBox({ message }: { message: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{message}</span>
-    </div>
-  );
+  return <Avviso tono="errore">{message}</Avviso>;
 }
 
 export default function LoginPage({

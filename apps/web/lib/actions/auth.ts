@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { messaggioAccesso } from '@/lib/errori-accesso';
 
 export interface SignInState {
   error?: string;
@@ -19,11 +20,15 @@ export async function signInWithEmail(
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   if (!email || !email.includes('@')) return { error: 'Inserisci un indirizzo email valido' };
 
-  // Config mancante: messaggio chiaro invece di un crash generico.
+  // Config mancante: è un guasto nostro, e chi sta provando a entrare non può
+  // farci niente. Il nome delle variabili d'ambiente serve a noi, non a lui.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    console.error(
+      '[accesso] configurazione mancante: NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    );
     return {
-      error:
-        'Configurazione Supabase mancante. Imposta NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY nelle variabili d’ambiente e riprova.',
+      error: 'L’accesso non è disponibile in questo momento. Riprova fra qualche minuto.',
+      email,
     };
   }
 
@@ -36,13 +41,17 @@ export async function signInWithEmail(
       // arriva comunque nella stessa email.
       options: { emailRedirectTo: `${appUrl}/auth/callback` },
     });
-    if (error) return { error: error.message, email };
+    // Era `error.message`: il testo del fornitore, in inglese, sull'unica
+    // porta d'ingresso del prodotto.
+    if (error) return { error: messaggioAccesso(error, 'invio codice'), email };
     return { sent: true, email };
   } catch (err) {
     return {
-      error: `Impossibile inviare il codice di accesso: ${
-        err instanceof Error ? err.message : 'errore sconosciuto'
-      }`,
+      error: messaggioAccesso(
+        { message: err instanceof Error ? err.message : String(err) },
+        'invio codice (eccezione)',
+      ),
+      email,
     };
   }
 }
@@ -65,7 +74,10 @@ export async function verifyOtpCode(
     }
   } catch (err) {
     return {
-      error: `Verifica non riuscita: ${err instanceof Error ? err.message : 'errore sconosciuto'}`,
+      error: messaggioAccesso(
+        { message: err instanceof Error ? err.message : String(err) },
+        'verifica codice (eccezione)',
+      ),
       sent: true,
       email,
     };

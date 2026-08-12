@@ -32,6 +32,6 @@ table,
 
 /* Focus visibile per accessibilità */
 :focus-visible {
-  outline: 2px solid #e5322d;
+  outline: 2px solid #c22b27;
   outline-offset: 2px;
 }

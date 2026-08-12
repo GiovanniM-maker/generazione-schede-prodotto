@@ -119,3 +119,63 @@ describe('una parola per una cosa', () => {
     );
   });
 });
+
+describe('il gergo interno non arriva a chi paga', () => {
+  // Premendo «Acquista» con Stripe non configurato, al cliente compariva
+  // «Prezzo Stripe non configurato»: il nome di una nostra variabile
+  // d'ambiente, davanti a una persona che stava per pagare. Non è un errore
+  // che può correggere, e leggerlo lo lascia a chiedersi se i suoi soldi
+  // siano al sicuro.
+  //
+  // Il test guarda il file del checkout perché è lì che il gergo si infila:
+  // ogni ramo di errore nasce da una condizione tecnica, e la via più corta è
+  // sempre scrivere la condizione.
+  const checkout = leggi('app/api/stripe/checkout/route.ts');
+
+  it('nessun messaggio nomina i nostri pezzi', () => {
+    // I nomi delle cose che il cliente non ha, non gestisce e non può
+    // aggiustare.
+    const gergo = /error:\s*['"`][^'"`]*\b(Stripe|price_?[Ii]d|env|variabile d.ambiente|packKey|RPC|Supabase)\b/;
+    expect(checkout).not.toMatch(gergo);
+  });
+
+  it('quando il guasto è nostro, si dice che non c’è stato addebito', () => {
+    // È la sola cosa che una persona vuole sapere quando un pagamento non
+    // parte.
+    expect(checkout).toMatch(/Non ti è stato addebitato niente/);
+  });
+
+  it('il motivo vero però resta scritto, per noi', () => {
+    // Tradurre non vuol dire perdere: senza il motivo nei log, «non riesco a
+    // comprare» diventa irrisolvibile.
+    expect(checkout).toMatch(/console\.error\(`\[acquisto\]/);
+  });
+
+  it('quello che il cliente PUÒ correggere continua a dirglielo', () => {
+    // I dati per la fattura sono suoi, e il messaggio deve restare specifico:
+    // annegarlo nel messaggio generico sarebbe il difetto opposto.
+    expect(checkout).toMatch(/ragione sociale, indirizzo, partita IVA/);
+    expect(checkout).toMatch(/Solo il proprietario dell'organizzazione/);
+  });
+});
+
+describe('l’accesso non parla la lingua del fornitore', () => {
+  it('nessun errore del fornitore arriva a schermo così com’è', () => {
+    // Era `return { error: error.message }`, sull'unica porta d'ingresso del
+    // prodotto.
+    const auth = leggi('lib/actions/auth.ts');
+    expect(auth).not.toMatch(/error:\s*error\.message/);
+    expect(auth).not.toMatch(/\$\{\s*err instanceof Error \? err\.message/);
+    expect(auth).toMatch(/from '@\/lib\/errori-accesso'/);
+  });
+
+  it('il nome delle variabili d’ambiente resta fra noi', () => {
+    // «Imposta NEXT_PUBLIC_SUPABASE_URL e ... nelle variabili d'ambiente e
+    // riprova» era il messaggio mostrato a chi voleva solo entrare.
+    const auth = leggi('lib/actions/auth.ts');
+    const messaggi = [...auth.matchAll(/error:\s*'([^']+)'/g)].map((m) => m[1]!);
+    for (const m of messaggi) {
+      expect(m, `«${m}» nomina una variabile d’ambiente`).not.toMatch(/[A-Z_]{6,}/);
+    }
+  });
+});
