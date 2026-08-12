@@ -191,3 +191,76 @@ test.describe('pagine legali', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+
+test.describe('come si presenta un link fuori dal prodotto', () => {
+  // Non c'era niente: zero `og:`, zero `twitter:`, zero `canonical`. Incollato
+  // su WhatsApp o LinkedIn, l'indirizzo restava un indirizzo nudo — nessun
+  // titolo, nessuna immagine, nessuna frase — e chi lo riceveva doveva fidarsi
+  // di un link e basta.
+  //
+  // Si prova sulla pagina renderizzata, non sul file dei metadati: `metadata`
+  // in Next si eredita, si sovrascrive e si ignora in silenzio (un componente
+  // client che esporta `metadata` non produce niente, senza un errore). L'unico
+  // posto dove la verità è visibile è il `<head>` che arriva al browser.
+
+  const PUBBLICHE = ['/', '/privacy', '/termini', '/cookie', '/login'];
+
+  async function tag(page: import('@playwright/test').Page, selettore: string, attributo: string) {
+    const el = page.locator(selettore);
+    return (await el.count()) > 0 ? el.first().getAttribute(attributo) : null;
+  }
+
+  test('la vetrina si presenta con titolo, frase e immagine', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    expect(await tag(page, 'meta[property="og:title"]', 'content')).toBeTruthy();
+    expect(await tag(page, 'meta[property="og:site_name"]', 'content')).toBe('Verificato');
+    expect(await tag(page, 'meta[name="twitter:card"]', 'content')).toBe('summary_large_image');
+
+    const descrizione = await tag(page, 'meta[property="og:description"]', 'content');
+    expect(descrizione, 'og:description assente').toBeTruthy();
+    // La descrizione prometteva «catalogo moda», scritta quando il prodotto era
+    // solo per la moda: chi cercava schede per alimentari leggeva di vestiti.
+    expect(descrizione!.toLowerCase()).not.toContain('catalogo moda');
+  });
+
+  test('l’immagine dell’anteprima esiste davvero', async ({ page, request }) => {
+    // Un `og:image` che risponde 404 è peggio di nessun `og:image`: la
+    // piattaforma mostra un riquadro rotto invece di un link pulito.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const src = await tag(page, 'meta[property="og:image"]', 'content');
+    expect(src, 'og:image assente').toBeTruthy();
+
+    const risposta = await request.get(src!);
+    expect(risposta.status(), `og:image risponde ${risposta.status()}`).toBe(200);
+    expect(risposta.headers()['content-type']).toContain('image/');
+    // 1200×630 è la misura che le piattaforme ritagliano bene; se qualcuno la
+    // cambia, l'anteprima esce tagliata e nessuno se ne accorge da qui dentro.
+    expect(await tag(page, 'meta[property="og:image:width"]', 'content')).toBe('1200');
+    expect(await tag(page, 'meta[property="og:image:height"]', 'content')).toBe('630');
+  });
+
+  for (const rotta of PUBBLICHE) {
+    test(`${rotta} dichiara sé stessa come indirizzo canonico`, async ({ page }) => {
+      // Il difetto che questo test esiste per fermare l'ho fatto io, mettendo
+      // `canonical: '/'` nel guscio: essendo ereditato finiva su OGNI pagina,
+      // e diceva ai motori che privacy, termini, cookie e accesso **sono** la
+      // vetrina. È il modo più rapido di far sparire tre documenti legali
+      // dall'indice, e a schermo non cambia niente.
+      await page.goto(rotta, { waitUntil: 'domcontentloaded' });
+      const canonico = await tag(page, 'link[rel="canonical"]', 'href');
+      expect(canonico, `nessun canonical su ${rotta}`).toBeTruthy();
+
+      const percorso = new URL(canonico!).pathname.replace(/\/$/, '') || '/';
+      expect(percorso, `${rotta} si dichiara ${percorso}`).toBe(rotta);
+    });
+  }
+
+  test('il titolo di una pagina interna porta con sé il marchio', async ({ page }) => {
+    // Uscivano come «Privacy Policy», senza dire di chi.
+    await page.goto('/privacy', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveTitle(/privacy policy — verificato/i);
+  });
+});

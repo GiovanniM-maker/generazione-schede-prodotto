@@ -1,5 +1,6 @@
 import 'server-only';
 import type { getServiceClient } from '@/lib/supabase/service';
+import { indirizzoApp } from '@/lib/indirizzo-app';
 
 // Notifiche email (fine generazione). Invio via Resend API.
 // Richiede RESEND_API_KEY tra le variabili d'ambiente. Finché non è verificato
@@ -23,9 +24,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
   }
 }
 
-function appBase(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || 'https://generazione-schede-prodotto-web-iota.vercel.app').replace(/\/$/, '');
-}
+// L'indirizzo sta in `lib/indirizzo-app`: lo usano anche i metadati delle
+// pagine pubbliche, e due copie divergono al primo cambio di dominio.
+const appBase = indirizzoApp;
 
 /**
  * Trova i batch terminati con notifica richiesta e non ancora inviata, invia

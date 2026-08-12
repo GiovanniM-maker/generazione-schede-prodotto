@@ -7,6 +7,9 @@ import { datiTitolare, oppureDaDefinire } from '@/lib/legale';
 export function generateMetadata(): Metadata {
   return {
     title: 'Termini di servizio',
+    description:
+      'Le condizioni d’uso di Verificato: cosa offre il servizio, cosa ci si impegna a fare, crediti, responsabilità e recesso.',
+    alternates: { canonical: '/termini' },
     robots: datiTitolare().completo ? undefined : { index: false, follow: false },
   };
 }
