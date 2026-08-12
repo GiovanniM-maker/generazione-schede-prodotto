@@ -797,7 +797,15 @@ export function ResultsTable({
                   <TH>Descrizione breve</TH>
                   <TH>Completezza</TH>
                   <TH>Stato</TH>
-                  <TH className="text-right">Azioni</TH>
+                  {/* Agganciata al bordo destro: la tabella è più larga del suo
+                      contenitore (1225px contro 1102) e senza questo «Rifiuta» e
+                      «Rigenera» finivano fuori vista a QUALSIASI larghezza di
+                      schermo — il limite è il guscio, non il monitor. Una
+                      tabella di dati può scorrere; i comandi per agire su una
+                      riga no. */}
+                  <TH className="sticky right-0 z-10 bg-gray-50 text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
+                    Azioni
+                  </TH>
                 </TR>
               </THead>
               <TBody>
@@ -817,7 +825,10 @@ export function ResultsTable({
                       <TD className="font-mono text-xs text-gray-600">
                         {r.externalId}
                       </TD>
-                      <TD className="font-medium text-gray-900">
+                      {/* Larghezza dichiarata e troncatura, come la colonna
+                          accanto: senza, un nome lungo andava a capo su quattro
+                          righe e l'altezza delle righe ballava fra 73 e 105px. */}
+                      <TD className="max-w-[14rem] truncate font-medium text-gray-900" title={r.name}>
                         {r.name !== r.externalId ? (
                           r.name
                         ) : (
@@ -854,7 +865,7 @@ export function ResultsTable({
                           )}
                         </div>
                       </TD>
-                      <TD>
+                      <TD className="sticky right-0 z-10 bg-white shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"

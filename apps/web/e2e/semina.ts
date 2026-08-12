@@ -237,6 +237,29 @@ async function caricaFoto(
  * preset Food con tre categorie, un batch con tre prodotti e le loro schede
  * già generate.
  */
+/**
+ * Un'organizzazione e basta: nessun settore, nessuna categoria, nessun preset.
+ *
+ * È lo stato di chi si è appena iscritto, ed è quello in cui il wizard è
+ * BLOCCATO — «Nessun preset pubblicato» — cioè esattamente la condizione in
+ * cui la guida a fumetti copriva l'unica via d'uscita. Senza questo scenario
+ * quel difetto non è provabile: `seminaScenario` un preset ce l'ha, e il
+ * wizard parte.
+ *
+ * La ripulitura è la stessa: `eliminaUtenteDiProva` cancella le organizzazioni
+ * di cui l'utente è membro.
+ */
+export async function seminaOrganizzazioneNuda(userId: string): Promise<string> {
+  const marca = Math.random().toString(36).slice(2, 8);
+  const [org] = await inserisci<{ id: string }>('organizations', [
+    { name: 'Bottega Nuova', slug: `qa-nuda-${marca}` },
+  ]);
+  await inserisci('organization_members', [
+    { organization_id: org!.id, user_id: userId, role: 'owner' },
+  ]);
+  return org!.id;
+}
+
 export async function seminaScenario(userId: string): Promise<ScenarioSeminato> {
   const marca = Math.random().toString(36).slice(2, 8);
 

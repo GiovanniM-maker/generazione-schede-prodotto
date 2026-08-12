@@ -94,7 +94,11 @@ export default async function BatchesPage({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
+            {/* `grid-cols-1` e non solo `grid`: una traccia `auto` si
+                dimensiona sul contenuto più largo, e basta il nome di un
+                batch per allargare la pagina. `grid-cols-1` è
+                `minmax(0,1fr)`: la traccia non supera mai il contenitore. */}
           {batches.map((b) => (
             <RecentBatchCard
               key={b.id}

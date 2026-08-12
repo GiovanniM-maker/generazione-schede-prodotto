@@ -87,8 +87,16 @@ export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwne
     <Card>
       <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate font-semibold text-gray-900">{batch.name}</h3>
+          {/* `min-w-0` sulla riga e sul titolo. Da soli non bastano — provato:
+              togliendoli i test restano verdi, perché a decidere è la traccia
+              della griglia che contiene la scheda (vedi `grid-cols-1` in
+              `app/page.tsx` e `app/batches/page.tsx`). Restano perché sono la
+              disciplina giusta: `truncate` disegna i puntini ma NON ferma la
+              larghezza intrinseca, che continua a salire di contenitore in
+              contenitore. Chi domani metterà questa scheda dentro un flex
+              troverà la protezione già qui. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="min-w-0 truncate font-semibold text-gray-900">{batch.name}</h3>
             <StatusBadge status={live.status} />
             {inProgress && (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-accent">

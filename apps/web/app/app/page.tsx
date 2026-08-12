@@ -254,12 +254,16 @@ export default async function DashboardPage() {
       <div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-gray-900">Batch recenti</h2>
-          {batchTotali > batches.length && (
+          {/* Compariva solo sopra i dieci batch: con cinque, dalla dashboard
+              non si raggiungeva più l'elenco completo. Ora c'è appena esiste
+              un lavoro, e il testo dice quanti ce ne sono solo quando questa
+              lista ne nasconde davvero qualcuno. */}
+          {batches.length > 0 && (
             <Link
               href="/app/batches"
               className="text-sm font-medium text-brand-accent underline underline-offset-2"
             >
-              Vedi tutti i {batchTotali}
+              {batchTotali > batches.length ? `Vedi tutti i ${batchTotali}` : 'Tutti i lavori'}
             </Link>
           )}
         </div>
@@ -290,7 +294,11 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
+            {/* `grid-cols-1` e non solo `grid`: una traccia `auto` si
+                dimensiona sul contenuto più largo, e basta il nome di un
+                batch per allargare la pagina. `grid-cols-1` è
+                `minmax(0,1fr)`: la traccia non supera mai il contenitore. */}
             {batches.map((b) => (
               <RecentBatchCard
                 isOwner={org.role === 'owner'}

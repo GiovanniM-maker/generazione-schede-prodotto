@@ -24,7 +24,10 @@ export default function BatchNonTrovato() {
               salvato, potrebbe essere vecchio.
             </p>
           </div>
-          <Link href="/app">
+          {/* Puntava a `/app`, che è la dashboard. «I tuoi lavori» è
+              `/app/batches`, che si intitola proprio «Tutti i lavori»: il
+              pulsante prometteva una pagina e ne apriva un'altra. */}
+          <Link href="/app/batches">
             <Button variant="secondary">Torna ai tuoi lavori</Button>
           </Link>
         </CardContent>

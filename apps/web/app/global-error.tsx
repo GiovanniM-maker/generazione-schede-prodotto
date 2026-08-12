@@ -58,7 +58,11 @@ export default function GlobalError({
               fontWeight: 500,
             }}
           >
-            Torna ai tuoi lavori
+            {/* Diceva «Torna ai tuoi lavori» e apriva la dashboard. Qui la
+                dashboard è la destinazione giusta — è l'errore che rompe il
+                guscio, e si riparte da casa — quindi a cambiare è l'etichetta,
+                non l'indirizzo. */}
+            Torna alla dashboard
           </a>
         </div>
       </body>

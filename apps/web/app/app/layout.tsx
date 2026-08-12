@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Settings,
   Inbox,
+  PackageOpen,
 } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
 import { contestoApp } from '@/lib/contesto';
@@ -57,11 +58,32 @@ export default async function AppLayout({
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-2 sm:gap-4 sm:px-6">
           <Logo href="/app" className="shrink-0 text-white" />
 
-          <div className="flex items-center gap-1 sm:gap-3">
-            <Link href="/app">
+          {/* `min-w-0` e `justify-end`: sotto i 328px sei comandi da 40px più la
+              pillola dei crediti non ci stanno, e «Esci» restava tagliato sul
+              bordo destro. Il gruppo ora si comprime invece di spingere fuori la
+              pagina. */}
+          <div className="flex min-w-0 items-center justify-end gap-0.5 sm:gap-3">
+            {/* Sotto i 360px questo comando sparisce.
+                Con l'aggiunta di «Lavori» i sette comandi non ci stanno più: a
+                320 il gruppo partiva da 9px e finiva sopra il logo, che è
+                cliccabile e porta anche lui alla dashboard. Fra due
+                collegamenti che vanno nello stesso posto, quello che si toglie
+                è il doppione — non il marchio. Sopra i 360 tornano entrambi. */}
+            <Link href="/app" className="hidden min-[360px]:block">
               <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
                 <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only lg:not-sr-only">Dashboard</span>
+              </Button>
+            </Link>
+
+            {/* «Tutti i lavori» esisteva ma non era raggiungibile: l'unico
+                collegamento stava sulla dashboard, e compariva solo sopra i
+                dieci batch. Sotto i dieci si arrivava alla pagina soltanto
+                scrivendo l'indirizzo — cioè mai. Qui c'è da ogni schermata. */}
+            <Link href="/app/batches">
+              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+                <PackageOpen className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only lg:not-sr-only">Lavori</span>
               </Button>
             </Link>
 
