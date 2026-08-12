@@ -39,6 +39,7 @@ import { Select } from '@/components/ui/select';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
 import { PresetCopilotPanel } from '@/components/settings/preset-copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
+import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -714,7 +715,7 @@ function AttributeEditor({
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
-          <span className="text-xs text-gray-500">{attr.dataType}</span>
+          <span className="text-xs text-gray-500">{etichettaTipoDato(attr.dataType)}</span>
         </div>
         <div className="flex items-center gap-1">
           <label
@@ -997,7 +998,7 @@ function AddAttributeModal({
         <Select value={value} onChange={(e) => setValue(e.target.value)}>
           {available.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name} · {a.dataType}
+              {a.name} · {etichettaTipoDato(a.dataType)}
             </option>
           ))}
         </Select>

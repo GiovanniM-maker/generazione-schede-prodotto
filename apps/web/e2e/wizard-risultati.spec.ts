@@ -480,14 +480,35 @@ test.describe('chiedere aiuto', () => {
   // chiedere niente a nessuno. Privacy e termini erano raggiungibili solo
   // uscendo dall'applicazione.
 
-  test('il piede dell’applicazione offre un contatto', async ({ page }) => {
+  test('il piede offre un contatto, o tace', async ({ page }) => {
     await page.goto('/app', { waitUntil: 'networkidle' });
     const piede = page.getByRole('contentinfo');
     await expect(piede).toBeVisible();
     const testo = await piede.innerText();
-    // O c'è un indirizzo, o si dice apertamente che non è configurato: quello
-    // che non deve esserci è un link che non porta da nessuna parte.
-    expect(/serve aiuto\?|non ancora configurato/i.test(testo)).toBe(true);
+
+    // Questo test diceva: «o c'è un indirizzo, o si dice apertamente che non è
+    // configurato». La seconda metà era una decisione mia, e si è rivelata
+    // sbagliata: «Contatto di assistenza non ancora configurato», in fondo a
+    // ogni schermata, è stato letto come un guasto del prodotto da tre
+    // revisioni su sei. È un messaggio nostro, su una cosa che il cliente non
+    // può sistemare — e ora vive nella pagina «Servizio», dove lo legge chi
+    // può.
+    //
+    // Quello che resta vero, e che questo test difende, sono due cose: al
+    // cliente non si racconta cosa manca a noi, e non gli si offre mai un
+    // recapito che non porta da nessuna parte.
+    expect(testo, 'il piede racconta al cliente una nostra mancanza').not.toMatch(
+      /non ancora configurat|non configurat/i,
+    );
+
+    const mail = piede.locator('a[href^="mailto:"]');
+    if ((await mail.count()) > 0) {
+      expect(testo).toMatch(/serve aiuto\?/i);
+      const href = await mail.first().getAttribute('href');
+      // `mailto:` seguito da niente, o da un indirizzo senza chiocciola, è il
+      // link che non porta da nessuna parte.
+      expect(href, `recapito non scrivibile: ${href}`).toMatch(/^mailto:[^@\s]+@[^@\s]+/);
+    }
   });
 
   test('le pagine legali si raggiungono senza uscire', async ({ page }) => {

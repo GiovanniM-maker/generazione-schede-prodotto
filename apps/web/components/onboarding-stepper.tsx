@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
 import { cn } from '@/lib/utils';
+import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 // ---------------------------------------------------------------------
 // Tipi del catalogo (data-driven, forniti dal Server Component).
@@ -101,15 +102,6 @@ const STYLES: { value: string; label: string; desc: string }[] = [
     desc: 'Descrivi tu il tono desiderato.',
   },
 ];
-
-const DATA_TYPE_LABELS: Record<string, string> = {
-  text: 'Testo',
-  long_text: 'Testo lungo',
-  measurement: 'Misura',
-  number: 'Numero',
-  boolean: 'Sì/No',
-  enum: 'Elenco',
-};
 
 function attrKey(categoryId: string, attributeId: string): string {
   return `${categoryId}:${attributeId}`;
@@ -756,7 +748,7 @@ export function OnboardingStepper({
                               {attr.name}
                             </span>
                             <Badge tone="gray">
-                              {DATA_TYPE_LABELS[attr.dataType] ?? attr.dataType}
+                              {etichettaTipoDato(attr.dataType)}
                             </Badge>
                             <Badge tone={attr.isSystem ? 'violet' : 'amber'}>
                               {attr.isSystem ? 'sistema' : 'personalizzato'}

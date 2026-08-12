@@ -5,6 +5,7 @@ import {
   PackageOpen,
   ArrowRight,
   Check,
+  Circle,
   Settings2,
 } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
@@ -196,18 +197,32 @@ export default async function DashboardPage() {
             </span>
           </div>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            {/* La spunta la porta SOLO chi ha finito.
+                Prima l'icona era la stessa per tutti e cambiava solo il
+                colore: con la configurazione appena iniziata si vedevano
+                cinque spunte grigie accanto al conteggio «0/5», che si
+                contraddicono a vista. E chi non distingue il grigio dal verde
+                — daltonismo, schermo al sole, contrasto basso — leggeva cinque
+                cose fatte.
+
+                Ora la forma dice lo stato: cerchio vuoto se manca, spunta se
+                c'è. Il colore resta, ma non è più l'unica cosa che informa. */}
             {checklist.map((item) => (
               <li key={item.label} className="flex items-center gap-2 text-sm">
                 <span
                   className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-full',
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
                     item.done
                       ? 'bg-emerald-100 text-emerald-600'
-                      : 'bg-gray-200 text-gray-500',
+                      : 'border border-gray-300 bg-white text-gray-500',
                   )}
+                  aria-hidden="true"
                 >
-                  <Check className="h-3 w-3" />
+                  {item.done ? <Check className="h-3 w-3" /> : <Circle className="h-2 w-2" />}
                 </span>
+                {/* Detto anche a chi ascolta: l'icona è decorativa, lo stato
+                    no. Senza, l'elenco si legge come cinque voci identiche. */}
+                <span className="sr-only">{item.done ? 'Fatto:' : 'Da fare:'}</span>
                 <span className={cn('text-gray-700', !item.done && 'text-gray-500')}>
                   {item.label}
                 </span>

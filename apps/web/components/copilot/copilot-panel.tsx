@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Avviso } from '@/components/ui/avviso';
+import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -565,7 +566,7 @@ export function CopilotPanel({
               {entityType === 'attribute' && (
                 <>
                   <DraftField label="Tipo" value={data.attributeKind} />
-                  <DraftField label="Tipo di dato" value={data.dataType} />
+                  <DraftField label="Tipo di dato" value={etichettaTipoDato(data.dataType)} />
                   <DraftField label="Unità" value={data.unit} />
                   <DraftField
                     label="Valori enum"

@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { statoServizio } from '@/lib/actions/servizio';
+import { getServerEnv } from '@/lib/env.server';
+import { datiTitolare } from '@/lib/legale';
 import { PageShell } from '@/components/page-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,11 +44,42 @@ function Numero({
   );
 }
 
+/**
+ * Le cose che mancano per configurazione, non per guasto.
+ *
+ * Vivono qui perché è qui che le legge chi può sistemarle. Prima una di
+ * queste — il contatto di assistenza — veniva detta al CLIENTE, in fondo a
+ * ogni schermata: «Contatto di assistenza non ancora configurato». Tre
+ * revisioni su sei l'hanno presa per un guasto del prodotto, ed è una lettura
+ * ragionevole: è un messaggio nostro, su una cosa che il cliente non può
+ * toccare.
+ */
+function configurazioniMancanti(): { cosa: string; perche: string; variabile: string }[] {
+  const env = getServerEnv();
+  const mancanti: { cosa: string; perche: string; variabile: string }[] = [];
+  if (!env.SUPPORT_EMAIL && !datiTitolare().email) {
+    mancanti.push({
+      cosa: 'Contatto di assistenza',
+      perche: 'Nel piede dell’applicazione non compare nessun indirizzo: chi si blocca non ha a chi scrivere.',
+      variabile: 'SUPPORT_EMAIL',
+    });
+  }
+  if (!datiTitolare().completo) {
+    mancanti.push({
+      cosa: 'Dati del titolare del trattamento',
+      perche: 'Privacy, termini e cookie restano bozze e chiedono ai motori di non indicizzarle.',
+      variabile: 'LEGAL_*',
+    });
+  }
+  return mancanti;
+}
+
 export default async function AdminPage() {
   await requireUser();
   const res = await statoServizio(30);
   if (!res.ok) notFound();
   const s = res.data;
+  const mancanti = configurazioniMancanti();
 
   const numero = new Intl.NumberFormat('it-IT');
   const costo = new Intl.NumberFormat('it-IT', {
@@ -60,6 +93,20 @@ export default async function AdminPage() {
       title="Stato del servizio"
       subtitle={`Ultimi ${s.giorni} giorni. Visibile solo a chi è in ADMIN_EMAILS.`}
     >
+      {mancanti.length > 0 && (
+        <Avviso tono="attenzione">
+          <p className="font-medium">Da configurare</p>
+          <ul className="mt-1 space-y-1">
+            {mancanti.map((m) => (
+              <li key={m.variabile}>
+                <span className="font-medium">{m.cosa}</span> — {m.perche}{' '}
+                <span className="font-mono text-xs">({m.variabile})</span>
+              </li>
+            ))}
+          </ul>
+        </Avviso>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Numero
           etichetta="Organizzazioni"

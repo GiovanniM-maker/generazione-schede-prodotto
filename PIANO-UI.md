@@ -100,6 +100,30 @@ I quattro vicoli si provano cliccando e guardando dove si arriva —
   > documenti legali dall'indice, senza che a schermo cambi niente. Ogni pagina
   > ora dichiara il proprio, e il test lo verifica una rotta alla volta.
 
+**§4 — le cose che si leggono male.** Cinque voci su sei corrette; la sesta non
+c'era più.
+
+| | |
+|---|---|
+| 4.1 | **✗ non si riproduce più.** Misurato a 1440: le righe sono alte 63 px tutte e tre, «Nome» 209 px e tronca, «Titolo» 256. E il contenuto è diverso davvero — il «duplicato» era un artefatto dei miei dati di prova, dove avevo messo il titolo generato uguale al nome del prodotto. Nessuna modifica. |
+| 4.2 | La spunta ce l'ha solo chi ha finito: prima l'icona era la stessa e cambiava solo il colore, e con la configurazione appena iniziata si vedevano **cinque spunte accanto a «0/5»**. Ora la forma dice lo stato, e c'è un'etichetta per chi ascolta. |
+| 4.3 | Via i segnaposto che fingono: `placeholder="ELIMINA"` era esattamente la parola da digitare — il campo sembrava già compilato — e `123456` nel campo del codice era indistinguibile da un codice inserito. |
+| 4.4 | Una fonte non ancora disponibile non ha più l'aria di una novità: viola per quella usabile, grigio per le altre. E «In arrivo»/«Prossimamente» erano due parole per lo stesso stato, affiancate: ora è una sola, scelta dal codice. |
+| 4.5 | «Contatto di assistenza non ancora configurato» non si dice più al cliente. Non è sparito: è passato alla pagina «Servizio», in un riquadro «Da configurare» insieme ai dati del titolare, cioè dove lo legge chi può sistemarlo. |
+| 4.6 | I tipi di dato si leggono in italiano ovunque. C'erano **tre** fonti: una lista grezza per la tendina di creazione — dove `multi_enum` era l'unica cosa scritta — e due mappe che dicevano la stessa cosa in modo diverso («testo lungo» contro «Testo lungo»). Ora una sola, e l'elenco della tendina si ricava dalle etichette. |
+
+Un difetto l'ho introdotto io mentre correggevo il 4.2 — un `text-gray-400`, che
+sul nostro fondo fa 2,4:1 — e l'ha preso un test che c'era già. È il motivo per
+cui quel test esiste.
+
+E quattro dei miei test nuovi sono nati rossi leggendo **i miei stessi
+commenti**: spiegavo sopra il codice com'era prima («diceva
+`placeholder="ELIMINA"`») e il test trovava la frase lì dentro. C'era già un
+`senzaCommenti()`, scritto la volta scorsa per lo stesso motivo, chiuso dentro
+un solo file: ora sta in un posto solo. Un test che legge la spiegazione invece
+del prodotto si dà ragione da solo — e se scritto al contrario, tiene in piedi
+il verde con il commento.
+
 ---
 
 ## Trovato correggendo: un test con un punto cieco — **✔ verificato, poi chiuso**
@@ -503,7 +527,7 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 4. ~~**§2.2–2.4** — testi e messaggi.~~ **fatto**
 5. ~~**La coda del §3.2** — i riquadri che non parlano.~~ **fatto**
 6. ~~**§2.5** — l'anteprima quando si condivide il link.~~ **fatto**
-7. **§4** — le cose che si leggono male.
+7. ~~**§4** — le cose che si leggono male.~~ **fatto**
 8. **§5** — telefono, il resto.
 9. **§6** — la coda dei minori.
 
