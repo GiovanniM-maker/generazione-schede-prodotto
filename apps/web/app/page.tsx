@@ -15,6 +15,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formattaPrezzo, prezzoPerCredito } from '@app/core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { Metadata } from 'next';
+
+// Il `canonical` sta qui e non nel guscio: ereditato, dichiarava che ogni
+// pagina pubblica era questa.
+export const metadata: Metadata = { alternates: { canonical: '/' } };
 
 const steps = [
   { icon: UploadCloud, title: 'Carica', text: 'Importa il catalogo in CSV o Excel.' },

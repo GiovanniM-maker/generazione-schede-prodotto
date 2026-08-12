@@ -7,6 +7,9 @@ import { datiTitolare, oppureDaDefinire } from '@/lib/legale';
 export function generateMetadata(): Metadata {
   return {
     title: 'Privacy Policy',
+    description:
+      'Come trattiamo i dati personali di chi usa Verificato: quali dati, perché, per quanto tempo e come chiederne la cancellazione.',
+    alternates: { canonical: '/privacy' },
     robots: datiTitolare().completo ? undefined : { index: false, follow: false },
   };
 }

@@ -7,6 +7,9 @@ import { datiTitolare, oppureDaDefinire } from '@/lib/legale';
 export function generateMetadata(): Metadata {
   return {
     title: 'Cookie Policy',
+    description:
+      'Quali cookie usa Verificato e a cosa servono: solo tecnici, nessun profilamento, nessuna richiesta a terzi dal tuo browser.',
+    alternates: { canonical: '/cookie' },
     robots: datiTitolare().completo ? undefined : { index: false, follow: false },
   };
 }

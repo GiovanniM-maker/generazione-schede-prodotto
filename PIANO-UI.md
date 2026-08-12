@@ -85,6 +85,20 @@ I quattro vicoli si provano cliccando e guardando dove si arriva —
   tutte le azioni del percorso di acquisizione stanno a 5,72:1. Il test non
   blocca l'esadecimale, ricalcola il rapporto WCAG dal file — così custodisce la
   regola invece del valore.
+- **2.5** Il link incollato da qualche parte ora si presenta: `og:`, `twitter:`
+  e un `canonical` diverso per ogni pagina. L'immagine dell'anteprima è
+  **generata** (`app/opengraph-image.tsx`) e non un file caricato — un PNG in
+  `public/` resterebbe identico per anni dopo che il marchio è cambiato, perché
+  nessuno ricorda che esiste. La descrizione per i motori non promette più solo
+  «catalogo moda»: era scritta quando il prodotto era solo per la moda, e chi
+  cercava schede per alimentari leggeva di vestiti.
+
+  > Difetto che mi sono fatto da solo, e che vale la pena ricordare: avevo messo
+  > `canonical: '/'` nel guscio. I metadati si ereditano, quindi finiva su
+  > **ogni** pagina pubblica e dichiarava ai motori che privacy, termini, cookie
+  > e accesso *sono* la vetrina — il modo più rapido di far sparire tre
+  > documenti legali dall'indice, senza che a schermo cambi niente. Ogni pagina
+  > ora dichiara il proprio, e il test lo verifica una rotta alla volta.
 
 ---
 
@@ -488,7 +502,7 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 3. ~~**§3 — i vicoli ciechi.**~~ **fatto**
 4. ~~**§2.2–2.4** — testi e messaggi.~~ **fatto**
 5. ~~**La coda del §3.2** — i riquadri che non parlano.~~ **fatto**
-6. **§2.5** — l'anteprima quando si condivide il link: ancora zero tag `og:`.
+6. ~~**§2.5** — l'anteprima quando si condivide il link.~~ **fatto**
 7. **§4** — le cose che si leggono male.
 8. **§5** — telefono, il resto.
 9. **§6** — la coda dei minori.
