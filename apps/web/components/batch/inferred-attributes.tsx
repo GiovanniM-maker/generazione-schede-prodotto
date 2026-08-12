@@ -152,7 +152,7 @@ export function InferredAttributesSection({
               <div key={p.productId} className="rounded-lg border border-gray-100 p-3">
                 <div className="mb-2 flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">{p.name ?? p.sku ?? '—'}</span>
-                  {p.sku && <span className="text-xs text-gray-400">{p.sku}</span>}
+                  {p.sku && <span className="text-xs text-gray-500">{p.sku}</span>}
                 </div>
                 <ul className="space-y-2">
                   {p.attributes.map((a) => (

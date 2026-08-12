@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal } from '@/components/settings/modal';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
+import { Avviso } from '@/components/ui/avviso';
 
 const KINDS = [
   { value: 'factual', label: 'Fattuale' },
@@ -169,7 +170,7 @@ export function AttributesClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Attributi</h2>
+          <h1 className="text-2xl font-semibold text-gray-900">Attributi</h1>
           <p className="mt-1 text-sm text-gray-500">
             Libreria di attributi di sistema ed estensioni della tua
             organizzazione.
@@ -178,7 +179,6 @@ export function AttributesClient({
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setCopilotOpen(true);
@@ -189,7 +189,6 @@ export function AttributesClient({
           </Button>
           <Button
             variant="outline"
-            size="sm"
             onClick={() => {
               setError(null);
               setImportMsg(null);
@@ -218,9 +217,9 @@ export function AttributesClient({
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -299,10 +298,10 @@ export function AttributesClient({
                 <TR key={a.id}>
                   <TD className="font-medium text-gray-900">{a.name}</TD>
                   <TD>
-                    <Badge tone="blue">{a.sectorName}</Badge>
+                    <Badge tone="gray">{a.sectorName}</Badge>
                   </TD>
                   <TD>
-                    <Badge tone="violet">
+                    <Badge tone="gray">
                       {KINDS.find((k) => k.value === a.attributeKind)?.label ??
                         a.attributeKind}
                     </Badge>
@@ -312,7 +311,7 @@ export function AttributesClient({
                     {a.isSystem ? (
                       <Badge tone="gray">Sistema</Badge>
                     ) : (
-                      <Badge tone="green">Custom</Badge>
+                      <Badge tone="violet">Personalizzato</Badge>
                     )}
                   </TD>
                   <TD>{a.usageCount}</TD>
@@ -389,9 +388,9 @@ export function AttributesClient({
             </p>
           </div>
           {importMsg && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <Avviso tono="riuscito">
               {importMsg}
-            </div>
+            </Avviso>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>

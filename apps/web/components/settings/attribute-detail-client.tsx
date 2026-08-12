@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Avviso } from '@/components/ui/avviso';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -96,15 +97,15 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold text-gray-900">{a.name}</h2>
-            <Badge tone="blue">{a.sectorName}</Badge>
-            <Badge tone="violet">
+            <h1 className="text-2xl font-semibold text-gray-900">{a.name}</h1>
+            <Badge tone="gray">{a.sectorName}</Badge>
+            <Badge tone="gray">
               {KIND_LABELS[a.attributeKind] ?? a.attributeKind}
             </Badge>
             {a.isSystem ? (
               <Badge tone="gray">Sistema</Badge>
             ) : (
-              <Badge tone="green">Custom v{a.version}</Badge>
+              <Badge tone="violet">Personalizzato v{a.version}</Badge>
             )}
           </div>
           <p className="mt-1 text-sm text-gray-500">
@@ -112,7 +113,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             {a.unit ? ` · unità ${a.unit}` : ''}
           </p>
         </div>
-        <Button size="sm" onClick={save} disabled={pending}>
+        <Button  onClick={save} disabled={pending}>
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : a.isSystem ? (
@@ -136,9 +137,9 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <Card className="space-y-4 p-5">
@@ -207,7 +208,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             placeholder="Come usare il valore nella copy generata…"
           />
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           Le modifiche hanno effetto sulla prossima esecuzione.
         </p>
       </Card>
@@ -246,7 +247,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             Categorie che lo usano
           </h3>
           {detail.usedByCategories.length === 0 ? (
-            <p className="text-sm text-gray-400">Nessuna categoria.</p>
+            <p className="text-sm text-gray-500">Nessuna categoria.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {detail.usedByCategories.map((c) => (
@@ -266,7 +267,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             Preset che lo usano
           </h3>
           {detail.usedByPresets.length === 0 ? (
-            <p className="text-sm text-gray-400">Nessun preset.</p>
+            <p className="text-sm text-gray-500">Nessun preset.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {detail.usedByPresets.map((p) => (

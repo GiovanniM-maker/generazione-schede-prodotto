@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { Avviso } from '@/components/ui/avviso';
 
 export function PresetsClient({
   presets,
@@ -104,13 +105,12 @@ export function PresetsClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Preset</h2>
+          <h1 className="text-2xl font-semibold text-gray-900">Preset</h1>
           <p className="mt-1 text-sm text-gray-500">
             Configurazioni riutilizzabili di categorie, attributi e prompt.
           </p>
         </div>
         <Button
-          size="sm"
           onClick={() => {
             setError(null);
             setNewSector(sectors[0]?.id ?? '');
@@ -123,9 +123,9 @@ export function PresetsClient({
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <Avviso tono="errore">
           {error}
-        </div>
+        </Avviso>
       )}
 
       <Card>
@@ -161,7 +161,7 @@ export function PresetsClient({
                     </button>
                   </TD>
                   <TD>
-                    <Badge tone="blue">{p.sectorName}</Badge>
+                    <Badge tone="gray">{p.sectorName}</Badge>
                   </TD>
                   <TD>{p.categoryCount}</TD>
                   <TD>{p.attributeCount}</TD>

@@ -27,7 +27,7 @@ const ACTIONS_DIR = join(import.meta.dirname, '..', 'actions');
 const PUBBLICHE = new Set(['signInWithEmail', 'verifyOtpCode', 'signOut']);
 
 const GUARDIANI =
-  /\b(requireOrg|requireMember|getSessionUser|getUserOrg|assertBatchAccess|assertPresetAccess|assertProductAccess|assertPavAccess|requireAuth|soloProprietario|chiSta)\b/;
+  /\b(requireOrg|requireMember|getSessionUser|getUserOrg|assertBatchAccess|assertPresetAccess|assertProductAccess|assertPavAccess|requireAuth|soloProprietario|chiSta|sonoAmministratore)\b/;
 
 // --- lettura del sorgente ---------------------------------------------------
 

@@ -1,5 +1,6 @@
 import { requireUser } from '@/lib/auth';
 import { batchDiPagina } from '@/lib/batch-page';
+import { PageShell } from '@/components/page-shell';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ResultsTable, type ResultRow, type GenContent } from '@/components/results-table';
 import { ImportIssuesBanner } from '@/components/import-issues-banner';
@@ -63,7 +64,12 @@ export default async function ResultsPage({
     .from('products')
     .select('id, external_id, name, category, verification_status')
     .eq('batch_id', batchId)
-    .order('created_at', { ascending: true });
+    // Un secondo criterio dopo la data: un import inserisce tutte le righe
+    // nello stesso istante, e a parità di timestamp Postgres non promette
+    // nessun ordine. Con l'elenco paginato vorrebbe dire vedere una scheda
+    // su due pagine, o su nessuna, ricaricando.
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
 
   const productIds = (products ?? []).map((p) => p.id);
 
@@ -207,19 +213,13 @@ export default async function ResultsPage({
   const importIssues = await computeImportIssues(supabase, batchId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Risultati</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {batch.name} — rivedi, modifica e approva le schede generate, poi
-            esporta il catalogo.
-          </p>
-        </div>
-        <ReanalyzeButton batchId={batchId} />
-      </div>
+    <PageShell
+      title="Risultati"
+      subtitle={`${batch.name} — rivedi, modifica e approva le schede generate, poi esporta il catalogo.`}
+      actions={<ReanalyzeButton batchId={batchId} />}
+    >
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
       <ResultsTable batchId={batchId} presetId={presetId} rows={rows} />
-    </div>
+    </PageShell>
   );
 }

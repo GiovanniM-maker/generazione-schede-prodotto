@@ -309,95 +309,237 @@ punterebbero al vuoto.
 
 ---
 
-## 3. Subito dopo il lancio
+## 3. Subito dopo il lancio — **tutto fatto (3.1 → 3.5)**
 
-### 3.1 Un'identità visiva — 2-3 giorni
+Era la lista delle cose da fare «con gli utenti veri davanti». Sono state fatte
+prima, e due delle sue affermazioni non hanno retto la verifica: stanno scritte
+qui sotto, nei rispettivi punti, perché una revisione che non si controlla
+diventa folclore.
 
-**Il prodotto non ha un carattere.** In `globals.css` c'è
-`font-feature-settings: 'cv11', 'ss01'` — le varianti stilistiche di Inter — ma
-Inter non viene mai caricato: nessun `@font-face`, nessun `next/font`. Tutto
-rende in `ui-sans-serif, system-ui`. Quella riga non fa niente. È la singola
-modifica che cambia di più l'aspetto del prodotto, e costa un'ora.
+### 3.1 ~~Un'identità visiva~~ — **fatto**
 
-**Cinque larghezze di contenuto** dentro lo stesso guscio: camminando nel wizard
-il titolo salta lateralmente di 168 px a ogni «Avanti» (`new` 336 → `mapping`
-272 → `input` 168 → `sample` 336 → `results` 168). Serve un `PageShell` con una
-larghezza sola.
+**Il carattere.** In `globals.css` c'era `font-feature-settings: 'cv11', 'ss01'`
+— le varianti stilistiche di Inter — ma Inter non veniva mai caricato: nessun
+`@font-face`, nessun `next/font`. Tutto rendeva col carattere di sistema e
+quella riga non faceva assolutamente niente. Ora Inter c'è, servito da noi
+(`next/font` lo scarica in compilazione): nessuna richiesta a Google dal browser
+di chi usa il prodotto, che è ciò che ci permette di scrivere nella cookie
+policy che usiamo solo cookie tecnici. Aggiunte anche le cifre a larghezza fissa
+nelle tabelle: un totale che cambia non fa più ballare la riga.
 
-**Il pulsante primario ha tre altezze** (32/40/44) senza logica: «Nuovo preset»
-è il comando più piccolo dello schermo, su `/input` due primari rossi convivono
-a 44 e 40, su `/results` cinque trattamenti nella stessa barra.
+**Una posizione sola per il titolo.** Dentro lo stesso guscio convivevano cinque
+larghezze scelte una per volta, e camminando nel flusso di un batch il titolo
+saltava di lato di quasi 200 px a ogni «Avanti». Ora c'è `PageShell` con due
+larghezze **dichiarate e motivate** — `larga` per le pagine con tabelle, dove lo
+spazio orizzontale è il contenuto, `stretta` per quelle che si leggono — e tutto
+il flusso di un batch usa la stessa. Misurato: `h1` a **x=88 su ogni pagina**,
+dalla dashboard ai risultati. (Configurazione sta a 340 perché ha una barra
+laterale: è strutturale e non si muove mentre ci si sta dentro.)
 
-**Il colore ha perso il significato**: il blu vuol dire settore *e* stato; il
-verde esito *e* tipo; il rosso è insieme marchio, errore, azione distruttiva e
-«dubbio dell'AI». Due viola diversi per la stessa idea.
+**Le tre misure del pulsante hanno una regola**, scritta in `button.tsx`: `lg`
+solo per l'unica azione che è il punto dello schermo, `md` come misura normale,
+`sm` solo nelle righe che si ripetono. «Nuovo preset» era il comando più piccolo
+dello schermo pur essendo il motivo per cui si è su quella pagina: adesso è alla
+misura del titolo, come gli altri sette comandi di intestazione.
 
-Sulle pagine `/app/settings/*` il **titolo di pagina è 12 px grigio a 2,40:1** —
-più piccolo dell'`<h2>` sotto di lui.
+**Il colore ha di nuovo un significato**, uno per colore: grigio la
+classificazione (settore, tipo di attributo, «Sistema»), blu gli stati
+intermedi, verde ciò che è riuscito o attivo, ambra ciò che è in corso o da
+guardare, rosso ciò che è fallito, viola **quello che hai fatto tu**
+(«Personalizzata», «Custom», «Modificato»). Prima il settore era blu come uno
+stato, «Custom» verde come un esito, e la stessa idea aveva due viola diversi —
+il badge diceva `violet` e disegnava indigo, mentre i risultati usavano il viola
+vero.
 
-*Da tenere*: zero colori arbitrari, zero spaziature fuori griglia, `Card` in 28
-file e `Button` in 31. La disciplina di base c'è già, va solo estesa.
+**Il titolo delle pagine di configurazione** era un `<h1>` da 12 px grigio a
+2,40:1 — il testo meno leggibile dello schermo, più piccolo dell'`<h2>` sotto di
+lui, e per giunta l'unico titolo semantico della pagina. Adesso è l'etichetta di
+navigazione che è sempre stato, e il titolo vero («Preset», «Categorie») è un
+`<h1>` da 24 px.
 
-### 3.2 Accessibilità — 2-3 giorni
+Tre di queste cose non si vedono leggendo il file che le contiene — si vedono
+solo mettendo insieme file diversi — e per questo hanno un test: il carattere
+caricato davvero, un viola solo, e nessuna pagina del flusso che si stringa per
+conto suo.
 
-- **Zero `aria-live`, `role="status"`, `role="alert"`** in tutto il prodotto, su
-  55 riquadri di feedback: chi usa un lettore di schermo non sa mai se
-  un'operazione è riuscita. Verificato a runtime su filtro, accettazione scheda
-  ed errore di login.
-- **Le modali non sono modali**: nessun `role="dialog"` (le due che ce l'hanno
-  sono del tour di onboarding), il fuoco non entra all'apertura, 20 Tab su 25
-  finiscono fuori, non torna al punto di partenza alla chiusura. Esc funziona.
-- **14 combinazioni di contrasto sotto soglia** su 23 viste, le peggiori a
-  2,40:1.
-- **Nessun «salta al contenuto»**: 10 tappe di Tab prima del contenuto, 43 per
-  arrivare all'ultima azione dei risultati con soli 3 prodotti.
+**Rimasto da decidere a chi vende:** se il prodotto vuole un carattere *da
+display* per i titoli, diverso da quello del testo. È una scelta di marchio, non
+di codice.
 
-*Già a posto*: fuoco visibile su 111 tappe su 111, un solo `<h1>` su 22 rotte su
-23, nomi accessibili ovunque tranne una textarea.
+### 3.2 ~~Accessibilità~~ — **fatto**
 
-### 3.3 Prestazioni — 2-3 giorni
+Non era «poca»: era **niente**. Zero `aria-live`, zero `role="status"`, zero
+`role="alert"` su 55 riquadri di riscontro. Si premeva «Salva» e non arrivava
+nessuna notizia — né buona né cattiva. Sono difetti che non si vedono
+guardando: la pagina, a occhio, funzionava benissimo.
 
-- **Pavimento di ~800 ms su ogni pagina autenticata** (pubbliche 111-246 ms,
-  autenticate 870-1358 ms), da tre andate-e-ritorno sequenziali nel layout con
-  `force-dynamic`. Un giro singolo verso Supabase misura 165-300 ms: sono
-  parallelizzabili.
-- **Risultati senza paginazione**: con 153 prodotti → 9.252 nodi, 33.519 px di
-  pagina su telefono, 974 ms di blocco. Metà del DOM è la vista dell'altro
-  dispositivo, presente e nascosta via CSS.
-- **Il chunk del wizard è 2,5-4× ogni altra rotta** (583 kB contro 229 kB):
-  `wizard.tsx` è un unico componente client da 2.516 righe con tutti i passi, il
-  controllo qualità immagini e il tour.
+**I riquadri parlano.** C'è un `Avviso` solo, e la distinzione fra i due ruoli
+non è una sfumatura: l'errore usa `alert` e **interrompe** (qualcosa non è
+successo, e finché non lo si sa si continua a credere il contrario), la
+conferma usa `status` e aspetta il suo turno. Per strada sono spariti anche
+trenta riquadri rossi scritti a mano con quattro spaziature diverse.
 
-*Già a posto*: **CLS = 0 ovunque**, anche con 153 prodotti. Zero errori
-JavaScript su 23 rotte.
+**Le modali sono modali.** Erano riquadri sopra la pagina e nient'altro: nessun
+`role="dialog"`, il fuoco restava sul pulsante che le aveva aperte, e
+continuando con Tab si finiva a navigare la pagina sottostante — coperta e
+inutilizzabile. Ora il fuoco **entra**, **resta dentro** (Tab e Shift+Tab
+girano) e **torna dove stava** alla chiusura. La terza è quella che si dimentica
+sempre ed è quella che si sente di più.
 
-### 3.4 Le cose che confondono — 1-2 giorni
+Provato con la tastiera vera: aperta la modale, **nove Tab e zero fughe**, Esc
+chiude e il fuoco torna esattamente su «Nuovo preset».
 
-- Il pulsante **«Registrati» porta a una pagina intitolata «Accedi»**. (`/signup`
-  risponde 404 ma nessun link ci punta: non è un collegamento rotto, è
-  un'etichetta che promette una pagina che non esiste.)
-- La barra passa da «Passo 1 **di 9**» a «Passo 3 **di 11**» appena si sceglie la
-  fonte.
-- Sui risultati a 1440 px la **colonna azioni è tagliata**: Rifiuta e Rigenera
-  sono fuori schermo. Sul telefono si vedono tutte — il layout mobile è più
-  completo del desktop.
-- Su telefono **«Serve aiuto?» si sovrappone a «Crea e continua»**: il comando
-  accessorio copre quello principale.
-- Gli SKU duplicati sono segnalati «da risolvere» senza offrire nulla, e le righe
-  scartate sono contate come «2 da rivedere» — parola sbagliata, e nessun elenco
-  di quali righe sono cadute.
-- Vocabolario incoerente: batch/lotto, preset/modello, scheda/descrizione/
-  contenuto, «Custom» vs «Personalizzata», la rotta `/storico` in mezzo a sette
-  rotte inglesi.
+**«Salta al contenuto».** Servivano dieci tappe di Tab per arrivare al
+contenuto, a ogni pagina, e quarantatré per l'ultima azione dei risultati con
+tre soli prodotti. Ora il salto è la prima tappa, invisibile finché non riceve
+il fuoco, e il bersaglio può riceverlo — senza `tabIndex={-1}` il salto
+sposterebbe la vista ma non il punto di lettura.
 
-### 3.5 Sapere come va il servizio — 2-3 giorni
+**Il testo si legge.** 87 righe di testo erano a `gray-400`: 2,4:1 sul nostro
+fondo crema, contro un minimo di 4,5:1. Portate a `gray-500`. Le 17 rimaste
+sono icone, che sono decorative ed esenti.
 
-Nessuna dashboard di amministrazione: non c'è modo di vedere quanti utenti ci
-sono, quanto consumano, quanto costa l'AI, chi si è bloccato. **La materia prima
-esiste già**: `generation_runs` registra token e costo stimato per ogni
-chiamata.
+*Già a posto e rimasto tale*: fuoco visibile su 111 tappe su 111, nomi
+accessibili ovunque tranne una textarea.
 
-Manca anche qualunque raccolta degli errori in produzione.
+### 3.3 ~~Prestazioni~~ — **fatto**, con una precisazione
+
+**Il pavimento di ~800 ms.** Ogni pagina dietro l'accesso pagava tre andate e
+ritorno in fila: verifica del token, «di che organizzazione fa parte questo
+utente», e infine saldo crediti più dubbi aperti. Le ultime due partivano
+insieme, ma solo dopo che la seconda era finita — perché servono l'id
+dell'organizzazione. Le ultime due sono una domanda sola, e ora lo sono davvero
+(`contesto_app`).
+
+Misurato contro il database vero, ripetuto: **290 ms → 143 ms**. La verifica del
+token resta e non si toglie da qui: servirebbe verificare la firma in locale,
+che richiede chiavi asimmetriche sul progetto — configurazione, non codice.
+
+Il saldo **non è ricalcolato** dentro la nuova funzione: chiama
+`get_credit_balance`, che resta l'unico posto dove è scritto come si somma un
+registro di crediti. Due versioni della stessa somma, prima o poi, divergono — e
+qui la somma sono soldi.
+
+**Il muro dei risultati.** Cinquanta schede per volta. Misurato con 153
+prodotti: **9.428 nodi e 9.261 px → 3.253 nodi e 3.447 px**. Su telefono la
+pagina passa da un rotolo infinito a 8.078 px.
+
+Per strada è saltato fuori un difetto che la paginazione avrebbe *creato*:
+l'elenco era ordinato per data e un import inserisce tutte le righe nello stesso
+istante — a parità di timestamp Postgres non promette nessun ordine, e ricaricando
+si sarebbe vista una scheda su due pagine o su nessuna. Aggiunto un secondo
+criterio.
+
+**La precisazione, sul chunk del wizard.** L'affermazione «2,5-4× ogni altra
+rotta (583 kB contro 229 kB)» **non regge**. Misurato sulla compilazione di
+produzione: `/app/batches/new` fa 177 kB di primo caricamento contro i 129 kB dei
+risultati — 1,4×, non 2,5-4×. Il pezzo di rotta suo è davvero 64 kB contro 16, e
+quello resta grosso.
+
+Ho provato a spostare fuori i due pannelli che servono solo su un passo:
+**64,8 → 64,1 kB**, cioè niente. L'ho tolto: una macchina in più e uno sfarfallio
+di caricamento per un chilobyte sono peggio del problema. Il peso vero sono i
+nove passi dentro un unico file da 2.516 righe, e spezzarli è un lavoro di
+ristrutturazione su un flusso appena sistemato (§2.4), per 48 kB. **Non l'ho
+fatto**: il rapporto fra rischio e guadagno lo decide chi conosce le priorità,
+non io.
+
+*Già a posto e rimasto tale*: **CLS = 0 ovunque**, zero errori JavaScript.
+
+### 3.4 ~~Le cose che confondono~~ — **fatto**, con due smentite
+
+**«Registrati» portava su una pagina intitolata «Accedi».** Non è un
+collegamento rotto: è un'etichetta che promette una pagina che non esiste. Il
+percorso è uno solo — il primo accesso crea l'account — e adesso lo dicono
+entrambi: il pulsante è «Prova gratis», la pagina è «Accedi o registrati».
+
+**Il conto dei passi non cambia più strada facendo.** Con un Excel i passi sono
+due in più: finché la fonte non è scelta il totale **non si sa**. Prometterne uno
+significava passare da «Passo 1 di 9» a «Passo 3 di 11» senza aver fatto niente
+di sbagliato. Ora il totale compare quando si conosce, e da lì non si muove più
+se non sei tu a cambiare la fonte.
+
+**«Serve aiuto?» copriva «Crea e continua».** La barra dei comandi è `sticky`:
+con poco contenuto si ferma a metà schermo, proprio dove galleggiava il pulsante
+di aiuto. Misurato a 390 px: si sovrapponevano di 27 px. Su telefono l'aiuto ora
+sta *dentro* la barra, dove non può collidere per costruzione; da tablet in su lo
+spazio c'è e il pulsante flottante resta. Rimisurato: nessuna sovrapposizione.
+
+**Gli SKU duplicati e le righe scartate.** Qui sotto c'erano due difetti, uno
+peggiore dell'altro.
+
+Il primo: il banner contava «SKU duplicati» quello che in realtà è **lo stesso
+file caricato due volte**. Due foto con lo stesso codice sono il caso *normale*
+— fronte, retro, etichetta — e il sistema le raggruppa apposta: l'etichetta
+allarmava per una cosa che va benissimo.
+
+Il secondo: le righe cadute erano contate come «da rivedere», una parola che
+promette una revisione che non esiste da nessuna parte. Sono righe **scartate**,
+e prima ne restava solo il numero — per sapere quali, l'unico modo era
+confrontare a mano il file con il catalogo importato. Adesso l'import restituisce
+l'elenco con il perché (codice non valido, codice ripetuto, dati insufficienti) e
+il wizard lo mostra. E dove il confronto delle fonti segnala i codici ripetuti,
+c'è scritto cosa succederà: entra la prima riga, le altre no.
+
+**Una parola per una cosa.** «Custom» è diventato «Personalizzato» (era accanto a
+«Personalizzata», che dice la stessa cosa); la rotta `/storico` — unica in
+italiano fra sette in inglese — è diventata `/app/settings/activity`, e il vecchio
+indirizzo reindirizza, perché i segnalibri di chi lo usava non si rompono per una
+questione di coerenza nostra. «Lotto» e «modello» restano solo dove *spiegano*
+«batch» e «preset» la prima volta: lì non sono incoerenza, sono l'unico punto in
+cui qualcuno impara cosa sono.
+
+**Due affermazioni non hanno retto la verifica.**
+
+1. *«Sui risultati a 1440 px la colonna azioni è tagliata: Rifiuta e Rigenera
+   sono fuori schermo.»* Misurato a 1440, 1280 e 1024 px: tutti e quattro i
+   comandi sono dentro lo schermo, la tabella sta nel suo contenitore e niente
+   scorre di lato.
+2. *(§3.3)* Il rapporto dichiarato sul chunk del wizard.
+
+Le lascio scritte qui perché una revisione che non si controlla diventa
+folclore.
+
+### 3.5 ~~Sapere come va il servizio~~ — **fatto**
+
+Non c'era modo di rispondere a nessuna domanda sulla salute del prodotto: quante
+organizzazioni ci sono, quanto generano, quanto costa l'AI, chi è rimasto
+bloccato a metà, cosa si è rotto ieri. La materia prima c'era già tutta —
+`generation_runs` registra token e costo per ogni chiamata, `credit_ledger` i
+soldi, `app_events` i guasti — e nessuno la guardava. **Un servizio che non si
+guarda si scopre rotto dai clienti.**
+
+Ora c'è `/app/admin`: organizzazioni e persone, batch e schede generate,
+incassato e crediti consumati, costo AI e token, **chi è rimasto fermo** (batch
+in uno stato non terminale da più di dieci minuti — la stessa soglia del
+riconciliatore, e per lo stesso motivo) e **cosa si è rotto**. Una chiamata sola:
+il pannello non deve costare dieci letture per disegnare sei numeri.
+
+Il costo è etichettato «stima»: `estimated_cost` è quello che dichiara il
+fornitore, non una fattura, e la pagina non deve far credere il contrario.
+
+**Chi può vederlo sta in `ADMIN_EMAILS`, non in una colonna del database.** È una
+scelta: un ruolo si assegna per sbaglio, una variabile d'ambiente no. E se la
+variabile è vuota — il caso predefinito — il pannello **non esiste per nessuno**:
+404, non «non sei autorizzato», perché una pagina che dice «non sei autorizzato»
+conferma di esistere. Provato nel browser in entrambi i versi.
+
+**La raccolta degli errori** non esisteva: un errore arrivava a schermo, l'utente
+ricaricava, e non ne restava traccia da nessuna parte. Adesso finisce dove
+finiscono già i guasti di scrittura, e si vede nel pannello. È fatta **in casa**:
+nessun servizio esterno, nessun dato che esce, niente da pagare. È volutamente
+povera — messaggio, punto del codice, indirizzo — perché un raccoglitore di
+errori che si porta dietro i dati dei clienti è un problema più grande di quello
+che risolve. E serve una sessione: ogni funzione esportata da un file
+`'use server'` è un indirizzo di rete, e senza il controllo chiunque potrebbe
+riempire di rumore la tabella dei guasti.
+
+**Da fare a chi lancia:** impostare `ADMIN_EMAILS` su Vercel. Senza, il pannello
+resta invisibile anche a te.
+
+*Se un giorno servisse di più* — tracce distribuite, avvisi automatici, sessioni
+registrate — quello è un servizio esterno a pagamento, con dati che escono
+dall'Europa: è una decisione, non un'omissione.
 
 ---
 

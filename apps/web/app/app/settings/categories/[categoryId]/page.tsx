@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { getCategoryDetail } from '@/lib/actions/catalog';
 import { CategoryDetailClient } from '@/components/settings/category-detail-client';
+import { Avviso } from '@/components/ui/avviso';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,9 +26,9 @@ export default async function CategoryDetailPage({
       {res.ok ? (
         <CategoryDetailClient detail={res.detail} />
       ) : (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Avviso tono="errore">
           {res.error}
-        </div>
+        </Avviso>
       )}
     </div>
   );

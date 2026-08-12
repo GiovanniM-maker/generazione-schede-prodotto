@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getServiceClient } from '@/lib/supabase/service';
+import { contestoApp } from '@/lib/contesto';
 
 // Helper di sessione e organizzazione.
 //
@@ -30,18 +31,19 @@ export interface OrgContext {
   role: 'owner' | 'member';
 }
 
-/** Ritorna l'organizzazione dell'utente (la prima). Null se assente. */
+/**
+ * Ritorna l'organizzazione dell'utente (la prima). Null se assente.
+ *
+ * Passa da `contestoApp`, che nello stesso giro porta anche saldo crediti e
+ * dubbi aperti. Sembra sprecato per chi vuole solo l'organizzazione, ma è il
+ * contrario: l'intestazione dell'applicazione quei due numeri li chiede
+ * comunque, e con la memoizzazione per richiesta la chiamata è **una sola** per
+ * pagina invece delle tre in fila di prima. Tenere qui una query separata
+ * significherebbe rimetterne una seconda.
+ */
 export const getUserOrg = cache(async (userId: string): Promise<OrgContext | null> => {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from('organization_members')
-    .select('organization_id, role')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!data) return null;
-  return { organizationId: data.organization_id, role: data.role };
+  const c = await contestoApp(userId);
+  return c ? { organizationId: c.organizationId, role: c.role } : null;
 });
 
 /** Crea l'organizzazione dell'utente se non esiste (onboarding idempotente). */

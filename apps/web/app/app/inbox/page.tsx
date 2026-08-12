@@ -1,5 +1,6 @@
 import { listOpenDoubtsAction } from '@/lib/actions/doubts';
 import { InboxClient } from '@/components/inbox-client';
+import { Avviso } from '@/components/ui/avviso';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ export default async function InboxPage() {
         </p>
       </div>
       {!res.ok ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{res.error}</div>
+        <Avviso tono="errore">{res.error}</Avviso>
       ) : (
         <InboxClient initial={doubts} />
       )}

@@ -161,14 +161,14 @@ export function GuidedTour({
             type="button"
             onClick={() => onClose(true)}
             aria-label="Chiudi la guida"
-            className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+            className="rounded p-0.5 text-gray-500 hover:text-gray-700"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
         <p className="mt-1 text-sm text-gray-600">{step.body}</p>
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500">
             {idx + 1} di {total}
           </span>
           <div className="flex gap-2">

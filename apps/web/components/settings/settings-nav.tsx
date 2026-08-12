@@ -10,16 +10,16 @@ const items = [
   { href: '/app/settings/categories', label: 'Categorie', icon: FolderTree },
   { href: '/app/settings/attributes', label: 'Attributi', icon: Tags },
   { href: '/app/settings/sectors', label: 'Settori', icon: Grid3x3 },
-  { href: '/app/settings/storico', label: 'Storico', icon: History },
+  { href: '/app/settings/activity', label: 'Storico', icon: History },
   { href: '/app/settings/team', label: 'Team', icon: Users },
   { href: '/app/settings/integrations', label: 'Integrazioni', icon: Plug },
   { href: '/app/settings/account', label: 'Account', icon: UserCog },
 ];
 
-export function SettingsNav() {
+export function SettingsNav({ 'aria-label': ariaLabel }: { 'aria-label'?: string } = {}) {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-1">
+    <nav aria-label={ariaLabel} className="flex flex-col gap-1">
       {items.map((item) => {
         const active = pathname.startsWith(item.href);
         const Icon = item.icon;

@@ -16,6 +16,17 @@ const variants: Record<Variant, string> = {
     'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 shadow-sm',
 };
 
+// Le tre misure hanno una regola, che prima non c'era: convivevano senza
+// logica — «Nuovo preset» era il comando più piccolo dello schermo pur essendo
+// il motivo per cui si è su quella pagina, e nella stessa barra dei risultati
+// si contavano cinque trattamenti diversi.
+//
+//   lg — l'unica azione che è il punto dello schermo: «Genera», «Vai ai
+//        risultati», il richiamo della landing. Mai due nella stessa vista.
+//   md — la misura normale. Comandi all'altezza del titolo di pagina, e tutto
+//        quello che sta dentro schede e moduli.
+//   sm — solo nelle righe che si ripetono: tabelle, elenchi, barre di una
+//        singola scheda. Fuori da lì, un comando piccolo dice «conto poco».
 const sizes: Record<Size, string> = {
   sm: 'h-8 px-3 text-sm',
   md: 'h-10 px-4 text-sm',

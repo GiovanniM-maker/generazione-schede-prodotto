@@ -225,12 +225,12 @@ export default async function DashboardPage() {
                     'flex h-5 w-5 items-center justify-center rounded-full',
                     item.done
                       ? 'bg-emerald-100 text-emerald-600'
-                      : 'bg-gray-200 text-gray-400',
+                      : 'bg-gray-200 text-gray-500',
                   )}
                 >
                   <Check className="h-3 w-3" />
                 </span>
-                <span className={cn('text-gray-700', !item.done && 'text-gray-400')}>
+                <span className={cn('text-gray-700', !item.done && 'text-gray-500')}>
                   {item.label}
                 </span>
               </li>
@@ -280,7 +280,7 @@ export default async function DashboardPage() {
         {batches.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-400">
+              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
                 <PackageOpen className="h-7 w-7" />
               </span>
               <div>

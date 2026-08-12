@@ -107,7 +107,11 @@ export default async function LandingPage() {
               </Button>
             </Link>
             <Link href="/login">
-              <Button size="sm">Registrati</Button>
+              {/* Diceva «Registrati» e portava su una pagina intitolata
+                  «Accedi». Il percorso è uno solo, e questa etichetta dice
+                  cosa si ottiene invece di promettere una pagina che non
+                  esiste. */}
+              <Button size="sm">Prova gratis</Button>
             </Link>
           </nav>
         </div>
@@ -199,7 +203,7 @@ export default async function LandingPage() {
                     <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand-accent">
                       <s.icon className="h-5 w-5" />
                     </span>
-                    <span className="text-sm font-medium text-gray-400">
+                    <span className="text-sm font-medium text-gray-500">
                       Passo {i + 1}
                     </span>
                   </div>
@@ -234,7 +238,7 @@ export default async function LandingPage() {
               </div>
               <Card>
                 <CardContent className="space-y-3 p-6 pt-6">
-                  <div className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     Anteprima scheda
                   </div>
                   <div className="text-lg font-semibold text-gray-900">
@@ -367,7 +371,7 @@ export default async function LandingPage() {
               Cookie
             </Link>
           </div>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             © {new Date().getFullYear()} Verificato
           </p>
         </div>

@@ -39,7 +39,7 @@ export function WelcomeCard({ pronto }: { pronto: boolean }) {
         type="button"
         onClick={dismiss}
         aria-label="Chiudi il benvenuto"
-        className="absolute right-3 top-3 rounded p-1 text-gray-400 hover:text-gray-700"
+        className="absolute right-3 top-3 rounded p-1 text-gray-500 hover:text-gray-700"
       >
         <X className="h-4 w-4" />
       </button>
@@ -69,7 +69,7 @@ export function WelcomeCard({ pronto }: { pronto: boolean }) {
           <span className="text-sm text-gray-700">
             <b className="text-gray-900">3. Campione gratis, poi genera</b>
             <br />
-            Vedi una scheda di prova senza spendere, poi avvii tutto il lotto.
+            Vedi una scheda di prova senza spendere, poi avvii tutto il batch.
           </span>
         </li>
       </ol>

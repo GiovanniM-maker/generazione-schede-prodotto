@@ -97,13 +97,13 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
             </span>
           )}
         </span>
-        <span className="text-xs text-gray-400">{open ? 'nascondi' : 'apri'}</span>
+        <span className="text-xs text-gray-500">{open ? 'nascondi' : 'apri'}</span>
       </button>
 
       {open && (
         <div className="border-t border-gray-100 p-4">
           {products === null ? (
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Carico i prodotti…
             </div>
           ) : (

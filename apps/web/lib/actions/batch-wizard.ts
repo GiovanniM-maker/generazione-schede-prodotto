@@ -1041,7 +1041,29 @@ export interface ImportResultV2 {
   categoriesMatched: number;
   /** Nomi di categoria presenti nel file ma non riconosciuti (da creare). */
   unmatchedCategories: string[];
+  /**
+   * Le righe che non sono entrate, con il perché.
+   *
+   * Prima ne restava solo il numero, e in interfaccia era etichettato «da
+   * rivedere» — una parola che promette una revisione che non esiste da nessuna
+   * parte. Sono righe **scartate**, e chi importa un listino ha il diritto di
+   * sapere quali: senza l'elenco, l'unico modo di scoprirlo è confrontare a
+   * mano il file con il catalogo importato.
+   *
+   * L'elenco è tagliato: serve a capire *cosa* è successo, non a rifare
+   * l'import.
+   */
+  scartate: RigaScartata[];
 }
+
+export interface RigaScartata {
+  /** Il codice della riga, quando c'era. */
+  sku: string | null;
+  motivo: 'codice non valido' | 'codice ripetuto nel file' | 'dati insufficienti';
+}
+
+/** Oltre questo numero l'elenco smette di aiutare e diventa un muro. */
+const MAX_SCARTATE = 50;
 
 /**
  * Match ROBUSTO del valore categoria dal file verso le categorie del catalogo:
@@ -1342,6 +1364,10 @@ export async function confirmImportV2(input: {
   let imported = 0;
   let valid = 0;
   let invalid = 0;
+  const scartate: RigaScartata[] = [];
+  const segnaScarto = (sku: string | null, motivo: RigaScartata['motivo']) => {
+    if (scartate.length < MAX_SCARTATE) scartate.push({ sku, motivo });
+  };
   let imageOnly = 0;
   const importedSkus = new Set<string>();
   // sku -> id del prodotto ricreato (per ripristinare i fatti confermati).
@@ -1376,12 +1402,14 @@ export async function confirmImportV2(input: {
       const skuRaw = row[input.skuHeader];
       if (validateRowSku(skuRaw) !== null) {
         invalid++;
+        segnaScarto((skuRaw ?? '').trim() || null, 'codice non valido');
         continue;
       }
       const sku = (skuRaw ?? '').trim();
       if (importedSkus.has(sku)) {
         // SKU duplicato: la prima riga vince, le successive sono scartate.
         invalid++;
+        segnaScarto(sku, 'codice ripetuto nel file');
         continue;
       }
 
@@ -1481,6 +1509,7 @@ export async function confirmImportV2(input: {
 
       if (input.options.excludeIncomplete && !eligible) {
         invalid++;
+        segnaScarto(sku || null, 'dati insufficienti');
         continue;
       }
 
@@ -1781,6 +1810,7 @@ export async function confirmImportV2(input: {
     senzaNome,
     categoriesMatched,
     unmatchedCategories: unmatched.slice(0, 50),
+    scartate,
   });
 }
 

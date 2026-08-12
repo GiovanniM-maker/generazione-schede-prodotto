@@ -17,6 +17,7 @@ import {
   Download,
   ArrowLeft,
   ArrowRight,
+  LifeBuoy,
 } from 'lucide-react';
 import {
   listPublishedPresets,
@@ -42,6 +43,7 @@ import {
   type UploadedFileSummary,
   type PresetAttributeOption,
   type BatchProductRow,
+  type ImportResultV2,
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
@@ -288,6 +290,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [batchId, setBatchId] = useState<string | null>(null);
   const [presetVersionId, setPresetVersionId] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
+  // Ogni scatto è una richiesta d'aiuto dalla barra dei comandi (su telefono).
+  const [chiediAiuto, setChiediAiuto] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /**
@@ -347,7 +351,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9
   const [products, setProducts] = useState<BatchProductRow[] | null>(null);
-  const [importSummary, setImportSummary] = useState<{ imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; senzaNome: number; categoriesMatched: number; unmatchedCategories: string[] } | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportResultV2 | null>(null);
 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
@@ -809,6 +813,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       valid: res.data.imported - res.data.failed,
       invalid: res.data.failed,
       imageOnly: 0,
+      // L'import da URL fallisce per pagina, non per riga: i motivi li mostra
+      // già il suo elenco di `failures`.
+      scartate: [],
       factsInsertErrors: 0,
       senzaNome: 0,
       categoriesMatched: 0,
@@ -1031,11 +1038,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // --- Render ---
 
+  // Il wizard vive in un guscio largo come tutto il flusso di un batch, così il
+  // titolo non salta di lato fra un passo e l'altro. Il modulo però resta
+  // stretto: una riga di modulo lunga 1150 px si compila peggio, non meglio.
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <ProgressBar steps={activeSteps} activeIndex={activeIndex} />
+          <ProgressBar steps={activeSteps} activeIndex={activeIndex} totaleNoto={sourceMode !== null} />
         </div>
         {STEP_TOURS[stepId] && (
           <Button
@@ -1142,10 +1152,26 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           (z-50) e il pulsante d'aiuto, e alla prima visita coprivano proprio il
           comando principale. Chi sta lavorando ha la precedenza sull'avviso. */}
       <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:border-gray-100 sm:bg-transparent sm:px-0 sm:pt-4 sm:backdrop-blur-none">
-        <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
-          <ArrowLeft className="h-4 w-4" />
-          Indietro
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
+            <ArrowLeft className="h-4 w-4" />
+            Indietro
+          </Button>
+          {/* Su telefono l'aiuto sta QUI e non galleggia: la barra è `sticky`,
+              quindi con poco contenuto si ferma a metà schermo — proprio dove
+              galleggiava il pulsante «Serve aiuto?», che finiva sopra «Crea e
+              continua». Un comando accessorio che copre quello principale è il
+              peggior modo di offrire aiuto. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="sm:hidden"
+            onClick={() => setChiediAiuto((n) => n + 1)}
+            aria-label="Apri la guida"
+          >
+            <LifeBuoy className="h-4 w-4" />
+          </Button>
+        </div>
 
         <StepPrimaryAction
           stepId={stepId}
@@ -1177,7 +1203,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           }}
         />
       )}
-      <WizardGuide />
+      <WizardGuide apriDaFuori={chiediAiuto > 0} onChiusa={() => setChiediAiuto(0)} />
     </div>
   );
 }
@@ -1186,13 +1212,27 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 // Barra di avanzamento.
 // ---------------------------------------------------------------------------
 
-function ProgressBar({ steps, activeIndex }: { steps: StepDef[]; activeIndex: number }) {
+// Il totale dei passi dipende da cosa si carica: con un Excel ce ne sono due in
+// più (colonne e mappatura). Finché la fonte non è scelta il totale **non si
+// sa**, e prometterne uno vuol dire che a metà strada la barra passa da «di 9» a
+// «di 11» senza che si sia fatto niente di sbagliato. Meglio non dirlo, che
+// dirlo e ritrattare.
+function ProgressBar({
+  steps,
+  activeIndex,
+  totaleNoto,
+}: {
+  steps: StepDef[];
+  activeIndex: number;
+  totaleNoto: boolean;
+}) {
   const pct = steps.length > 1 ? Math.round((Math.max(0, activeIndex) / (steps.length - 1)) * 100) : 0;
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
         <span className="font-medium text-gray-700">
-          Passo {Math.max(1, activeIndex + 1)} di {steps.length}
+          Passo {Math.max(1, activeIndex + 1)}
+          {totaleNoto ? ` di ${steps.length}` : ''}
         </span>
         <span>{steps[Math.max(0, activeIndex)]?.title}</span>
       </div>
@@ -1434,11 +1474,11 @@ function Step2({
                       {aopen && (
                         <div className="space-y-2 border-t border-gray-100 px-3 py-2 text-sm text-gray-600">
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Istruzione di estrazione</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Istruzione di estrazione</span>
                             <p className="mt-0.5">{attr.extractionInstruction ?? '—'}</p>
                           </div>
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Istruzione di generazione</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Istruzione di generazione</span>
                             <p className="mt-0.5">{attr.generationInstruction ?? '—'}</p>
                           </div>
                         </div>
@@ -1727,7 +1767,7 @@ function Step5({
           >
             <UploadCloud className="h-6 w-6 text-gray-400" />
             <span className="text-sm text-gray-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
-            <span className="text-xs text-gray-400">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
+            <span className="text-xs text-gray-500">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
             <input
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.zip"
@@ -1847,7 +1887,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record
           </tbody>
         </table>
       </div>
-      <p className="border-t border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-400">
+      <p className="border-t border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
         {headers.length} colonne · anteprima di {shown.length} righe {rows.length > shown.length ? `(su ${rows.length})` : ''}
       </p>
     </div>
@@ -1895,7 +1935,7 @@ function CategoryColumnValidator({
   const norm = (s: string) =>
     s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
-  if (loading) return <p className="mt-2 text-xs text-gray-400">Verifico i valori della colonna…</p>;
+  if (loading) return <p className="mt-2 text-xs text-gray-500">Verifico i valori della colonna…</p>;
   if (cats.length === 0) return null;
 
   const catByNorm = new Map(cats.map((c) => [norm(c.name), c] as const));
@@ -2031,6 +2071,14 @@ function Step6({ analysis, hasImages, hasSpreadsheet }: { analysis: AnalyzeData 
         {hasSpreadsheet && <Metric label="Righe senza SKU" value={analysis.rowsWithoutSku} tone={analysis.rowsWithoutSku > 0 ? 'red' : 'gray'} />}
         {hasImages && <Metric label="Immagini senza SKU" value={analysis.filesWithoutSku.length} tone={analysis.filesWithoutSku.length > 0 ? 'amber' : 'gray'} />}
       </div>
+      {/* Il numero rosso diceva che c'era un problema e si fermava lì. Questo
+          dice cosa succederà, e dove si vedrà a chi è successo. */}
+      {hasSpreadsheet && analysis.duplicateFileSkus.length > 0 && (
+        <p className="text-sm text-amber-800">
+          Con lo stesso codice ripetuto entra <strong>la prima riga</strong>: le altre vengono
+          scartate. Dopo l’importazione trovi l’elenco di quali, riga per riga.
+        </p>
+      )}
     </div>
   );
 }
@@ -2220,7 +2268,7 @@ function SkuList({ title, skus, tone }: { title: string; skus: string[]; tone: B
                 {s}
               </span>
             ))}
-            {skus.length > 30 && <span className="text-xs text-gray-400">+{skus.length - 30}</span>}
+            {skus.length > 30 && <span className="text-xs text-gray-500">+{skus.length - 30}</span>}
           </div>
         )}
       </CardContent>
@@ -2423,7 +2471,7 @@ function FreeColumnsSection({
               </label>
               {checked ? (
                 <>
-                  <span className="hidden text-center text-xs text-gray-400 sm:block">→</span>
+                  <span className="hidden text-center text-xs text-gray-500 sm:block">→</span>
                   <Input
                     value={extraCols[h] ?? h}
                     onChange={(e) =>
@@ -2434,7 +2482,7 @@ function FreeColumnsSection({
                   />
                 </>
               ) : (
-                <span className="text-xs text-gray-400 sm:col-span-2">non importata</span>
+                <span className="text-xs text-gray-500 sm:col-span-2">non importata</span>
               )}
             </div>
           );
@@ -2458,7 +2506,7 @@ function Step9({
   categoryFromFile,
 }: {
   products: BatchProductRow[] | null;
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; senzaNome: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  importSummary: ImportResultV2 | null;
   batchId: string;
   hasImages: boolean;
   analyzing: boolean;
@@ -2525,7 +2573,10 @@ function Step9({
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge tone="blue">{importSummary.imported} importati</Badge>
           <Badge tone="green">{importSummary.valid} validi</Badge>
-          <Badge tone="amber">{importSummary.invalid} da rivedere</Badge>
+          {/* Diceva «da rivedere»: una parola che promette una revisione che
+              non esiste da nessuna parte. Sono righe **scartate**, e adesso si
+              può anche vedere quali. */}
+          <Badge tone="amber">{importSummary.invalid} righe scartate</Badge>
           {importSummary.imageOnly > 0 && <Badge tone="violet">{importSummary.imageOnly} solo-immagini</Badge>}
           {/* Prodotti entrati senza i loro dati: il database ha rifiutato la
               scrittura. Prima finiva solo nella telemetria e l'utente scopriva
@@ -2540,6 +2591,27 @@ function Step9({
           )}
           {importSummary.categoriesMatched > 0 && (
             <Badge tone="green">{importSummary.categoriesMatched} collegati a categoria</Badge>
+          )}
+          {importSummary.scartate.length > 0 && (
+            <details className="w-full">
+              <summary className="cursor-pointer text-sm text-gray-600 underline underline-offset-2">
+                Quali righe sono state scartate
+              </summary>
+              <ul className="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white p-2 text-xs">
+                {importSummary.scartate.map((r, i) => (
+                  <li key={i} className="flex items-center justify-between gap-3 px-1 py-0.5">
+                    <span className="truncate font-mono text-gray-700">{r.sku ?? '(senza codice)'}</span>
+                    <span className="shrink-0 text-gray-500">{r.motivo}</span>
+                  </li>
+                ))}
+              </ul>
+              {importSummary.invalid > importSummary.scartate.length && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Elenco tagliato alle prime {importSummary.scartate.length}: serve a capire cosa è
+                  successo, non a rifare l’import.
+                </p>
+              )}
+            </details>
           )}
           {importSummary.unmatchedCategories.length > 0 && (
             <Badge tone="amber">
@@ -2658,25 +2730,25 @@ function SampleOutput({ content }: { content: SampleCopy }) {
     <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
       {content.title && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Titolo</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Titolo</p>
           <p className="mt-0.5 text-base font-semibold text-gray-900">{content.title}</p>
         </div>
       )}
       {content.shortDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descrizione breve</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Descrizione breve</p>
           <p className="mt-0.5 text-sm text-gray-700">{content.shortDescription}</p>
         </div>
       )}
       {content.longDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Descrizione lunga</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Descrizione lunga</p>
           <p className="mt-0.5 whitespace-pre-line text-sm text-gray-700">{content.longDescription}</p>
         </div>
       )}
       {bullets.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Punti chiave</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Punti chiave</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-gray-700">
             {bullets.map((b, i) => (
               <li key={i}>{b}</li>
@@ -2686,7 +2758,7 @@ function SampleOutput({ content }: { content: SampleCopy }) {
       )}
       {content.metaDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Meta description</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Meta description</p>
           <p className="mt-0.5 text-sm text-gray-500">{content.metaDescription}</p>
         </div>
       )}
@@ -2709,7 +2781,7 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
       )}
       {completeness.missingAttributes.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Attributi mancanti</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Attributi mancanti</p>
           <div className="mt-1 flex flex-wrap gap-1">
             {completeness.missingAttributes.map((a) => (
               <span key={a} className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
@@ -2732,7 +2804,7 @@ function Step11({
   notifyByEmail,
   setNotifyByEmail,
 }: {
-  importSummary: { imported: number; valid: number; invalid: number; imageOnly: number; factsInsertErrors: number; senzaNome: number; categoriesMatched: number; unmatchedCategories: string[] } | null;
+  importSummary: ImportResultV2 | null;
   notifyByEmail: boolean;
   setNotifyByEmail: (v: boolean) => void;
 }) {

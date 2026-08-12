@@ -14,8 +14,20 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
+  /* `cv11` e `ss01` sono le varianti stilistiche di Inter: la «l» con la coda e
+     le forme a occhio singolo. Prima erano chieste a un carattere che non
+     veniva mai caricato. */
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+}
+
+/* I numeri in colonna devono incolonnarsi: crediti, prezzi, conteggi di
+   prodotti. Con le cifre a larghezza variabile un totale che cambia fa
+   ballare tutta la riga. */
+table,
+[data-numeri] {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Focus visibile per accessibilità */

@@ -401,7 +401,7 @@ export function CopilotPanel({
             ))
           )}
           {pending && (
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Il copilot sta pensando…
             </div>
@@ -534,7 +534,7 @@ export function CopilotPanel({
           </Button>
         </div>
         {!audioSupported && (
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             Registrazione audio non disponibile su questo browser.
           </p>
         )}

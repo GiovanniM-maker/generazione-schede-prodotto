@@ -1,5 +1,6 @@
 import { requireUser } from '@/lib/auth';
 import { batchDiPagina } from '@/lib/batch-page';
+import { PageShell } from '@/components/page-shell';
 import { ProcessingMonitor } from '@/components/processing-monitor';
 
 export const dynamic = 'force-dynamic';
@@ -16,17 +17,11 @@ export default async function ProcessingPage({
   const batch = await batchDiPagina(batchId);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Generazione in corso
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {batch.name} — puoi lasciare questa pagina: l’elaborazione continua in
-          background.
-        </p>
-      </div>
+    <PageShell
+      title="Generazione in corso"
+      subtitle={`${batch.name} — puoi lasciare questa pagina: l’elaborazione continua in background.`}
+    >
       <ProcessingMonitor batchId={batchId} />
-    </div>
+    </PageShell>
   );
 }

@@ -5,6 +5,7 @@ import {
 } from '@/lib/actions/catalog';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avviso } from '@/components/ui/avviso';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,7 @@ export default async function SectorsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900">Settori</h2>
+        <h1 className="text-2xl font-semibold text-gray-900">Settori</h1>
         <p className="mt-1 text-sm text-gray-500">
           Settori disponibili nel catalogo (sola lettura).
         </p>
@@ -72,8 +73,8 @@ export default async function SectorsPage() {
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <Avviso tono="errore">
       {message}
-    </div>
+    </Avviso>
   );
 }
