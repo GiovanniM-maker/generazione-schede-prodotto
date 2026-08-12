@@ -112,6 +112,27 @@ c'era più.
 | 4.5 | «Contatto di assistenza non ancora configurato» non si dice più al cliente. Non è sparito: è passato alla pagina «Servizio», in un riquadro «Da configurare» insieme ai dati del titolare, cioè dove lo legge chi può sistemarlo. |
 | 4.6 | I tipi di dato si leggono in italiano ovunque. C'erano **tre** fonti: una lista grezza per la tendina di creazione — dove `multi_enum` era l'unica cosa scritta — e due mappe che dicevano la stessa cosa in modo diverso («testo lungo» contro «Testo lungo»). Ora una sola, e l'elenco della tendina si ricava dalle etichette. |
 
+**§5 — su telefono.** Quattro voci su cinque corrette; la quinta era già a
+posto.
+
+| | |
+|---|---|
+| 5.1 | La barra della configurazione era una colonna di 358×**344** px, `static`, su tutte e nove le pagine: il titolo cominciava al **56%** dell'altezza dello schermo. Ora è una striscia che scorre, alta **40** px, e il titolo è al **18%**. Da `lg` torna colonna. |
+| 5.2 | Con una modale aperta la pagina sotto scorreva: `document.body` aveva `overflow: visible` anche con un `[role=dialog]` presente. Ora si blocca, con la compensazione della barra di scorrimento su desktop, e si sblocca alla chiusura. |
+| 5.3 | Il banner cookie è `fixed`: arrivati in fondo si appoggiava sopra «Privacy · Termini · Cookie» — **compreso il collegamento alla Cookie Policy che il banner stesso cita**. Per leggerlo bisognava accettare. Ora si riserva lo spazio misurando la propria altezza (che cambia con la larghezza). Verificato: il piede finisce a 675, il banner comincia a 675. |
+| 5.4 | «Accetta selezionati (1)» a 360 px misurava 123×**32** con dentro 123×**46**: il testo usciva sopra e sotto la pillola, bianco su fondo crema. La causa è generale — le misure dei pulsanti fissano l'altezza, quindi una seconda riga esce invece di allargare — e la correzione è nel componente: `whitespace-nowrap`. A mandare a capo è il contenitore. |
+| 5.5 | **✗ già a posto.** La barra dei comandi del wizard è `rgb(251, 248, 243)` piena, senza sfocatura, sia a 390 sia a 1440: era stata corretta col §1. |
+
+`e2e/telefono.spec.ts` tiene ferme tutte e cinque. Mutando le quattro
+correzioni, i quattro controlli tornano rossi ciascuno col proprio numero: «il
+titolo comincia al 51% dello schermo», «il banner copre dei collegamenti del
+piede», «la pagina sotto la modale scorre ancora», «123x32 contiene 123x46».
+
+Il collegamento «salta al contenuto» è il terzo strumento di misura in cui
+inciampa: è `sr-only`, cioè ritagliato a 1×1 finché non riceve il fuoco, e
+qualunque controllo sulle dimensioni lo prende per un difetto. Ora lo saltano
+tutti, per la stessa ragione scritta nello stesso modo.
+
 Un difetto l'ho introdotto io mentre correggevo il 4.2 — un `text-gray-400`, che
 sul nostro fondo fa 2,4:1 — e l'ha preso un test che c'era già. È il motivo per
 cui quel test esiste.
@@ -528,7 +549,7 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 5. ~~**La coda del §3.2** — i riquadri che non parlano.~~ **fatto**
 6. ~~**§2.5** — l'anteprima quando si condivide il link.~~ **fatto**
 7. ~~**§4** — le cose che si leggono male.~~ **fatto**
-8. **§5** — telefono, il resto.
+8. ~~**§5** — telefono.~~ **fatto**
 9. **§6** — la coda dei minori.
 
 Il §7 va riverificato prima di toccare qualsiasi cosa.

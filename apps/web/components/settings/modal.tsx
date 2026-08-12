@@ -22,6 +22,12 @@ import { Button } from '@/components/ui/button';
 //
 // La terza è quella che si dimentica sempre, ed è quella che si sente di più:
 // senza, dopo aver chiuso una modale si riparte dall'inizio della pagina.
+//
+// Ne mancava una quarta, e si vedeva solo col dito: la pagina sotto
+// **scorreva**. Una rotellata, o una passata di pollice sulla velatura, e il
+// contenuto coperto scivolava via di 1200 px — così chiudendo la modale ci si
+// ritrovava in un punto della pagina che non si era scelto. `document.body`
+// aveva `overflow: visible` anche con un `[role=dialog]` aperto.
 // ---------------------------------------------------------------------------
 
 /** Gli elementi che possono ricevere il fuoco, in ordine di documento. */
@@ -86,6 +92,21 @@ export function Modal({
       }
     }
 
+    // La pagina sotto si ferma finché la modale è aperta.
+    //
+    // Su desktop, togliere lo scorrimento fa sparire la barra di scorrimento e
+    // il contenuto salta a destra della sua larghezza: si compensa con un
+    // padding pari a quella. Sul telefono la barra non occupa spazio, la
+    // differenza è zero e non si aggiunge niente.
+    const scorrimentoPrima = document.body.style.overflow;
+    const paddingPrima = document.body.style.paddingRight;
+    const larghezzaBarra = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (larghezzaBarra > 0) {
+      const attuale = parseFloat(getComputedStyle(document.body).paddingRight) || 0;
+      document.body.style.paddingRight = `${attuale + larghezzaBarra}px`;
+    }
+
     document.addEventListener('keydown', onKeyDown);
     // Il fuoco entra: sul primo comando se c'è, altrimenti sul riquadro.
     const dentro = riquadro.current?.querySelector<HTMLElement>(FUOCABILI);
@@ -93,6 +114,8 @@ export function Modal({
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = scorrimentoPrima;
+      document.body.style.paddingRight = paddingPrima;
       prima?.focus?.();
     };
   }, [open]);

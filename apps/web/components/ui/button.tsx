@@ -45,7 +45,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+          // `whitespace-nowrap`: l'etichetta di un comando non va a capo.
+          //
+          // Le tre misure qui sotto fissano l'ALTEZZA (h-8, h-10, h-11), quindi
+          // una seconda riga di testo non allarga la pillola: le esce sopra e
+          // sotto. È successo con «Accetta selezionati (1)» a 360 px — bianco
+          // su fondo crema, illeggibile, e il pulsante misurava 32 px con
+          // dentro 46 px di testo.
+          //
+          // Non va a capo dentro; a mandare a capo è il contenitore, che negli
+          // ingombri stretti è sempre un `flex-wrap`.
+          'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
           variants[variant],
           sizes[size],
           className,
