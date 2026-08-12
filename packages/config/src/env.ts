@@ -85,6 +85,16 @@ export const serverEnvSchema = z
      * prodotto e la parola «supporto» che non compariva mai.
      */
     SUPPORT_EMAIL: z.string().email().optional(),
+
+    /**
+     * Chi può vedere lo stato del servizio: indirizzi separati da virgola.
+     *
+     * Non è un ruolo nel database e non deve diventarlo: un ruolo si assegna
+     * per sbaglio, una variabile d'ambiente no. Se manca, il pannello **non
+     * esiste per nessuno** — 404, non «non autorizzato»: una pagina che
+     * risponde «non sei autorizzato» conferma di esistere.
+     */
+    ADMIN_EMAILS: z.string().optional().default(''),
   })
   .superRefine((env, ctx) => {
     // I mock non devono MAI essere attivi in produzione.

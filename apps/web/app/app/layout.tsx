@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  Activity,
   CreditCard,
   LogOut,
   Coins,
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
 import { contestoApp } from '@/lib/contesto';
+import { sonoAmministratore } from '@/lib/actions/servizio';
 import { signOut } from '@/lib/actions/auth';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
@@ -26,6 +28,9 @@ export default async function AppLayout({
   // due, ma potevano partire solo dopo aver saputo l'organizzazione: la fila
   // restava lunga tre.
   const contesto = await contestoApp(user.id);
+  // Non costa un giro in più: la sessione è già letta e l'elenco è una
+  // variabile d'ambiente.
+  const amministratore = await sonoAmministratore();
   const credits = contesto?.credits ?? 0;
   const openDoubts = contesto?.openDoubts ?? 0;
 
@@ -94,6 +99,17 @@ export default async function AppLayout({
                 <span className="sr-only lg:not-sr-only">Fatturazione</span>
               </Button>
             </Link>
+
+            {/* Compare solo a chi è in `ADMIN_EMAILS`: per tutti gli altri la
+                pagina non esiste, e nemmeno il collegamento. */}
+            {amministratore && (
+              <Link href="/app/admin">
+                <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+                  <Activity className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only lg:not-sr-only">Servizio</span>
+                </Button>
+              </Link>
+            )}
 
             <form action={signOut}>
               <Button variant="outline" size="sm" type="submit" className="border-white/25 bg-transparent text-white hover:bg-white/10">

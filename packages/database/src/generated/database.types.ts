@@ -555,6 +555,10 @@ export interface Database {
         Args: { org: string; ref_type: string; ref_id: string | null };
         Returns: undefined;
       };
+      pannello_servizio: {
+        Args: { giorni?: number };
+        Returns: Json;
+      };
       contesto_app: {
         Args: { u: string };
         Returns: {

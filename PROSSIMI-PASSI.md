@@ -309,7 +309,12 @@ punterebbero al vuoto.
 
 ---
 
-## 3. Subito dopo il lancio
+## 3. Subito dopo il lancio — **tutto fatto (3.1 → 3.5)**
+
+Era la lista delle cose da fare «con gli utenti veri davanti». Sono state fatte
+prima, e due delle sue affermazioni non hanno retto la verifica: stanno scritte
+qui sotto, nei rispettivi punti, perché una revisione che non si controlla
+diventa folclore.
 
 ### 3.1 ~~Un'identità visiva~~ — **fatto**
 
@@ -495,14 +500,46 @@ cui qualcuno impara cosa sono.
 Le lascio scritte qui perché una revisione che non si controlla diventa
 folclore.
 
-### 3.5 Sapere come va il servizio — 2-3 giorni
+### 3.5 ~~Sapere come va il servizio~~ — **fatto**
 
-Nessuna dashboard di amministrazione: non c'è modo di vedere quanti utenti ci
-sono, quanto consumano, quanto costa l'AI, chi si è bloccato. **La materia prima
-esiste già**: `generation_runs` registra token e costo stimato per ogni
-chiamata.
+Non c'era modo di rispondere a nessuna domanda sulla salute del prodotto: quante
+organizzazioni ci sono, quanto generano, quanto costa l'AI, chi è rimasto
+bloccato a metà, cosa si è rotto ieri. La materia prima c'era già tutta —
+`generation_runs` registra token e costo per ogni chiamata, `credit_ledger` i
+soldi, `app_events` i guasti — e nessuno la guardava. **Un servizio che non si
+guarda si scopre rotto dai clienti.**
 
-Manca anche qualunque raccolta degli errori in produzione.
+Ora c'è `/app/admin`: organizzazioni e persone, batch e schede generate,
+incassato e crediti consumati, costo AI e token, **chi è rimasto fermo** (batch
+in uno stato non terminale da più di dieci minuti — la stessa soglia del
+riconciliatore, e per lo stesso motivo) e **cosa si è rotto**. Una chiamata sola:
+il pannello non deve costare dieci letture per disegnare sei numeri.
+
+Il costo è etichettato «stima»: `estimated_cost` è quello che dichiara il
+fornitore, non una fattura, e la pagina non deve far credere il contrario.
+
+**Chi può vederlo sta in `ADMIN_EMAILS`, non in una colonna del database.** È una
+scelta: un ruolo si assegna per sbaglio, una variabile d'ambiente no. E se la
+variabile è vuota — il caso predefinito — il pannello **non esiste per nessuno**:
+404, non «non sei autorizzato», perché una pagina che dice «non sei autorizzato»
+conferma di esistere. Provato nel browser in entrambi i versi.
+
+**La raccolta degli errori** non esisteva: un errore arrivava a schermo, l'utente
+ricaricava, e non ne restava traccia da nessuna parte. Adesso finisce dove
+finiscono già i guasti di scrittura, e si vede nel pannello. È fatta **in casa**:
+nessun servizio esterno, nessun dato che esce, niente da pagare. È volutamente
+povera — messaggio, punto del codice, indirizzo — perché un raccoglitore di
+errori che si porta dietro i dati dei clienti è un problema più grande di quello
+che risolve. E serve una sessione: ogni funzione esportata da un file
+`'use server'` è un indirizzo di rete, e senza il controllo chiunque potrebbe
+riempire di rumore la tabella dei guasti.
+
+**Da fare a chi lancia:** impostare `ADMIN_EMAILS` su Vercel. Senza, il pannello
+resta invisibile anche a te.
+
+*Se un giorno servisse di più* — tracce distribuite, avvisi automatici, sessioni
+registrate — quello è un servizio esterno a pagamento, con dati che escono
+dall'Europa: è una decisione, non un'omissione.
 
 ---
 
