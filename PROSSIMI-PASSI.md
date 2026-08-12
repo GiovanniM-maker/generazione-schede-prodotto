@@ -543,20 +543,75 @@ dall'Europa: è una decisione, non un'omissione.
 
 ---
 
-## 4. Può aspettare
+## 4. ~~Può aspettare~~ — **cinque voci su sette fatte**
 
-- Un **esempio precompilato** per provare il prodotto senza rischiare. (L'unico
-  esempio della landing è un blazer in lana, su un prodotto che vende soprattutto
-  al food.)
-- `/app/copilot`: pagina raggiungibile solo digitando l'URL. Il **componente**
-  però è vivo e usato in tre schermate delle impostazioni — quindi si cancella la
-  pagina, non il copilota.
-- `/app/settings/integrations`: una voce di menu con una sola card «In arrivo».
-- Elenco completo dei batch (la dashboard si ferma a 10).
-- Legenda per gli otto giudizi dei risultati.
-- Modalità scura: non esiste, e nessuna pagina si rompe per la sua assenza.
-- Integrazioni dirette con Shopify/WooCommerce al posto del file da caricare a
-  mano; API pubblica; esportazione programmata.
+Nessuna di queste rompeva niente, ed è esattamente per questo che erano lì da
+mesi.
+
+**~~Un esempio precompilato~~ — fatto.** Fra l'iscriversi e il vedere una scheda
+generata c'erano cinque cose da configurare, e nessuna di esse ha senso finché
+non hai visto cosa esce: si chiedeva di costruire lo stampo prima di sapere che
+forma servisse. Ora ci sono due strade, e si incrociano.
+
+Dalla pagina Preset vuota, **«Parti da un esempio»** monta un preset finito e
+pubblicato per il proprio settore — conserve, abbigliamento o integratori, con
+le categorie e gli attributi veri di quel mestiere. Non è una scorciatoia
+nascosta: usa **le stesse azioni** che userebbe una persona cliccando, una dopo
+l'altra, così se domani cambia il modo di creare un preset cambia anche questo
+invece di restare indietro in silenzio.
+
+Nel wizard, al passo del caricamento, **si scarica un listino di esempio** — otto
+righe vere di conserve, con codice, categoria, ingredienti, peso, origine e
+allergeni — da ricaricare lì sopra. Fa il giro completo senza mettere in mezzo il
+proprio catalogo, che è il vero motivo per cui non si prova uno strumento nuovo.
+
+E la landing non parla più solo di moda: l'unico esempio era un blazer in lana,
+su un prodotto che vende soprattutto al food. Adesso sono due, e sotto il primo
+c'è **la riga di listino da cui è uscito** — che è il punto di tutto il prodotto.
+
+**~~`/app/copilot`~~ — fatta.** La pagina non era collegata da nessuna parte: ci
+si arrivava solo digitando l'indirizzo. Rimossa lei e il suo client; il
+*componente* copilota resta, ed è vivo in tre schermate della configurazione.
+
+**~~`/app/settings/integrations`~~ — fatta.** Era una voce di menu con dentro una
+sola card «In arrivo». Ci si arriva con una domanda — «posso collegare il mio
+negozio?» — e si trovava una promessa senza data e nient'altro; mentre la
+risposta vera esisteva già ma stava altrove. Ora la pagina dice **prima quello
+che c'è** (i file già nel tracciato di Shopify, WooCommerce e PrestaShop, dai
+risultati) e poi quello che non c'è, **senza dire «a breve»**: una data che
+nessuno può promettere fa più danno del silenzio.
+
+**~~Elenco completo dei batch~~ — fatto.** La dashboard si fermava a dieci e non
+lo diceva: dal decimo in giù il lavoro spariva. Ora dice «Vedi tutti i N» e c'è
+`/app/batches`, venticinque per pagina. `batchHref` è uscito dalla dashboard ed è
+diventato un modulo: due copie di quella tabella divergerebbero al primo stato
+nuovo, e una delle due porterebbe altrove senza che si veda.
+
+**~~Legenda per gli otto giudizi~~ — fatta.** «Parziale» e «Insufficiente»
+sembravano la stessa cosa detta con due parole, e la differenza è quella che
+decide se una scheda si pubblica o no. Ogni filtro ora ha la sua riga di
+spiegazione, sotto le linguette e nel titolo al passaggio del mouse.
+
+---
+
+**Le due che restano, e perché non le ho fatte.**
+
+**Modalità scura.** Misurato: **851 occorrenze di colori chiari cablati in 54
+file**, e zero varianti `dark:` esistenti. Farla bene vuol dire introdurre dei
+token semantici e riscrivere tutte e 851 — una modifica enorme, senza test che
+guardino i colori, subito dopo una revisione fatta per lanciare. E farla a metà è
+peggio che non farla: una pagina scura e la successiva bianca **è** una pagina
+rotta, mentre oggi — come diceva questa lista — non se ne rompe nessuna. È un
+lavoro da fare quando lo si può fare tutto in una volta.
+
+**Integrazioni dirette, API pubblica, esportazione programmata.** Non sono tre
+voci: sono tre progetti. Ognuno vuole cose che il prodotto oggi non ha —
+un'applicazione OAuth approvata da ciascuna piattaforma, un client per ciascuna
+API con i suoi limiti e i suoi rinnovi di token, custodia delle credenziali di
+negozi altrui, chiavi pubbliche da emettere e revocare, un'esecuzione periodica
+per organizzazione. Sono settimane, e vanno decisi in ordine: quale piattaforma
+per prima, e se prima dell'API pubblica non convenga sentire cosa chiedono i
+primi clienti.
 
 ---
 

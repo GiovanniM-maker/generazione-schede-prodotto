@@ -1,0 +1,9 @@
+SKU,Nome prodotto,Categoria,Ingredienti,Peso netto,Origine,Formato confezione,Modalità di conservazione,Allergeni
+PASS-DAT-340,Passata di datterino giallo,Passate e sughi,"Pomodoro datterino giallo (99%), sale marino",340 g,Sicilia,Vasetto in vetro,"Luogo fresco e asciutto; una volta aperto in frigo, consumare entro 3 giorni",Nessuno
+PASS-SM-680,Passata di pomodoro San Marzano,Passate e sughi,"Pomodoro San Marzano DOP (99%), sale marino",680 g,Campania,Bottiglia in vetro,"Luogo fresco e asciutto; una volta aperta in frigo, consumare entro 3 giorni",Nessuno
+SUGO-ARR-190,Sugo all'arrabbiata,Passate e sughi,"Pomodoro (85%), olio extravergine di oliva, peperoncino, aglio, sale",190 g,Italia,Vasetto in vetro,Luogo fresco e asciutto,Nessuno
+CARC-OLIO-280,Carciofi sott'olio,Sott'oli,"Carciofi (65%), olio di semi di girasole, aceto di vino, sale, aromi naturali",280 g,Puglia,Vasetto in vetro,"Coprire con olio dopo l'apertura e conservare in frigo",Solfiti
+PEP-OLIO-280,Peperoni arrostiti sott'olio,Sott'oli,"Peperoni (70%), olio di semi di girasole, aceto di vino, sale",280 g,Calabria,Vasetto in vetro,"Coprire con olio dopo l'apertura e conservare in frigo",Solfiti
+CONF-FIC-220,Confettura di fichi,Confetture,"Fichi (60%), zucchero di canna, succo di limone",220 g,Cilento,Vasetto in vetro,"Una volta aperta conservare in frigo e consumare entro 15 giorni",Nessuno
+CONF-ARA-220,Confettura di arance amare,Confetture,"Arance amare (55%), zucchero, succo di limone",220 g,Sicilia,Vasetto in vetro,"Una volta aperta conservare in frigo e consumare entro 15 giorni",Nessuno
+CONF-ALB-220,Confettura di albicocche,Confetture,"Albicocche (62%), zucchero di canna, succo di limone",220 g,Emilia-Romagna,Vasetto in vetro,"Una volta aperta conservare in frigo e consumare entro 15 giorni",Nessuno

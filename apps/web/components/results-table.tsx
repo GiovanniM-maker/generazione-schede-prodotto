@@ -118,6 +118,30 @@ const TABS: { key: Filter; label: string }[] = [
   { key: 'falliti', label: 'Falliti' },
 ];
 
+// ---------------------------------------------------------------------------
+// Cosa vuol dire ogni giudizio.
+//
+// Otto etichette e nessuna spiegazione da nessuna parte: «Parziale» e
+// «Insufficiente» sembrano la stessa cosa detta con due parole, «Bloccato» non
+// dice da cosa, e chi deve decidere se una scheda si pubblica non ha modo di
+// saperlo. La differenza però è netta, ed è tutta nei dati di partenza: una
+// scheda parziale si pubblica, una insufficiente no.
+// ---------------------------------------------------------------------------
+const SPIEGAZIONI: Partial<Record<Filter, string>> = {
+  complete: 'Tutti i dati previsti dalla categoria c’erano: la scheda si pubblica così.',
+  parziali:
+    'Mancava qualche dato: la scheda è scritta solo su quelli che c’erano, e non inventa il resto. Si pubblica, ma dice meno.',
+  verifica:
+    'Qualcosa nei dati non torna o è ambiguo. Guardala prima di pubblicarla: nel dettaglio trovi il perché.',
+  insufficienti:
+    'I dati non bastavano per scrivere una scheda che dica qualcosa. Non è un errore nostro: è il file di partenza. Aggiungi dati e rigenera.',
+  bloccati:
+    'La generazione si è fermata prima di scrivere — di solito un dato obbligatorio della categoria che manca del tutto.',
+  modificati: 'L’hai riscritta a mano: quello che si esporta è la tua versione, non la nostra.',
+  falliti:
+    'La chiamata all’AI non è andata a buon fine. Il credito è stato restituito: puoi rigenerare.',
+};
+
 // Mappa una tab di completezza al relativo stato.
 const COMPLETENESS_FILTER: Partial<Record<Filter, CompletenessStatus>> = {
   complete: 'complete',
@@ -562,6 +586,14 @@ export function ResultsTable({
         </div>
       </div>
 
+      {/* La spiegazione del giudizio che si sta guardando. Otto etichette e
+          nessuna spiegazione: «Parziale» e «Insufficiente» sembravano la stessa
+          cosa detta con due parole, e la differenza è quella che decide se una
+          scheda si pubblica o no. */}
+      {SPIEGAZIONI[filter] && (
+        <p className="text-sm text-gray-600">{SPIEGAZIONI[filter]}</p>
+      )}
+
       {/* Tabs + azione multipla */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className={cn('flex-wrap gap-2 sm:flex', strumentiAperti ? 'flex' : 'hidden sm:flex')}>
@@ -570,6 +602,7 @@ export function ResultsTable({
               key={t.key}
               type="button"
               onClick={() => setFilter(t.key)}
+              title={SPIEGAZIONI[t.key]}
               className={cn(
                 'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                 filter === t.key

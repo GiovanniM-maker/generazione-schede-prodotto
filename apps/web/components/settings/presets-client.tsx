@@ -21,6 +21,7 @@ import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal, ConfirmDialog } from '@/components/settings/modal';
 import { Avviso } from '@/components/ui/avviso';
+import { creaPresetDiEsempio } from '@/lib/actions/esempio';
 
 export function PresetsClient({
   presets,
@@ -32,6 +33,25 @@ export function PresetsClient({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [esempioInCorso, setEsempioInCorso] = useState(false);
+
+  async function partiDaEsempio() {
+    setError(null);
+    setEsempioInCorso(true);
+    try {
+      const res = await creaPresetDiEsempio({ sectorId: sectors[0]?.id });
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      router.push(`/app/settings/presets/${res.data.presetId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Errore');
+    } finally {
+      setEsempioInCorso(false);
+    }
+  }
+
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -130,8 +150,22 @@ export function PresetsClient({
 
       <Card>
         {presets.length === 0 ? (
-          <div className="p-10 text-center text-sm text-gray-500">
-            Nessun preset. Creane uno per iniziare.
+          <div className="flex flex-col items-center gap-3 p-10 text-center">
+            <p className="max-w-md text-sm text-gray-500">
+              Nessun preset. Il preset è la forma delle tue schede: quali categorie esistono e
+              quali dati servono per ciascuna.
+            </p>
+            {/* Costruire lo stampo prima di aver visto cosa esce è la parte in
+                cui ci si arena. Da qui si parte con uno finito, e poi lo si
+                cambia — che è molto più facile che inventarlo da zero. */}
+            <Button variant="outline" onClick={partiDaEsempio} disabled={esempioInCorso}>
+              {esempioInCorso && <Loader2 className="h-4 w-4 animate-spin" />}
+              Parti da un esempio
+            </Button>
+            <p className="max-w-md text-xs text-gray-500">
+              Crea un preset già pronto per il tuo settore, con categorie e attributi tipici.
+              Lo puoi cambiare in tutto.
+            </p>
           </div>
         ) : (
           <Table>

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RecentBatchCard } from '@/components/recent-batch-card';
+import { batchHref } from '@/lib/batch-href';
 import { WelcomeCard } from '@/components/onboarding/welcome-card';
 
 export const dynamic = 'force-dynamic';
@@ -28,36 +29,6 @@ interface BatchRow {
   created_at: string;
 }
 
-function batchHref(id: string, status: string): string {
-  switch (status) {
-    // Un batch lasciato a metà torna nel WIZARD, che ora sa riprendersi dal
-    // server. Prima 'mapping' portava a /app/batches/<id>/mapping — un relitto
-    // della prima versione che diceva sempre «anteprima non più in memoria» e
-    // parlava, cablato nel codice, del «preset Moda». Vicolo cieco raggiungibile
-    // dalla dashboard: l'unica uscita era ricominciare da zero.
-    case 'draft':
-    case 'uploaded':
-      return `/app/batches/new?batch=${id}`;
-    case 'mapping':
-      return `/app/batches/new?batch=${id}&passo=7`;
-    case 'input_review':
-      return `/app/batches/${id}/input`;
-    case 'tone_setup':
-    case 'sample_pending':
-    case 'sample_ready':
-      return `/app/batches/${id}/sample`;
-    case 'approved':
-    case 'queued':
-    case 'processing':
-      return `/app/batches/${id}/processing`;
-    case 'completed':
-    case 'partial_failed':
-    case 'failed':
-      return `/app/batches/${id}/results`;
-    default:
-      return `/app/batches/${id}/input`;
-  }
-}
 
 interface ChecklistItem {
   label: string;
@@ -107,9 +78,15 @@ export default async function DashboardPage() {
     getCreditBalance(orgId),
     supabase
       .from('batches')
-      .select('id, name, status, total_products, processed_products, created_at')
+      // Il totale viene con la stessa richiesta: serve a dire «ce ne sono
+      // altri», che è l'informazione che mancava — l'elenco si fermava a dieci
+      // e non lo diceva.
+      .select('id, name, status, total_products, processed_products, created_at', {
+        count: 'exact',
+      })
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(10),
   ]);
 
@@ -174,6 +151,7 @@ export default async function DashboardPage() {
     !!sectorRow.data && categoryCount > 0 && presetPublished && presetHasAttributes;
 
   const batches = (batchesRes.data ?? []) as BatchRow[];
+  const batchTotali = batchesRes.count ?? batches.length;
 
   return (
     <div className="space-y-8">
@@ -274,9 +252,17 @@ export default async function DashboardPage() {
 
       {/* Batch recenti */}
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
-          Batch recenti
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-gray-900">Batch recenti</h2>
+          {batchTotali > batches.length && (
+            <Link
+              href="/app/batches"
+              className="text-sm font-medium text-brand-accent underline underline-offset-2"
+            >
+              Vedi tutti i {batchTotali}
+            </Link>
+          )}
+        </div>
         {batches.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 px-6 py-16 text-center">
