@@ -25,6 +25,51 @@ regge» un difetto che invece c'era (§1 qui sotto). Le prove sono in
 
 ---
 
+## Stato: fatto finora
+
+**§1 — la malattia strutturale.** Corretta e bloccata. `min-w-0` sulle righe
+delle schede, `grid-cols-1` (cioè `minmax(0,1fr)`) sulle griglie che le
+contengono, gruppo dell'intestazione che si comprime invece di spingere.
+La colonna «Azioni» dei risultati è agganciata al bordo destro, con una
+sfumatura che dice che la tabella scorre. `e2e/larghezze.spec.ts` percorre
+320/360/390/768 e fallisce nominando l'elemento colpevole.
+
+Una scoperta durante la correzione: **`scrollWidth` non basta**. Con `min-w-0`
+il gruppo si comprime invece di sfondare, quindi il documento resta largo
+quanto lo schermo *mentre due comandi finiscono uno sopra l'altro*. È successo
+davvero aggiungendo il collegamento «Lavori»: a 320px il gruppo copriva il
+logo. Ora c'è anche un test di sovrapposizione.
+
+**§2.1 — i prezzi invisibili.** Corretto alla radice: la regola di lettura su
+`billing_products` è `to anon, authenticated` (migrazione
+`20250101000028_listino_pubblico.sql`, applicata a produzione e staging). Un
+visitatore anonimo vede 29,00 / 99,00 / 199,00 €. Aggiunto lo stato vuoto che
+mancava — se il listino non si legge, la sezione lo dice e indica dove il
+prezzo c'è comunque, invece di aprirsi sul niente — e un errore di lettura
+finisce nei log. Il test sta in `e2e/interfaccia.spec.ts` e gira **senza
+sessione**: è l'unico modo di provare quella regola.
+
+> Nota su un'affermazione mia sbagliata: avevo concluso che la vetrina fosse
+> renderizzata staticamente e catturasse i prezzi in compilazione. Non è così —
+> il build la classifica `ƒ (Dynamic)`, perché legge i cookie. I prezzi si
+> cambiano dal database senza un rilascio, come promesso.
+
+**§3 — i vicoli ciechi.** Tutti e sei chiusi:
+
+| | |
+|---|---|
+| 3.1 | «Lavori» è nell'intestazione, da ogni schermata; sulla dashboard il collegamento all'elenco c'è appena esiste un batch, non solo sopra i dieci |
+| 3.2 | `app/not-found.tsx`: un 404 in italiano, con due uscite vere |
+| 3.3 | «Torna ai tuoi lavori» porta ai lavori; nell'errore globale, dove la dashboard è la destinazione giusta, a cambiare è l'etichetta |
+| 3.4 | la pagina di avanzamento ha una via d'uscita **sempre**, non solo a lavoro finito |
+| 3.5 | la guida non parte su un passo bloccato: copriva il collegamento che lo sbloccava |
+| 3.6 | un batch fallito non ha più l'aspetto di uno riuscito (`lib/esito-elaborazione.ts`, con i suoi test) |
+
+I quattro vicoli si provano cliccando e guardando dove si arriva —
+`e2e/vie-duscita.spec.ts` — non controllando che un `href` esista.
+
+---
+
 ## 1. La malattia strutturale: contenuto più largo del suo contenitore
 
 Tre revisioni indipendenti l'hanno incontrata in tre punti diversi. È **una sola
@@ -357,13 +402,12 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 
 ## Ordine consigliato
 
-1. **§1 — la malattia strutturale.** È un difetto solo, in tre punti, e rende il
-   prodotto inutilizzabile su telefono. Con il test che lo blocca per sempre.
-2. **§2.1 — i prezzi invisibili sulla vetrina.** Ogni giorno che resta così è
-   gente che se ne va senza sapere quanto costa.
-3. **§3 — i vicoli ciechi.** Sono correzioni piccole e indipendenti.
-4. **§2.2–2.5 e §4** — testi e messaggi: molto valore per poco lavoro.
-5. **§5** — telefono, il resto.
-6. **§6** — la coda dei minori.
+1. ~~**§1 — la malattia strutturale.**~~ **fatto**
+2. ~~**§2.1 — i prezzi invisibili sulla vetrina.**~~ **fatto**
+3. ~~**§3 — i vicoli ciechi.**~~ **fatto**
+4. **§2.2–2.4** — testi e messaggi: molto valore per poco lavoro.
+5. **§4** — le cose che si leggono male.
+6. **§5** — telefono, il resto.
+7. **§6** — la coda dei minori.
 
 Il §7 va riverificato prima di toccare qualsiasi cosa.

@@ -284,9 +284,6 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Tour guidato del passo corrente: si apre da solo la prima volta, poi solo
   // dal pulsante "Guida".
   const [tourOpen, setTourOpen] = useState(false);
-  useEffect(() => {
-    setTourOpen(Boolean(STEP_TOURS[stepId]) && !tourSeen(`wizard.${stepId}.v1`));
-  }, [stepId]);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [presetVersionId, setPresetVersionId] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
@@ -315,6 +312,22 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [description, setDescription] = useState('');
   const [presets, setPresets] = useState<PublishedPresetSummary[] | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+
+  // La guida parte da sola solo su un passo che si può davvero fare.
+  //
+  // Su un'organizzazione nuova il passo 1 mostra «Nessun preset pubblicato»
+  // con l'unico collegamento utile della pagina — quello che porta a crearne
+  // uno — e il velo della guida ci finiva sopra: il clic non arrivava, e chi
+  // era appena entrato restava chiuso dentro l'aiuto invece che dal problema.
+  //
+  // Aspetta anche che i preset siano CARICATI (`null` = ancora in arrivo):
+  // aprire e richiudere il fumetto mezzo secondo dopo è peggio che aspettare.
+  const passoAvviabile = stepId !== 1 || (presets !== null && presets.length > 0);
+  useEffect(() => {
+    setTourOpen(
+      passoAvviabile && Boolean(STEP_TOURS[stepId]) && !tourSeen(`wizard.${stepId}.v1`),
+    );
+  }, [stepId, passoAvviabile]);
 
   // Step 2
   const [explorer, setExplorer] = useState<PresetExplorer | null>(null);
@@ -1150,8 +1163,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           (con passi lunghi altrimenti bisogna scorrere tutta la pagina). */}
       {/* z-[60] e non z-20: in fondo alla pagina vivono anche il banner cookie
           (z-50) e il pulsante d'aiuto, e alla prima visita coprivano proprio il
-          comando principale. Chi sta lavorando ha la precedenza sull'avviso. */}
-      <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:border-gray-100 sm:bg-transparent sm:px-0 sm:pt-4 sm:backdrop-blur-none">
+          comando principale. Chi sta lavorando ha la precedenza sull'avviso.
+
+          Fondo PIENO, a ogni larghezza. Era `sm:bg-transparent`: da tablet in su
+          la barra restava agganciata in fondo senza alcuno sfondo, e il
+          contenuto le passava sotto — misurate sovrapposizioni di 115×26px sulle
+          schede delle categorie. Il 5% di trasparenza con la sfocatura non
+          nascondeva il testo: lo rendeva illeggibile ma visibile, che è peggio. */}
+      <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)] px-4 py-3 sm:mx-0 sm:border-gray-100">
         <div className="flex items-center gap-1">
           <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
             <ArrowLeft className="h-4 w-4" />

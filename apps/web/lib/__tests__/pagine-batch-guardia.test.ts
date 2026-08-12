@@ -54,7 +54,12 @@ describe('la guardia sulle pagine di un batch', () => {
     // l'utente a chiedersi se il guasto è del prodotto.
     expect(src).toMatch(/eliminato/i);
     expect(src).toMatch(/altra organizzazione/i);
-    expect(src).toContain('href="/app"');
+    // L'uscita porta ai LAVORI, non alla dashboard.
+    //
+    // Il pulsante dice «Torna ai tuoi lavori» e puntava a `/app`: prometteva
+    // una pagina e ne apriva un'altra. Il test lo confermava, perché chiedeva
+    // proprio `href="/app"` — cioè teneva fermo il difetto.
+    expect(src).toContain('href="/app/batches"');
   });
 });
 

@@ -2,13 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
 import { getBatchProgressAction, type BatchProgress } from '@/lib/actions/ui';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/status-badge';
-
-const DONE = new Set(['completed', 'partial_failed', 'failed']);
+import { esitoElaborazione, STATI_FINALI as DONE } from '@/lib/esito-elaborazione';
 
 export function ProcessingMonitor({ batchId }: { batchId: string }) {
   const [progress, setProgress] = useState<BatchProgress | null>(null);
@@ -76,22 +75,27 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
   const total = progress?.total ?? 0;
   const processed = progress?.processed ?? 0;
   const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
-  const finished = progress ? DONE.has(progress.status) : false;
+  // «Concluso» non vuol dire «riuscito»: la regola sta in `lib/esito-elaborazione`.
+  const esito = esitoElaborazione(progress?.status, progress?.failed ?? 0);
+  const finished = esito.finita;
+  const fallito = esito.esito === 'fallita';
 
   return (
     <div className="space-y-6">
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {finished ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              {esito.esito === 'in-corso' ? (
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-accent" />
+              ) : esito.esito === 'fallita' ? (
+                <XCircle className="h-5 w-5 shrink-0 text-red-600" />
+              ) : esito.esito === 'con-errori' ? (
+                <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" />
               ) : (
-                <Loader2 className="h-5 w-5 animate-spin text-brand-accent" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
               )}
-              <span className="font-medium text-gray-900">
-                {finished ? 'Elaborazione conclusa' : 'Elaborazione in corso'}
-              </span>
+              <span className="font-medium text-gray-900">{esito.titolo}</span>
             </div>
             <StatusBadge status={progress?.status} />
           </div>
@@ -123,8 +127,11 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
             <Stat label="Falliti" value={progress?.failed ?? 0} tone="red" />
           </div>
 
-          {/* Motivo del fallimento, chiaro e azionabile. */}
-          {progress?.topError && (progress?.failed ?? 0) > 0 && (
+          {/* Motivo del fallimento, chiaro e azionabile.
+              La condizione chiedeva `failed > 0`: proprio nel caso peggiore —
+              il batch fermato in blocco, con i contatori a zero — la
+              spiegazione non compariva. */}
+          {progress?.topError && (fallito || (progress?.failed ?? 0) > 0) && (
             <div className="mt-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{progress.topError}</span>
@@ -146,16 +153,37 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
         </div>
       )}
 
-      {finished && (
-        <div className="flex justify-center">
+      {/* Le vie d'uscita.
+          Prima ce n'era una sola, e solo a lavoro finito: durante
+          l'elaborazione questa pagina non aveva NESSUN collegamento — né al
+          batch, né all'elenco. Chi ci arrivava per sbaglio, o chi voleva
+          controllare un altro lavoro mentre questo girava, aveva solo il tasto
+          indietro. Ora l'uscita c'è sempre; l'azione principale cambia con
+          l'esito, perché mandare ai risultati un batch fallito significa
+          mandare a una pagina vuota. */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {finished && !fallito && (
           <Link href={`/app/batches/${batchId}/results`}>
             <Button size="lg">
               Vai ai risultati
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
-        </div>
-      )}
+        )}
+        {fallito && (
+          <Link href={`/app/batches/${batchId}/sample`}>
+            <Button size="lg">
+              Riparti dal campione
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
+        <Link href="/app/batches">
+          <Button variant="outline" size={finished ? 'lg' : 'md'}>
+            Tutti i lavori
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -67,7 +67,15 @@ describe('l’elenco dei lavori non si ferma a dieci in silenzio', () => {
   it('la dashboard dice quanti sono e dove trovarli', () => {
     const dash = leggi('app/app/page.tsx');
     expect(dash).toMatch(/count: 'exact'/);
-    expect(dash).toMatch(/Vedi tutti i \{batchTotali\}/);
+    // Il conto si dice quando questa lista ne nasconde davvero qualcuno.
+    expect(dash).toMatch(/Vedi tutti i \$\{batchTotali\}/);
+    // E il collegamento c'è comunque.
+    //
+    // Prima compariva SOLO sopra i dieci batch — cioè quando la lista era
+    // troncata — e sotto i dieci dalla dashboard non si raggiungeva più
+    // l'elenco completo: nessun altro punto del prodotto ci portava. Questa
+    // riga è la parte che il difetto aveva: la condizione, non il testo.
+    expect(dash).toMatch(/\{batches\.length > 0 && \(/);
   });
 
   it('«Apri» porta nello stesso posto da tutte e due', () => {

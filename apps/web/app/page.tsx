@@ -50,12 +50,19 @@ const DESCRIZIONI: Record<string, { name: string; hint: string }> = {
 
 async function pacchettiInVendita() {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('billing_products')
     .select('key, credits, price_cents, currency')
     .eq('active', true)
     .not('price_cents', 'is', null)
     .order('credits', { ascending: true });
+  if (error) {
+    // La lettura è anonima e passa dalla RLS: se qualcuno restringe di nuovo la
+    // regola su `billing_products`, qui non arriva un'eccezione — arriva una
+    // lista vuota, e la vetrina perde i prezzi in silenzio. È già successo.
+    // Almeno nei log deve restare scritto perché.
+    console.error('[vetrina] listino non leggibile:', error.message);
+  }
   return (data ?? []).map((p) => {
     const d = DESCRIZIONI[p.key] ?? { name: p.key, hint: '' };
     return {
@@ -324,6 +331,27 @@ export default async function LandingPage() {
                 senza abbonamenti.
               </p>
             </div>
+            {packs.length === 0 ? (
+              /* Un titolo «Pacchetti di crediti» sopra il vuoto è il difetto
+                 originale: chi arrivava qui non capiva se il prodotto costasse
+                 zero, se i prezzi fossero da chiedere, o se la pagina fosse
+                 rotta. Se il listino non si legge lo si dice, e si indica dove
+                 il prezzo c'è comunque. */
+              <Card className="mx-auto mt-10 max-w-xl">
+                <CardContent className="p-8 text-center">
+                  <p className="text-gray-700">
+                    Il listino non è raggiungibile in questo momento.
+                  </p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    I pacchetti si acquistano dall’area riservata, dove il prezzo mostrato
+                    è sempre quello in corso.
+                  </p>
+                  <Link href="/login" className="mt-6 inline-block">
+                    <Button>Vai ai pacchetti</Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : (
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               {packs.map((p, i) => (
                 <Card
@@ -356,6 +384,7 @@ export default async function LandingPage() {
                 </Card>
               ))}
             </div>
+            )}
           </div>
         </section>
 

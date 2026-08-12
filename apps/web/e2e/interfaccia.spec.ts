@@ -100,6 +100,34 @@ test.describe('landing', () => {
     await expect(page.getByRole('link', { name: /prova con 3 prodotti/i }).first()).toBeVisible();
   });
 
+  // Il prezzo era già nel database, ma la regola RLS su `billing_products`
+  // diceva `to authenticated`: il listino si leggeva solo DOPO essersi
+  // iscritti. Cioè mai, per chi doveva ancora decidere se iscriversi — e la
+  // sezione «Pacchetti di crediti» si apriva su tre cartellini vuoti.
+  //
+  // Questo test conta perché il contesto di Playwright parte SENZA sessione:
+  // è un visitatore qualunque. Provata dal server, o da un utente collegato,
+  // quella lettura sarebbe passata comunque e il difetto sarebbe rimasto.
+  test('un visitatore senza account vede quanto costa', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'networkidle' });
+
+    // Per intestazione, non per testo: «pacchetti di crediti» ricompare nella
+    // risposta di una FAQ, e `hasText` prendeva quella.
+    const listino = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Pacchetti di crediti' }) });
+    await expect(listino).toBeVisible();
+
+    // Una cifra con i centesimi e la valuta: «29,00 €». Non il numero esatto —
+    // i prezzi cambiano dal database, ed è il punto.
+    const prezzi = listino.getByText(/\d+,\d{2}\s*€/);
+    expect(await prezzi.count(), 'nessun prezzo nella sezione dei pacchetti').toBeGreaterThan(0);
+
+    // `—` è il segnaposto di un pacchetto senza prezzo: nel listino esposto non
+    // ci deve essere.
+    await expect(listino.getByText('—', { exact: true })).toHaveCount(0);
+  });
+
   test('il banner cookie non copre il proprio pulsante', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
     const bottone = page.getByRole('region', { name: /avviso cookie/i }).getByRole('button', { name: /ho capito/i });
