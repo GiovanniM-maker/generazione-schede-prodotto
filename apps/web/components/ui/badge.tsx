@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 //   green  — riuscito, attivo: completato, accettato, pubblicato, valido.
 //   amber  — in corso, oppure da guardare.
 //   red    — fallito o rifiutato.
-//   violet — roba tua e non nostra: «Personalizzata», «Custom», «Modificato».
+//   violet — roba tua e non nostra: «Personalizzato», «Modificato».
 //
 // La regola sotto la regola: il colore marca quello che merita attenzione. Se
 // ogni etichetta è colorata, nessuna lo è.

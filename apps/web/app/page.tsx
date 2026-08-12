@@ -107,7 +107,11 @@ export default async function LandingPage() {
               </Button>
             </Link>
             <Link href="/login">
-              <Button size="sm">Registrati</Button>
+              {/* Diceva «Registrati» e portava su una pagina intitolata
+                  «Accedi». Il percorso è uno solo, e questa etichetta dice
+                  cosa si ottiene invece di promettere una pagina che non
+                  esiste. */}
+              <Button size="sm">Prova gratis</Button>
             </Link>
           </nav>
         </div>

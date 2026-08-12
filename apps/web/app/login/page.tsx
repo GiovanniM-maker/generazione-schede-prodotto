@@ -62,10 +62,14 @@ export default function LoginPage({
             <CardContent className="p-8">
               {!onCodeStep ? (
                 <>
-                  <h1 className="text-2xl font-semibold text-gray-900">Accedi</h1>
+                  {/* Il pulsante «Registrati» della landing portava qui, su una
+                      pagina intitolata «Accedi»: una promessa e un'altra cosa.
+                      Non esistono due percorsi — il primo accesso crea
+                      l'account — e adesso il titolo lo dice. */}
+                  <h1 className="text-2xl font-semibold text-gray-900">Accedi o registrati</h1>
                   <p className="mt-1 text-sm text-gray-500">
                     Ti invieremo un <strong>codice a 6 cifre</strong> via email. Nessuna
-                    password da ricordare.
+                    password da ricordare: se è la prima volta, l’account si crea da sé.
                   </p>
 
                   {urlError === 'auth' && (

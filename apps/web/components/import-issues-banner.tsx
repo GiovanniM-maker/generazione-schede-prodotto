@@ -17,9 +17,13 @@ export function ImportIssuesBanner({
   const [dismissed, setDismissed] = useState(false);
   if (issues.total <= 0 || dismissed) return null;
 
+  // «SKU duplicati» era falso, e allarmava per una cosa che va benissimo: due
+  // foto con lo stesso codice sono il caso NORMALE (fronte, retro, etichetta) e
+  // il sistema le raggruppa apposta. Quello che viene scartato è lo stesso
+  // *file* caricato due volte — e il prodotto resta a posto.
   const lines: { label: string; count: number }[] = [
     { label: 'Righe/file senza SKU', count: issues.missingSku },
-    { label: 'SKU duplicati', count: issues.duplicateFile },
+    { label: 'Stesso file caricato due volte', count: issues.duplicateFile },
     { label: 'Immagini non associate', count: issues.unmatched },
     { label: 'File vuoti', count: issues.emptyFile },
     { label: 'Formati non supportati', count: issues.unsupportedFormat },
@@ -34,7 +38,7 @@ export function ImportIssuesBanner({
           <div>
             <p className="font-medium">Problemi di importazione</p>
             <p className="mt-0.5 text-amber-800">
-              Alcune righe o file non sono stati importati correttamente.
+              Alcune righe o file non sono entrati. Qui sotto quanti e perché.
             </p>
           </div>
         </div>

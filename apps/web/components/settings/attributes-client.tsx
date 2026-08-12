@@ -311,7 +311,7 @@ export function AttributesClient({
                     {a.isSystem ? (
                       <Badge tone="gray">Sistema</Badge>
                     ) : (
-                      <Badge tone="violet">Custom</Badge>
+                      <Badge tone="violet">Personalizzato</Badge>
                     )}
                   </TD>
                   <TD>{a.usageCount}</TD>

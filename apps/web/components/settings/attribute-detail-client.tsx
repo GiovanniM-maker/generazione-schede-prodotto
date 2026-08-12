@@ -105,7 +105,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             {a.isSystem ? (
               <Badge tone="gray">Sistema</Badge>
             ) : (
-              <Badge tone="violet">Custom v{a.version}</Badge>
+              <Badge tone="violet">Personalizzato v{a.version}</Badge>
             )}
           </div>
           <p className="mt-1 text-sm text-gray-500">

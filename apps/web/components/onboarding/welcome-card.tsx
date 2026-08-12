@@ -69,7 +69,7 @@ export function WelcomeCard({ pronto }: { pronto: boolean }) {
           <span className="text-sm text-gray-700">
             <b className="text-gray-900">3. Campione gratis, poi genera</b>
             <br />
-            Vedi una scheda di prova senza spendere, poi avvii tutto il lotto.
+            Vedi una scheda di prova senza spendere, poi avvii tutto il batch.
           </span>
         </li>
       </ol>

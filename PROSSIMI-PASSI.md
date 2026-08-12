@@ -441,24 +441,59 @@ non io.
 
 *Già a posto e rimasto tale*: **CLS = 0 ovunque**, zero errori JavaScript.
 
-### 3.4 Le cose che confondono — 1-2 giorni
+### 3.4 ~~Le cose che confondono~~ — **fatto**, con due smentite
 
-- Il pulsante **«Registrati» porta a una pagina intitolata «Accedi»**. (`/signup`
-  risponde 404 ma nessun link ci punta: non è un collegamento rotto, è
-  un'etichetta che promette una pagina che non esiste.)
-- La barra passa da «Passo 1 **di 9**» a «Passo 3 **di 11**» appena si sceglie la
-  fonte.
-- Sui risultati a 1440 px la **colonna azioni è tagliata**: Rifiuta e Rigenera
-  sono fuori schermo. Sul telefono si vedono tutte — il layout mobile è più
-  completo del desktop.
-- Su telefono **«Serve aiuto?» si sovrappone a «Crea e continua»**: il comando
-  accessorio copre quello principale.
-- Gli SKU duplicati sono segnalati «da risolvere» senza offrire nulla, e le righe
-  scartate sono contate come «2 da rivedere» — parola sbagliata, e nessun elenco
-  di quali righe sono cadute.
-- Vocabolario incoerente: batch/lotto, preset/modello, scheda/descrizione/
-  contenuto, «Custom» vs «Personalizzata», la rotta `/storico` in mezzo a sette
-  rotte inglesi.
+**«Registrati» portava su una pagina intitolata «Accedi».** Non è un
+collegamento rotto: è un'etichetta che promette una pagina che non esiste. Il
+percorso è uno solo — il primo accesso crea l'account — e adesso lo dicono
+entrambi: il pulsante è «Prova gratis», la pagina è «Accedi o registrati».
+
+**Il conto dei passi non cambia più strada facendo.** Con un Excel i passi sono
+due in più: finché la fonte non è scelta il totale **non si sa**. Prometterne uno
+significava passare da «Passo 1 di 9» a «Passo 3 di 11» senza aver fatto niente
+di sbagliato. Ora il totale compare quando si conosce, e da lì non si muove più
+se non sei tu a cambiare la fonte.
+
+**«Serve aiuto?» copriva «Crea e continua».** La barra dei comandi è `sticky`:
+con poco contenuto si ferma a metà schermo, proprio dove galleggiava il pulsante
+di aiuto. Misurato a 390 px: si sovrapponevano di 27 px. Su telefono l'aiuto ora
+sta *dentro* la barra, dove non può collidere per costruzione; da tablet in su lo
+spazio c'è e il pulsante flottante resta. Rimisurato: nessuna sovrapposizione.
+
+**Gli SKU duplicati e le righe scartate.** Qui sotto c'erano due difetti, uno
+peggiore dell'altro.
+
+Il primo: il banner contava «SKU duplicati» quello che in realtà è **lo stesso
+file caricato due volte**. Due foto con lo stesso codice sono il caso *normale*
+— fronte, retro, etichetta — e il sistema le raggruppa apposta: l'etichetta
+allarmava per una cosa che va benissimo.
+
+Il secondo: le righe cadute erano contate come «da rivedere», una parola che
+promette una revisione che non esiste da nessuna parte. Sono righe **scartate**,
+e prima ne restava solo il numero — per sapere quali, l'unico modo era
+confrontare a mano il file con il catalogo importato. Adesso l'import restituisce
+l'elenco con il perché (codice non valido, codice ripetuto, dati insufficienti) e
+il wizard lo mostra. E dove il confronto delle fonti segnala i codici ripetuti,
+c'è scritto cosa succederà: entra la prima riga, le altre no.
+
+**Una parola per una cosa.** «Custom» è diventato «Personalizzato» (era accanto a
+«Personalizzata», che dice la stessa cosa); la rotta `/storico` — unica in
+italiano fra sette in inglese — è diventata `/app/settings/activity`, e il vecchio
+indirizzo reindirizza, perché i segnalibri di chi lo usava non si rompono per una
+questione di coerenza nostra. «Lotto» e «modello» restano solo dove *spiegano*
+«batch» e «preset» la prima volta: lì non sono incoerenza, sono l'unico punto in
+cui qualcuno impara cosa sono.
+
+**Due affermazioni non hanno retto la verifica.**
+
+1. *«Sui risultati a 1440 px la colonna azioni è tagliata: Rifiuta e Rigenera
+   sono fuori schermo.»* Misurato a 1440, 1280 e 1024 px: tutti e quattro i
+   comandi sono dentro lo schermo, la tabella sta nel suo contenitore e niente
+   scorre di lato.
+2. *(§3.3)* Il rapporto dichiarato sul chunk del wizard.
+
+Le lascio scritte qui perché una revisione che non si controlla diventa
+folclore.
 
 ### 3.5 Sapere come va il servizio — 2-3 giorni
 
