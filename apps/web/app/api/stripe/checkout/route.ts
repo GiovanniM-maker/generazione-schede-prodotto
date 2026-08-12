@@ -61,6 +61,27 @@ async function sincronizzaPartitaIva(
   await stripe.customers.createTaxId(customerId, { type: 'eu_vat', value: valore });
 }
 
+/**
+ * Quello che si legge quando il guasto è NOSTRO.
+ *
+ * Premendo «Acquista» con Stripe non configurato, al cliente compariva
+ * «Prezzo Stripe non configurato»: il nome di una nostra variabile d'ambiente,
+ * davanti a una persona che stava per pagare. Non è un errore che può
+ * correggere, e leggerlo lo lascia solo a chiedersi se i suoi soldi siano al
+ * sicuro.
+ *
+ * Quindi: una frase sola, che dice le tre cose che servono — non è colpa tua,
+ * non ti abbiamo addebitato niente, ecco cosa fare. Il motivo vero va nei log,
+ * dove serve a noi.
+ */
+const GUASTO_NOSTRO =
+  'Non riusciamo ad avviare il pagamento in questo momento. Non ti è stato addebitato niente: riprova fra qualche minuto e, se continua, scrivici.';
+
+function guastoNostro(motivo: string, stato = 500) {
+  console.error(`[acquisto] ${motivo}`);
+  return NextResponse.json({ error: GUASTO_NOSTRO }, { status: stato });
+}
+
 // POST /api/stripe/checkout  { packKey: 'pack_50' | 'pack_200' | 'pack_500' }
 // Non si fida MAI di prezzo/crediti inviati dal client: risolve tutto server-side.
 export async function POST(request: Request) {
@@ -69,7 +90,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
 
   const org = await getUserOrg(user.id);
-  if (!org) return NextResponse.json({ error: 'Organizzazione mancante' }, { status: 400 });
+  if (!org) return guastoNostro('utente senza organizzazione al checkout', 400);
   // Sono soldi: li spende chi è intestatario dell'organizzazione.
   if (org.role !== 'owner') {
     return NextResponse.json(
@@ -81,7 +102,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { packKey?: string };
   const packKey = body.packKey;
   if (!packKey || !['pack_50', 'pack_200', 'pack_500'].includes(packKey)) {
-    return NextResponse.json({ error: 'Pacchetto non valido' }, { status: 400 });
+    return guastoNostro(`pacchetto fuori elenco: ${String(packKey)}`, 400);
   }
 
   const service = getServiceClient();
@@ -91,12 +112,12 @@ export async function POST(request: Request) {
     .eq('key', packKey)
     .eq('active', true)
     .single();
-  if (!product) return NextResponse.json({ error: 'Pacchetto non trovato' }, { status: 404 });
+  if (!product) return guastoNostro(`pacchetto ${packKey} assente o non attivo`, 404);
   // Un pacchetto senza prezzo non si vende: senza cifra non c'è né consenso né
   // fattura. La landing e la pagina crediti già non lo mostrano; qui si chiude
   // anche la porta di servizio.
   if (product.price_cents == null) {
-    return NextResponse.json({ error: 'Pacchetto non acquistabile: prezzo non impostato' }, { status: 409 });
+    return guastoNostro(`pacchetto ${packKey} senza price_cents`, 409);
   }
 
   // --- Mock billing: accredito diretto in modalità test (mai in produzione) ---
@@ -113,7 +134,7 @@ export async function POST(request: Request) {
     // Meglio un errore onesto che una pagina "acquisto riuscito" davanti a un
     // saldo rimasto identico.
     if (!accredito.ok) {
-      return NextResponse.json({ error: 'Accredito non riuscito' }, { status: 500 });
+      return guastoNostro(`accredito simulato non riuscito per ${packKey}`);
     }
     await logWrite('app_events.insert', service.from('app_events').insert({
       organization_id: org.organizationId,
@@ -135,7 +156,7 @@ export async function POST(request: Request) {
 
   // --- Stripe reale ---
   const priceId = priceIdForPack(env, packKey);
-  if (!priceId) return NextResponse.json({ error: 'Prezzo Stripe non configurato' }, { status: 500 });
+  if (!priceId) return guastoNostro(`manca l'id prezzo Stripe per ${packKey}`);
 
   const stripe = getStripe(env);
 

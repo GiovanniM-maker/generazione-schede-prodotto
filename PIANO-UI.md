@@ -68,6 +68,55 @@ sessione**: è l'unico modo di provare quella regola.
 I quattro vicoli si provano cliccando e guardando dove si arriva —
 `e2e/vie-duscita.spec.ts` — non controllando che un `href` esista.
 
+**§2.2–2.4 — le parole e il colore.**
+
+- **2.2** Gli errori dell'accesso passano da `lib/errori-accesso.ts`: i casi noti
+  diventano un consiglio in italiano («aspetta un minuto e riprova» invece di
+  `email rate limit exceeded`), i casi ignoti diventano una frase nostra, e il
+  testo originale finisce nei log — tradurre non vuol dire perdere. Sparisce
+  anche il messaggio che chiedeva all'utente di impostare
+  `NEXT_PUBLIC_SUPABASE_URL`.
+- **2.3** Al checkout, quando il guasto è nostro si dice una cosa sola e giusta:
+  non è colpa tua, **non ti è stato addebitato niente**, ecco cosa fare. Il
+  motivo tecnico va nei log. Quello che il cliente *può* correggere — i dati per
+  la fattura, il ruolo sbagliato — resta specifico com'era.
+- **2.4** `accent` passa da `#e5322d` (4,35:1) a `#c22b27` (5,72:1), `accentHover`
+  a `#a32320` (7,45:1). Misurato **nel browser**, non solo in configurazione:
+  tutte le azioni del percorso di acquisizione stanno a 5,72:1. Il test non
+  blocca l'esadecimale, ricalcola il rapporto WCAG dal file — così custodisce la
+  regola invece del valore.
+
+---
+
+## Trovato correggendo: un test con un punto cieco — **✔ verificato**
+
+Il riquadro d'errore della pagina di accesso **non aveva `role="alert"`**: la
+frase compariva e restava muta per chi usa un lettore di schermo, sull'unica
+pagina dove non si può fare altro che aspettare un errore o un codice. Corretto
+passando ad `Avviso`.
+
+Il punto è come era sopravvissuto. Il test del §3.2 cerca i riquadri rossi
+scritti a mano così:
+
+```
+/<div className="rounded-lg border border-red-200 bg-red-50[^"]*">/
+```
+
+cioè pretende che le classi comincino in quel modo. Il riquadro dell'accesso
+scriveva `flex items-start gap-2 rounded-lg border border-red-200 …`: stesse
+classi, ordine diverso, invisibile al test. **Un test che cerca una stringa e
+non una proprietà dà una sicurezza che non ha.**
+
+Cercando la proprietà — `border-red-200` insieme a `bg-red-50`, in qualunque
+ordine — restano **tredici** riquadri scritti a mano, in otto file:
+`onboarding-stepper`, `preset-copilot-panel`, `dati-fatturazione-form`,
+`sample-runner` (3), `copilot-panel` (3), `processing-monitor`, `results-table`
+(2), `wizard`. Nessuno di questi è annunciato.
+
+Non fanno parte del §2: sono la coda del §3.2, che avevo dato per chiuso. Vanno
+convertiti ad `Avviso` in un passaggio solo, e il test va riscritto sulla
+proprietà.
+
 ---
 
 ## 1. La malattia strutturale: contenuto più largo del suo contenitore
@@ -405,9 +454,12 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 1. ~~**§1 — la malattia strutturale.**~~ **fatto**
 2. ~~**§2.1 — i prezzi invisibili sulla vetrina.**~~ **fatto**
 3. ~~**§3 — i vicoli ciechi.**~~ **fatto**
-4. **§2.2–2.4** — testi e messaggi: molto valore per poco lavoro.
-5. **§4** — le cose che si leggono male.
-6. **§5** — telefono, il resto.
-7. **§6** — la coda dei minori.
+4. ~~**§2.2–2.4** — testi e messaggi.~~ **fatto**
+5. **La coda del §3.2** — i tredici riquadri rossi che non parlano, e il test
+   riscritto sulla proprietà invece che sulla stringa.
+6. **§2.5** — l'anteprima quando si condivide il link: ancora zero tag `og:`.
+7. **§4** — le cose che si leggono male.
+8. **§5** — telefono, il resto.
+9. **§6** — la coda dei minori.
 
 Il §7 va riverificato prima di toccare qualsiasi cosa.

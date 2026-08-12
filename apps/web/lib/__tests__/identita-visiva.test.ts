@@ -83,6 +83,69 @@ describe('cosa vuol dire un colore', () => {
   });
 });
 
+describe('il rosso si legge', () => {
+  // ---------------------------------------------------------------------------
+  // Il contrasto non si controlla a occhio, e nemmeno bloccando un esadecimale:
+  // un test che dice «dev'essere #c22b27» passa anche se domani qualcuno lo
+  // sostituisce con un altro rosso troppo chiaro purché scriva quello giusto —
+  // e fallisce quando il colore cambia per una ragione buona.
+  //
+  // Qui il rapporto si RICALCOLA dal file di configurazione, con la formula
+  // WCAG. Il test non custodisce un valore: custodisce la regola.
+  //
+  // Il difetto era `#e5322d`, cioè 4,35:1 — sotto il minimo di 4,5 — su ogni
+  // richiamo all'azione del percorso di acquisizione, e sugli stessi
+  // collegamenti in rosso su fondo bianco.
+  // ---------------------------------------------------------------------------
+
+  const config = leggi('tailwind.config.ts');
+
+  function esadecimale(nome: string): string {
+    const m = config.match(new RegExp(`${nome}:\\s*'(#[0-9a-fA-F]{6})'`));
+    if (!m) throw new Error(`colore «${nome}» non trovato in tailwind.config.ts`);
+    return m[1]!;
+  }
+
+  /** Luminanza relativa secondo WCAG 2.1. */
+  function luminanza(hex: string): number {
+    const canali = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const [r, g, b] = canali.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  }
+
+  function contrasto(a: string, b: string): number {
+    const [x, y] = [luminanza(a), luminanza(b)];
+    return (Math.max(x!, y!) + 0.05) / (Math.min(x!, y!) + 0.05);
+  }
+
+  const BIANCO = '#ffffff';
+
+  it('il testo bianco sopra l’accento raggiunge il minimo', () => {
+    const r = contrasto(esadecimale('accent'), BIANCO);
+    expect(r, `accento a ${r.toFixed(2)}:1 contro bianco`).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('anche l’accento passato col mouse, che è il colore premuto', () => {
+    const r = contrasto(esadecimale('accentHover'), BIANCO);
+    expect(r, `accentHover a ${r.toFixed(2)}:1 contro bianco`).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('il passaggio del mouse resta percepibile', () => {
+    // Scurire l'accento fin sopra la soglia rischia di appiattirlo sul suo
+    // stato «sopra»: due colori che nessuno distingue non sono due colori.
+    const a = esadecimale('accent');
+    const h = esadecimale('accentHover');
+    expect(a).not.toBe(h);
+    expect(contrasto(a, h), 'accento e accentHover troppo vicini').toBeGreaterThan(1.2);
+  });
+
+  it('il contorno del fuoco usa lo stesso rosso dell’accento', () => {
+    // Erano scritti a mano in due file: il giorno in cui uno dei due cambia,
+    // l'altro resta indietro senza che nessuno se ne accorga.
+    expect(leggi('app/globals.css')).toContain(`outline: 2px solid ${esadecimale('accent')}`);
+  });
+});
+
 describe('dove sta il titolo di una pagina', () => {
   it('tutto il flusso di un batch usa lo stesso guscio', () => {
     // `new` (768) → `input` (1152) → `sample` (768) → `results` (1152): il

@@ -77,7 +77,7 @@ export async function notifyCompletedBatches(
     const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#17130f">
       <h2 style="font-size:20px;margin:0 0 8px;letter-spacing:-.02em">Verificato</h2>
       ${body}
-      <p style="margin:16px 0 0"><a href="${link}" style="display:inline-block;background:#e5322d;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:700">Apri i risultati</a></p>
+      <p style="margin:16px 0 0"><a href="${link}" style="display:inline-block;background:#c22b27;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:700">Apri i risultati</a></p>
     </div>`;
     if (await sendEmail(b.notify_email!, subject, html)) sent++;
   }
