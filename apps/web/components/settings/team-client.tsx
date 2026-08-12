@@ -122,13 +122,15 @@ export function TeamClient({
             </Button>
           </div>
           {newLink && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-              <span className="min-w-0 flex-1 truncate text-emerald-800">{newLink}</span>
-              <Button variant="outline" size="sm" onClick={() => copy(newLink)}>
-                {copied === newLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                Copia link
-              </Button>
-            </div>
+            <Avviso tono="riuscito" senzaIcona className="mt-3">
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">{newLink}</span>
+                <Button variant="outline" size="sm" onClick={() => copy(newLink)}>
+                  {copied === newLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  Copia link
+                </Button>
+              </div>
+            </Avviso>
           )}
           <p className="mt-2 text-xs text-gray-500">
             Condividi il link con la persona invitata: dovrà accedere con questa email per

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { Coins, CheckCircle2, Info, Beaker } from 'lucide-react';
+import { Coins, Info, Beaker } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
 import { getServerEnv } from '@/lib/env.server';
 import { getCreditBalance } from '@/lib/credits';
@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { formatDate } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avviso } from '@/components/ui/avviso';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { PurchaseButton } from '@/components/purchase-button';
 import { PageShell } from '@/components/page-shell';
@@ -78,16 +79,14 @@ export default async function BillingPage({
       subtitle="Gestisci i crediti della tua organizzazione."
     >
       {success && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
+        <Avviso tono="riuscito">
           Acquisto completato. I crediti sono stati aggiunti al tuo saldo.
-        </div>
+        </Avviso>
       )}
       {canceled && (
-        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
-          <Info className="h-4 w-4 shrink-0" />
+        <Avviso tono="informazione">
           Acquisto annullato. Nessun addebito effettuato.
-        </div>
+        </Avviso>
       )}
 
       {/* Saldo */}

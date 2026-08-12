@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CheckCircle2, Loader2, ReceiptText, AlertTriangle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { salvaDatiFatturazione, type DatiFatturazione } from '@/lib/actions/fatturazione';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Avviso } from '@/components/ui/avviso';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -70,18 +71,14 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
         {/* Lo stato si dice prima del form: chi arriva qui vuole sapere se
             manca qualcosa, non scoprirlo al momento di pagare. */}
         {completi ? (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Avviso tono="riuscito" className="mb-4">
             Dati completi: la fattura può essere emessa.
-          </div>
+          </Avviso>
         ) : (
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <ReceiptText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>
-              Mancano dei dati: senza, l’acquisto non può partire perché non
-              sapremmo a chi intestare la fattura.
-            </span>
-          </div>
+          <Avviso tono="attenzione" className="mb-4">
+            Mancano dei dati: senza, l’acquisto non può partire perché non
+            sapremmo a chi intestare la fattura.
+          </Avviso>
         )}
 
         {!isOwner ? (
@@ -217,13 +214,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
             </div>
 
             {errore && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-              >
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                {errore}
-              </div>
+              <Avviso tono="errore">{errore}</Avviso>
             )}
 
             <div className="flex items-center gap-3">

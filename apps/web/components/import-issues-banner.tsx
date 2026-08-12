@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { ImportIssues } from '@/lib/import-issues';
+import { Avviso } from '@/components/ui/avviso';
 
 // Card riepilogo "Problemi di importazione". Sola lettura (dismissible-looking):
 // l'utente può chiuderla ma la risoluzione dei conflitti arriverà più avanti.
@@ -31,10 +32,9 @@ export function ImportIssuesBanner({
   ].filter((l) => l.count > 0);
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    <Avviso tono="attenzione" className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <div>
             <p className="font-medium">Problemi di importazione</p>
             <p className="mt-0.5 text-amber-800">
@@ -71,6 +71,6 @@ export function ImportIssuesBanner({
           Rivedi i dettagli nei risultati
         </Link>
       </div>
-    </div>
+    </Avviso>
   );
 }

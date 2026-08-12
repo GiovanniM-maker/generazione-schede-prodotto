@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
-  AlertCircle,
-  AlertTriangle,
   Sparkles,
   Check,
   RefreshCw,
@@ -236,10 +234,7 @@ export function SampleRunner({
       )}
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Avviso tono="errore">{error}</Avviso>
       )}
 
       {sample && (
@@ -247,27 +242,18 @@ export function SampleRunner({
           {/* Avviso severità */}
           {(sample.audit.severity === 'medium' ||
             sample.audit.severity === 'high') && (
-            <div
-              className={
-                sample.audit.severity === 'high'
-                  ? 'flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800'
-                  : 'flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800'
-              }
-            >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
-                <p className="font-medium">
-                  Attenzione: possibili affermazioni non supportate dai dati.
-                </p>
-                {sample.audit.unsupportedClaims.length > 0 && (
-                  <ul className="mt-1 list-inside list-disc">
-                    {sample.audit.unsupportedClaims.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
+            <Avviso tono={sample.audit.severity === 'high' ? 'errore' : 'attenzione'}>
+              <p className="font-medium">
+                Attenzione: possibili affermazioni non supportate dai dati.
+              </p>
+              {sample.audit.unsupportedClaims.length > 0 && (
+                <ul className="mt-1 list-inside list-disc">
+                  {sample.audit.unsupportedClaims.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              )}
+            </Avviso>
           )}
 
           {/* Completezza campione */}
@@ -439,18 +425,20 @@ export function SampleRunner({
                   generazione avviene in background.
                 </p>
                 {insufficient && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    <span className="font-medium">Crediti insufficienti</span>
-                    <span>
-                      Non hai crediti a sufficienza per generare l’intero batch.
-                    </span>
-                    <Link
-                      href="/app/billing"
-                      className="font-medium underline underline-offset-2"
-                    >
-                      Acquista crediti
-                    </Link>
-                  </div>
+                  <Avviso tono="errore">
+                    <div className="flex flex-col gap-2">
+                      <span className="font-medium">Crediti insufficienti</span>
+                      <span>
+                        Non hai crediti a sufficienza per generare l’intero batch.
+                      </span>
+                      <Link
+                        href="/app/billing"
+                        className="font-medium underline underline-offset-2"
+                      >
+                        Acquista crediti
+                      </Link>
+                    </div>
+                  </Avviso>
                 )}
                 <div className="flex gap-3">
                   <Button size="lg" onClick={enqueue} disabled={enqueuing}>

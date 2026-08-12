@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
-  AlertCircle,
   ChevronDown,
   ChevronRight,
   Check,
@@ -59,6 +58,7 @@ import { WizardGuide } from '@/components/onboarding/wizard-guide';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avviso } from '@/components/ui/avviso';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -1075,10 +1075,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Avviso tono="errore">{error}</Avviso>
       )}
 
       {stepId === 1 && (
@@ -1601,13 +1598,10 @@ function Step3({
                 brand, prezzo, attributi e foto dai dati strutturati della pagina.
               </p>
             </div>
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Importa solo pagine di cui hai i diritti (tue o del tuo fornitore). L’AI riscrive una
-                scheda nuova a partire dai fatti: non copiamo il testo originale.
-              </span>
-            </div>
+            <Avviso tono="attenzione" className="text-xs">
+              Importa solo pagine di cui hai i diritti (tue o del tuo fornitore). L’AI riscrive una
+              scheda nuova a partire dai fatti: non copiamo il testo originale.
+            </Avviso>
             <div className="flex justify-end">
               <Button onClick={onImportUrls} disabled={busy || urlCount === 0} data-tour="url-import">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -2597,14 +2591,11 @@ function Step9({
         </p>
       )}
       {!analyzing && senzaCategoria > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            <strong>{senzaCategoria} prodotti senza categoria.</strong> Senza categoria le schede
-            escono generiche (mancano i campi specifici del prodotto). Assegna una categoria qui
-            sotto prima di continuare.
-          </span>
-        </div>
+        <Avviso tono="attenzione">
+          <strong>{senzaCategoria} prodotti senza categoria.</strong> Senza categoria le schede
+          escono generiche (mancano i campi specifici del prodotto). Assegna una categoria qui
+          sotto prima di continuare.
+        </Avviso>
       )}
       {importSummary && (
         <div className="flex flex-wrap gap-2 text-sm">
@@ -2745,9 +2736,7 @@ function Step10({
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-            <Check className="h-4 w-4" /> Campione generato.
-          </div>
+          <Avviso tono="riuscito">Campione generato.</Avviso>
           {content && <SampleOutput content={content} />}
           {completeness && <SampleCompleteness completeness={completeness} />}
           <Button variant="outline" size="sm" onClick={onRun} disabled={busy}>

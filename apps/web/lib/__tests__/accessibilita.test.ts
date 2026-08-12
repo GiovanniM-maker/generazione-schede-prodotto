@@ -81,13 +81,68 @@ describe('i riquadri di riscontro parlano', () => {
     expect(avviso).toMatch(/aria-live=/);
   });
 
-  it('nessun riquadro rosso resta scritto a mano', () => {
-    // Erano trenta, con quattro spaziature diverse e nessun ruolo.
+  // -------------------------------------------------------------------------
+  // Questo test cercava una stringa, e per questo non vedeva niente.
+  //
+  // Chiedeva `<div className="rounded-lg border border-red-200 bg-red-50…">`:
+  // cioè pretendeva che le classi COMINCIASSERO così. Il riquadro d'errore
+  // della pagina di accesso scriveva
+  // `flex items-start gap-2 rounded-lg border border-red-200 …` — stesse
+  // classi, ordine diverso — ed è rimasto muto per mesi sull'unica porta
+  // d'ingresso del prodotto. Erano tredici in tutto, e nessuno li vedeva.
+  //
+  // Ora si cerca la PROPRIETÀ: un fondo della tavolozza dei riscontri
+  // (`bg-red-50`, `bg-amber-50`, `bg-emerald-50`, anche con opacità) insieme al
+  // bordo intonato. Le classi si estraggono da `className`, quindi l'ordine e
+  // la spaziatura non contano, e nemmeno i rami di un ternario.
+  //
+  // Le eccezioni sono elencate una per una col loro perché. Un elenco corto e
+  // motivato è una scelta; un elenco lungo sarebbe il difetto travestito da
+  // test verde.
+  // -------------------------------------------------------------------------
+
+  /** Non sono riquadri di riscontro: la tavolozza qui vuol dire altro. */
+  const NON_SONO_RISCONTRI: Record<string, string> = {
+    'ui/badge.tsx': 'è il componente che DEFINISCE quella tavolozza',
+    'settings/account-client.tsx': 'bordo di una scheda pericolosa, sempre presente',
+    'settings/preset-copilot-panel.tsx': 'evidenzia le righe aggiunte in un confronto',
+    'copilot/copilot-panel.tsx': 'pannello di registrazione in corso, con i suoi comandi',
+    'results-table.tsx': 'tinta di riga e bordo di un pulsante, non un messaggio',
+    'batch/wizard.tsx': 'riquadro con dentro un campo da scegliere, e un bordo di stato',
+  };
+
+  /** Le classi dichiarate in `className`, ovunque e comunque scritte. */
+  function classi(src: string): string[] {
+    const out: string[] = [];
+    for (const m of src.matchAll(/className=(?:"([^"]*)"|\{[^}]*\})/g)) {
+      if (m[1]) out.push(m[1]);
+    }
+    // I rami di un ternario sono stringhe a sé: si prendono tutte.
+    for (const m of src.matchAll(/'([^']*(?:bg-(?:red|amber|emerald)-50)[^']*)'/g)) {
+      out.push(m[1]!);
+    }
+    return out;
+  }
+
+  const TAVOLOZZA = /\bbg-(red|amber|emerald)-50(\/\d+)?\b/;
+  const BORDO = /\bborder-(red|amber|emerald)-(200|300)\b/;
+
+  it('nessun riquadro di riscontro resta scritto a mano', () => {
     const colpevoli = sorgenti
       .filter((f) => !f.path.endsWith('avviso.tsx'))
-      .filter((f) => /<div className="rounded-lg border border-red-200 bg-red-50[^"]*">/.test(f.src))
+      .filter((f) => !Object.keys(NON_SONO_RISCONTRI).some((k) => f.path.endsWith(k)))
+      .filter((f) => classi(f.src).some((c) => TAVOLOZZA.test(c) && BORDO.test(c)))
       .map((f) => f.path);
-    expect(colpevoli).toEqual([]);
+    expect(colpevoli, 'usa <Avviso>: porta il ruolo giusto e una spaziatura sola').toEqual([]);
+  });
+
+  it('le eccezioni sono poche e ognuna ha il suo perché', () => {
+    // Il numero è il freno: se cresce, non è più un elenco di eccezioni — è il
+    // difetto che sta tornando dalla porta di servizio.
+    expect(Object.keys(NON_SONO_RISCONTRI).length).toBeLessThanOrEqual(8);
+    for (const [file, perche] of Object.entries(NON_SONO_RISCONTRI)) {
+      expect(perche.length, `«${file}» senza motivo scritto`).toBeGreaterThan(20);
+    }
   });
 });
 

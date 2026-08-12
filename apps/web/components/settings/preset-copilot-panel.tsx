@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Avviso } from '@/components/ui/avviso';
 
 const TYPE_LABEL: Record<string, string> = {
   text: 'testo',
@@ -378,17 +379,17 @@ export function PresetCopilotPanel({
       )}
 
       {error && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <Avviso tono="errore" className="mb-3">
           {error}
-        </div>
+        </Avviso>
       )}
       {applied && (
-        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <Avviso tono="riuscito" className="mb-3">
           {applied}{' '}
           <button className="underline" onClick={onClose}>
             Chiudi
           </button>
-        </div>
+        </Avviso>
       )}
 
       {/* Input pinnato in basso */}

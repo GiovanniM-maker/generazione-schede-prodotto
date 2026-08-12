@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -30,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Avviso } from '@/components/ui/avviso';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------
@@ -972,10 +972,9 @@ export function OnboardingStepper({
 
         {/* Errore */}
         {error && (
-          <div className="mt-6 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
+          <Avviso tono="errore" className="mt-6">
+            {error}
+          </Avviso>
         )}
 
         {/* Navigazione */}
