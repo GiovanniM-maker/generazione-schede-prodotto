@@ -88,7 +88,7 @@ I quattro vicoli si provano cliccando e guardando dove si arriva —
 
 ---
 
-## Trovato correggendo: un test con un punto cieco — **✔ verificato**
+## Trovato correggendo: un test con un punto cieco — **✔ verificato, poi chiuso**
 
 Il riquadro d'errore della pagina di accesso **non aveva `role="alert"`**: la
 frase compariva e restava muta per chi usa un lettore di schermo, sull'unica
@@ -107,15 +107,47 @@ scriveva `flex items-start gap-2 rounded-lg border border-red-200 …`: stesse
 classi, ordine diverso, invisibile al test. **Un test che cerca una stringa e
 non una proprietà dà una sicurezza che non ha.**
 
-Cercando la proprietà — `border-red-200` insieme a `bg-red-50`, in qualunque
-ordine — restano **tredici** riquadri scritti a mano, in otto file:
-`onboarding-stepper`, `preset-copilot-panel`, `dati-fatturazione-form`,
-`sample-runner` (3), `copilot-panel` (3), `processing-monitor`, `results-table`
-(2), `wizard`. Nessuno di questi è annunciato.
+Cercando la proprietà erano **tredici** in rosso — e cercandola sul serio, cioè
+su tutta la tavolozza dei riscontri e non solo sugli errori, **ventidue** in
+tredici file. Erano più di quelli che avevo contato: il primo conteggio cercava
+`border-*-200` e si era perso un `border-amber-300` dentro il wizard. Lo stesso
+errore del test che stavo criticando, fatto mentre lo criticavo.
 
-Non fanno parte del §2: sono la coda del §3.2, che avevo dato per chiuso. Vanno
-convertiti ad `Avviso` in un passaggio solo, e il test va riscritto sulla
-proprietà.
+**Chiuso.** Tutti convertiti ad `Avviso`, che porta il ruolo giusto: `alert` per
+gli errori, che interrompe; `status` con `aria-live="polite"` per conferme e
+avvisi, che aspettano il loro turno.
+
+Il test ora estrae le classi da `className` e cerca la **proprietà** — un fondo
+della tavolozza dei riscontri insieme al bordo intonato, in qualunque ordine,
+compresi i rami di un ternario. Le eccezioni sono sei file dove quella tavolozza
+vuol dire altro: il componente `Badge` che la definisce, il bordo di una scheda
+pericolosa, l'evidenziazione di un confronto, il pannello di registrazione coi
+suoi comandi, la tinta di una riga, un riquadro che contiene un campo da
+scegliere. Sono elencate una per una col loro perché, e un secondo test impedisce
+che l'elenco si allunghi: un elenco corto e motivato è una scelta, uno lungo
+sarebbe il difetto travestito da test verde.
+
+### E cinque prove erano rosse da prima, su `main`
+
+Verificate su un albero pulito, quindi non sono di questo lavoro — ma **due le
+avevo causate io col §3.2**, e nessuno se n'era accorto perché la suite del
+browser non veniva eseguita per intero.
+
+- **Due** misuravano il collegamento «salta al contenuto» come bersaglio da
+  toccare. È `sr-only`: invisibile finché non riceve il fuoco, e da invisibile
+  misura 1×1. Nessun dito lo cercherà mai lì, e chi ci arriva ci arriva col Tab
+  — quando è grande. Ora il misuratore salta gli elementi ritagliati.
+- **Tre** cercavano «Passo 1 di N». Il wizard scrive il totale solo dopo che si
+  è scelta la fonte, perché prima **quanti passi ci sono non si sa**: dipende da
+  file, foto o URL. Tacere è la scelta giusta; era la prova a pretendere un
+  numero che il prodotto ha smesso di promettere.
+
+Restano alcune prove che passano da sole e cadono quando la suite gira tutta
+insieme: creano batch veri e aspettano elenchi che arrivano dal database. Sono
+**lente, non rotte** — con un tentativo di riserva la suite è verde. Renderle
+indipendenti dal carico è un lavoro a sé, e va fatto: una prova che cade a caso
+insegna a ignorare i fallimenti, che è il modo in cui questi cinque erano
+sopravvissuti.
 
 ---
 
@@ -455,8 +487,7 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
 2. ~~**§2.1 — i prezzi invisibili sulla vetrina.**~~ **fatto**
 3. ~~**§3 — i vicoli ciechi.**~~ **fatto**
 4. ~~**§2.2–2.4** — testi e messaggi.~~ **fatto**
-5. **La coda del §3.2** — i tredici riquadri rossi che non parlano, e il test
-   riscritto sulla proprietà invece che sulla stringa.
+5. ~~**La coda del §3.2** — i riquadri che non parlano.~~ **fatto**
 6. **§2.5** — l'anteprima quando si condivide il link: ancora zero tag `og:`.
 7. **§4** — le cose che si leggono male.
 8. **§5** — telefono, il resto.

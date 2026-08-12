@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Pencil,
   Loader2,
-  AlertCircle,
   PanelRightClose,
   PackageOpen,
   Sparkles,
@@ -42,6 +41,7 @@ import {
 } from '@/lib/actions/corrections';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avviso } from '@/components/ui/avviso';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -636,10 +636,7 @@ export function ResultsTable({
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Avviso tono="errore">{error}</Avviso>
       )}
 
       {/* Banner: impara dalle correzioni -> migliora il prompt */}
@@ -684,10 +681,7 @@ export function ResultsTable({
       )}
 
       {improveErr && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{improveErr}</span>
-        </div>
+        <Avviso tono="errore">{improveErr}</Avviso>
       )}
 
       {rows.length === 0 ? (
@@ -1871,11 +1865,11 @@ function DetailDrawer({
               </div>
               {(row.completeness.status === 'blocked' ||
                 row.completeness.status === 'insufficient') && (
-                <p className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-sm font-medium text-red-700">
+                <Avviso tono="errore" className="p-2.5 font-medium">
                   {row.completeness.status === 'blocked' ? 'Bloccata: ' : 'Insufficiente: '}
                   {row.completeness.reason ??
                     'dati non sufficienti o affermazione non supportata dai dati. Conferma/correggi i campi qui sotto e rigenera.'}
-                </p>
+                </Avviso>
               )}
               {row.completeness.status === 'partial' && (
                 <p className="text-sm text-amber-700">

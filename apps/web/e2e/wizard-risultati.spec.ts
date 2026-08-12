@@ -62,6 +62,13 @@ async function comandiTroppoPiccoli(page: Page) {
       if (el.closest('nextjs-portal') || el.querySelector(selettore)) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
+      // Il «salta al contenuto» è invisibile finché non riceve il fuoco, e
+      // quando è invisibile misura 1×1: è il modo standard di nasconderlo
+      // (`sr-only` ritaglia, non spegne). Misurarlo come bersaglio da toccare
+      // è sbagliato — nessun dito lo troverà mai lì — e faceva fallire due
+      // test da quando il collegamento è stato aggiunto. Chi lo raggiunge lo
+      // raggiunge col Tab, e allora è grande.
+      if (getComputedStyle(el).clipPath !== 'none' || getComputedStyle(el).clip !== 'auto') continue;
       if (r.height < 24 || r.width < 24) {
         out.push(`${el.tagName.toLowerCase()}«${(el.textContent || '').trim().slice(0, 24)}» ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
@@ -303,7 +310,13 @@ test.describe('wizard nuovo batch', () => {
   test('si apre al primo passo', async ({ page }) => {
     await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: /nuovo batch/i })).toBeVisible();
-    await expect(page.getByText(/passo 1 di/i)).toBeVisible();
+    // «Passo 1», non «Passo 1 di N».
+    //
+    // Quanti passi ci sono dipende da come si caricano i prodotti — file,
+    // foto, URL — e finché la fonte non è scelta il totale non si sa. Il
+    // wizard tace invece di inventarne uno, ed è la scelta giusta: era il test
+    // a chiedere un numero che il prodotto ha smesso di promettere.
+    await expect(page.getByText(/passo 1\b/i).first()).toBeVisible();
   });
 
   test('nessun errore JavaScript', async ({ page }) => {
@@ -384,14 +397,14 @@ test.describe('wizard · non perde il lavoro', () => {
     // quando il passo ha finito di caricare, quindi prima sarebbe troppo presto.
     await chiudiGuida(page);
     await avanti.click();
-    await expect(page.getByText(/passo 2 di/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/passo 2\b/i).first()).toBeVisible({ timeout: 15000 });
 
     // L'indirizzo porta con sé dove siamo: è quello che rende possibile tornare.
     await expect(page).toHaveURL(/\?batch=[0-9a-f-]{36}&passo=2/i);
 
     await page.reload({ waitUntil: 'networkidle' });
     await chiudiBanner(page);
-    await expect(page.getByText(/passo 2 di/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/passo 2\b/i).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('un batch riaperto ritrova il suo nome', async ({ page }) => {
@@ -404,7 +417,7 @@ test.describe('wizard · non perde il lavoro', () => {
     await expect(avanti).toBeEnabled({ timeout: 20000 });
     await chiudiGuida(page);
     await avanti.click();
-    await expect(page.getByText(/passo 2 di/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/passo 2\b/i).first()).toBeVisible({ timeout: 15000 });
     // L'indirizzo si aggiorna dopo il render: aspettarlo invece di leggerlo
     // subito, altrimenti si legge quello di prima.
     await expect(page).toHaveURL(/\?batch=[0-9a-f-]{36}/i, { timeout: 10000 });

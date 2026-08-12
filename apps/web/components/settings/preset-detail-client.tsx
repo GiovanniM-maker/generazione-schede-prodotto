@@ -10,7 +10,6 @@ import {
   Loader2,
   Sparkles,
   Rocket,
-  Info,
   Save,
   ClipboardList,
   Eraser,
@@ -237,13 +236,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       </div>
 
       {!editable && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <span>
-            Questo preset è pubblicato. Per modificarlo verrà creata una nuova
-            bozza: le versioni pubblicate restano invariate.
-          </span>
-        </div>
+        <Avviso tono="attenzione">
+          Questo preset è pubblicato. Per modificarlo verrà creata una nuova
+          bozza: le versioni pubblicate restano invariate.
+        </Avviso>
       )}
 
       {error && (

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Avviso } from '@/components/ui/avviso';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -346,9 +347,7 @@ export function CopilotPanel({
         </div>
 
         {error && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-            {error}
-          </div>
+          <Avviso tono="errore" className="mb-3">{error}</Avviso>
         )}
 
         <div
@@ -409,9 +408,7 @@ export function CopilotPanel({
         </div>
 
         {audioError && (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {audioError}
-          </div>
+          <Avviso tono="errore" className="mt-3">{audioError}</Avviso>
         )}
 
         {/* Pannello registrazione audio (Fase 6) */}
@@ -602,16 +599,14 @@ export function CopilotPanel({
           )}
 
           {missingInformation.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2.5">
-              <p className="text-xs font-medium text-amber-800">
-                Informazioni mancanti
-              </p>
-              <ul className="mt-1 list-inside list-disc text-xs text-amber-700">
+            <Avviso tono="attenzione" className="mt-3 p-2.5 text-xs">
+              <p className="font-medium">Informazioni mancanti</p>
+              <ul className="mt-1 list-inside list-disc">
                 {missingInformation.map((m, i) => (
                   <li key={i}>{m}</li>
                 ))}
               </ul>
-            </div>
+            </Avviso>
           )}
 
           {confirmationSummary && (

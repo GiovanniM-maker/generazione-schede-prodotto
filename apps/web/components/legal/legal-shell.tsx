@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { datiTitolare } from '@/lib/legale';
+import { Avviso } from '@/components/ui/avviso';
 
 // Contenitore delle pagine legali.
 //
@@ -30,14 +31,11 @@ export function LegalShell({
         <h1 className="text-3xl font-semibold text-gray-900">{title}</h1>
         <p className="mt-1 text-sm text-gray-500">Ultimo aggiornamento: {updated}</p>
         {!datiTitolare().completo && (
-          <div className="mt-6 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>
-              <strong>Documento non ancora valido.</strong> I dati del titolare del
-              trattamento non sono stati configurati: questo testo è una bozza e non
-              ha valore fino al completamento.
-            </span>
-          </div>
+          <Avviso tono="attenzione" className="mt-6">
+            <strong>Documento non ancora valido.</strong> I dati del titolare del
+            trattamento non sono stati configurati: questo testo è una bozza e non
+            ha valore fino al completamento.
+          </Avviso>
         )}
         <div className="prose prose-sm mt-8 max-w-none text-gray-700 [&_h2]:mt-8 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_li]:my-1 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5">
           {children}

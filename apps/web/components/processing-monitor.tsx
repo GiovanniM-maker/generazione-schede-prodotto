@@ -7,6 +7,7 @@ import { getBatchProgressAction, type BatchProgress } from '@/lib/actions/ui';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/status-badge';
+import { Avviso } from '@/components/ui/avviso';
 import { esitoElaborazione, STATI_FINALI as DONE } from '@/lib/esito-elaborazione';
 
 export function ProcessingMonitor({ batchId }: { batchId: string }) {
@@ -132,10 +133,7 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
               il batch fermato in blocco, con i contatori a zero — la
               spiegazione non compariva. */}
           {progress?.topError && (fallito || (progress?.failed ?? 0) > 0) && (
-            <div className="mt-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{progress.topError}</span>
-            </div>
+            <Avviso tono="errore" className="mt-5">{progress.topError}</Avviso>
           )}
         </CardContent>
       </Card>
@@ -147,10 +145,7 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
       )}
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Avviso tono="attenzione">{error}</Avviso>
       )}
 
       {/* Le vie d'uscita.
