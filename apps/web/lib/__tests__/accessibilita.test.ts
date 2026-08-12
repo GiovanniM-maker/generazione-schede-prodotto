@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { senzaCommenti } from './senza-commenti.js';
 
 // ---------------------------------------------------------------------------
 // Quello che il prodotto dice a chi non guarda lo schermo.
@@ -174,5 +175,28 @@ describe('il testo si legge', () => {
       }
     }
     expect(colpevoli).toEqual([]);
+  });
+});
+
+describe('lo stato non si affida al solo colore', () => {
+  it('nella lista di completezza la spunta ce l’ha solo chi ha finito', () => {
+    // L'icona era la stessa per «fatto» e «da fare», cambiava solo il colore:
+    // con la configurazione appena iniziata si vedevano cinque spunte grigie
+    // accanto al conteggio «0/5». Si contraddicono a vista — e chi non
+    // distingue grigio da verde leggeva cinque cose fatte.
+    const dash = leggi('app/app/page.tsx');
+    expect(dash).toMatch(/item\.done \? <Check[^>]*\/> : <Circle/);
+    // E detto anche a chi ascolta: l'icona è decorativa, lo stato no.
+    expect(dash).toMatch(/item\.done \? 'Fatto:' : 'Da fare:'/);
+  });
+
+  it('una fonte non ancora disponibile non ha l’aria di una novità', () => {
+    // «Novità» (fonte attiva), «In arrivo» e «Prossimamente» (fonti
+    // disabilitate) portavano la STESSA pastiglia viola. Il viola dice «guarda
+    // qui», e su una cosa che non si può cliccare è un invito a vuoto. Erano
+    // anche due parole diverse per lo stesso stato, affiancate.
+    const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+    expect(wizard).toMatch(/card\.disabled \? \(\s*<Badge tone="gray">In arrivo<\/Badge>/);
+    expect(wizard).not.toMatch(/Prossimamente/);
   });
 });

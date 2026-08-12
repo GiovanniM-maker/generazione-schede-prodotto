@@ -66,6 +66,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { etichettaTipoDato } from '@/lib/tipi-dato';
 import {
   COMPLETENESS_LABELS,
   COMPLETENESS_TONES,
@@ -1482,7 +1483,7 @@ function Step2({
                       <button type="button" onClick={() => toggle(expandedAttr, setExpandedAttr, attr.id)} className="flex w-full items-center justify-between px-3 py-2 text-left">
                         <span className="flex items-center gap-2">
                           <span className="text-sm text-gray-800">{attr.name}</span>
-                          <Badge tone="gray">{attr.dataType}</Badge>
+                          <Badge tone="gray">{etichettaTipoDato(attr.dataType)}</Badge>
                           {attr.isRequired && <Badge tone="amber">obbligatorio</Badge>}
                         </span>
                         {aopen ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
@@ -1528,8 +1529,11 @@ const SOURCE_CARDS: SourceCard[] = [
   { mode: 'spreadsheet', title: 'CSV o Excel', description: 'Carichi un foglio con una riga per SKU e le colonne degli attributi.' },
   { mode: 'both', title: 'Immagini + CSV', description: 'Combini foglio e immagini: gli SKU della colonna SKU vengono associati al prefisso dei nomi immagine.' },
   { mode: 'url', title: 'Da URL', description: 'Incolli i link delle pagine prodotto (le tue o del fornitore): estraiamo i dati e le foto, poi l’AI riscrive la scheda.', note: 'Novità' },
-  { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true, note: 'In arrivo' },
-  { mode: null, title: 'PDF', description: 'Estrazione da schede tecniche in PDF.', disabled: true, note: 'Prossimamente' },
+  // «In arrivo» e «Prossimamente» erano due parole per lo stesso stato, una
+  // accanto all'altra. Una sola, e la sceglie il codice in base a `disabled`:
+  // così non si può più scriverne una terza per sbaglio.
+  { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true },
+  { mode: null, title: 'PDF', description: 'Estrazione da schede tecniche in PDF.', disabled: true },
 ];
 
 function Step3({
@@ -1569,10 +1573,20 @@ function Step3({
                 active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
               )}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-gray-900">{card.title}</span>
-                {card.note && <Badge tone="violet">{card.note}</Badge>}
-                {active && <Check className="h-4 w-4 text-brand-accent" />}
+                {/* Una fonte che si può usare e una che non c'è ancora
+                    portavano la STESSA pastiglia viola: «Novità» accanto a «In
+                    arrivo», stesso colore, stesso peso. Il viola dice «guarda
+                    qui», e su una cosa che non si può cliccare è un invito a
+                    vuoto. Ora il disponibile è viola e l'indisponibile è
+                    grigio, come tutto il resto che non si può toccare. */}
+                {card.disabled ? (
+                  <Badge tone="gray">In arrivo</Badge>
+                ) : (
+                  card.note && <Badge tone="violet">{card.note}</Badge>
+                )}
+                {active && <Check className="h-4 w-4 shrink-0 text-brand-accent" />}
               </div>
               <p className="mt-1 text-sm text-gray-500">{card.description}</p>
             </button>

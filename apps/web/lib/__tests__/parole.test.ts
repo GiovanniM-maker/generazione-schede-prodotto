@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { senzaCommenti } from './senza-commenti.js';
 
 // ---------------------------------------------------------------------------
 // Le parole a schermo.
@@ -177,5 +178,69 @@ describe('l’accesso non parla la lingua del fornitore', () => {
     for (const m of messaggi) {
       expect(m, `«${m}» nomina una variabile d’ambiente`).not.toMatch(/[A-Z_]{6,}/);
     }
+  });
+});
+
+describe('un segnaposto suggerisce, non finge', () => {
+  it('nessun campo mostra come segnaposto la parola che chiede', () => {
+    // Il campo di conferma dell'eliminazione aveva `placeholder="ELIMINA"`,
+    // cioè esattamente la stringa richiesta: sembrava già compilato, e il
+    // pulsante sembrava disattivato senza motivo. La parola da scrivere era
+    // già in chiaro nell'etichetta sopra.
+    const account = senzaCommenti(leggi('components/settings/account-client.tsx'));
+    expect(account).toMatch(/Digita <span[^>]*>ELIMINA<\/span>/);
+    expect(account).not.toMatch(/placeholder="ELIMINA"/);
+  });
+
+  it('il campo del codice non mostra un codice finto', () => {
+    // `placeholder="123456"` con `tracking-[0.4em]` era indistinguibile da un
+    // codice digitato — e dopo un tentativo sbagliato il campo si svuota,
+    // quindi si rileggeva il segnaposto come il proprio errore.
+    const login = senzaCommenti(leggi('app/login/page.tsx'));
+    expect(login).not.toMatch(/placeholder="\d{6}"/);
+    expect(login).not.toMatch(/placeholder="1 2 3/);
+  });
+});
+
+describe('i tipi di dato si leggono in italiano', () => {
+  it('nessuna schermata stampa il valore grezzo', () => {
+    // Si leggeva `long_text`, `multi_enum`, `measurement` nella colonna «Dato»,
+    // nel dettaglio di preset e categorie, nella scheda di un attributo — e
+    // nel menu di creazione era **l'unica cosa scritta**: si sceglieva un tipo
+    // leggendo un identificatore di database.
+    const colpevoli = sorgenti
+      .filter((f) => /\{\s*(a|attr|data)\.dataType\s*\}/.test(f.src))
+      .map((f) => f.path);
+    expect(colpevoli, 'passa da `etichettaTipoDato`').toEqual([]);
+  });
+
+  it('l’elenco dei tipi e le loro etichette vengono dallo stesso posto', () => {
+    // Erano tre: una lista grezza per la tendina, e due mappe che dicevano la
+    // stessa cosa in modo diverso («testo lungo» contro «Testo lungo»). Con
+    // due sorgenti separate, la tendina può guadagnare un tipo che nessuna
+    // etichetta conosce, e nessuno se ne accorge.
+    const attributi = leggi('components/settings/attributes-client.tsx');
+    expect(attributi).not.toMatch(/const DATA_TYPES = \[/);
+    expect(attributi).toMatch(/TIPI_DATO/);
+    for (const f of ['components/settings/preset-copilot-panel.tsx', 'components/onboarding-stepper.tsx']) {
+      expect(leggi(f), `${f} ha ancora una mappa sua`).not.toMatch(/const (TYPE_LABEL|DATA_TYPE_LABELS)/);
+    }
+  });
+});
+
+describe('quello che manca a noi non si dice al cliente', () => {
+  it('il piede non annuncia una configurazione mancante', () => {
+    // Diceva «Contatto di assistenza non ancora configurato» in fondo a ogni
+    // schermata. Era vero — meglio del silenzio, meglio di un `mailto:` morto —
+    // ma tre revisioni su sei l'hanno classificato come guasto del prodotto. È
+    // un messaggio nostro, su una cosa che il cliente non può sistemare.
+    expect(senzaCommenti(leggi('components/app-footer.tsx'))).not.toMatch(/non ancora configurat/i);
+  });
+
+  it('lo dice invece a chi può sistemarla', () => {
+    // Togliere il messaggio senza spostarlo sarebbe stato nasconderlo.
+    const admin = leggi('app/app/admin/page.tsx');
+    expect(admin).toMatch(/Da configurare/);
+    expect(admin).toMatch(/SUPPORT_EMAIL/);
   });
 });

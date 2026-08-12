@@ -119,6 +119,10 @@ export default function LoginPage({
                       <Label htmlFor="token">Codice di accesso</Label>
                       <div className="relative">
                         <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        {/* Niente segnaposto «123456»: con la spaziatura ampia
+                            era indistinguibile da un codice già digitato, e
+                            dopo un codice sbagliato il campo si svuota — si
+                            rileggeva il segnaposto come il proprio errore. */}
                         <Input
                           id="token"
                           name="token"
@@ -128,7 +132,6 @@ export default function LoginPage({
                           maxLength={6}
                           required
                           autoFocus
-                          placeholder="123456"
                           className="pl-9 tracking-[0.4em]"
                         />
                       </div>

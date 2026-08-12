@@ -24,22 +24,29 @@ export function AppFooter() {
   return (
     <footer className="mt-12 border-t border-gray-200">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <p className="inline-flex items-center gap-2">
-          <LifeBuoy className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
-          {email ? (
-            <>
-              Serve aiuto? Scrivi a{' '}
-              <a
-                href={`mailto:${email}?subject=${encodeURIComponent('Verificato — richiesta di assistenza')}`}
-                className="-my-1 inline-flex items-center py-1.5 font-medium text-brand-accent underline underline-offset-2"
-              >
-                {email}
-              </a>
-            </>
-          ) : (
-            <span>Contatto di assistenza non ancora configurato.</span>
-          )}
-        </p>
+        {/* Senza indirizzo, il piede tace.
+            Diceva «Contatto di assistenza non ancora configurato», che è vero
+            e per questo l'avevo scritto: meglio del silenzio, meglio di un
+            `mailto:` che non porta da nessuna parte. Ma **tre revisioni su sei
+            l'hanno classificato come guasto del prodotto** — e avevano
+            ragione a leggerlo così: è un messaggio nostro, su una cosa che il
+            cliente non può sistemare, in fondo a ogni schermata.
+            Chi deve saperlo è chi gestisce il servizio, e infatti lo legge
+            nella pagina «Servizio», dove ci sono le altre cose da sistemare. */}
+        {email ? (
+          <p className="inline-flex items-center gap-2">
+            <LifeBuoy className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+            Serve aiuto? Scrivi a{' '}
+            <a
+              href={`mailto:${email}?subject=${encodeURIComponent('Verificato — richiesta di assistenza')}`}
+              className="-my-1 inline-flex items-center py-1.5 font-medium text-brand-accent underline underline-offset-2"
+            >
+              {email}
+            </a>
+          </p>
+        ) : (
+          <span />
+        )}
         {/* `-my-1 py-1.5` porta l'area di tocco a 24px senza allargare la riga:
             un link di testo è alto quanto il testo, e con il dito non si prende. */}
         <nav className="-my-1 flex flex-wrap gap-x-4" aria-label="Informazioni legali">

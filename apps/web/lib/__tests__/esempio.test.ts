@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { senzaCommenti } from './senza-commenti.js';
 
 // ---------------------------------------------------------------------------
 // Le cose che potevano aspettare, e che aspettavano da troppo.
@@ -30,17 +31,6 @@ describe('niente pagine raggiungibili solo a memoria', () => {
   });
 });
 
-/**
- * Il sorgente senza commenti.
- *
- * Serve per i controlli sulle **parole che finiscono a schermo**: la prima
- * versione di questo test cercava «a breve» nel file intero e lo trovava — nel
- * commento che spiega perché quella frase è stata tolta. Un test che legge la
- * spiegazione invece del prodotto è un test che si dà ragione da solo.
- */
-function senzaCommenti(src: string): string {
-  return src.replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
-}
 
 describe('la pagina Integrazioni risponde alla domanda con cui ci si arriva', () => {
   const src = senzaCommenti(leggi('app/app/settings/integrations/page.tsx'));

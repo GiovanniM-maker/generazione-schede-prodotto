@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avviso } from '@/components/ui/avviso';
+import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 const KIND_LABELS: Record<string, string> = {
   factual: 'Fattuale',
@@ -109,7 +110,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             )}
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Tipo di dato: {a.dataType}
+            Tipo di dato: {etichettaTipoDato(a.dataType)}
             {a.unit ? ` · unità ${a.unit}` : ''}
           </p>
         </div>

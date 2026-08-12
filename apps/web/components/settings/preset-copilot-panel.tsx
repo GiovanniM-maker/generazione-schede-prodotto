@@ -23,20 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
-
-const TYPE_LABEL: Record<string, string> = {
-  text: 'testo',
-  long_text: 'testo lungo',
-  boolean: 'sì/no',
-  integer: 'intero',
-  decimal: 'decimale',
-  date: 'data',
-  enum: 'elenco',
-  multi_enum: 'multi-elenco',
-  measurement: 'misura',
-  percentage: '%',
-  currency: 'valuta',
-};
+import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -323,7 +310,7 @@ export function PresetCopilotPanel({
                         <span className={a.existing ? 'text-gray-500' : 'font-medium text-gray-800'}>
                           {a.name}
                         </span>
-                        <Badge tone="gray">{TYPE_LABEL[a.dataType] ?? a.dataType}</Badge>
+                        <Badge tone="gray">{etichettaTipoDato(a.dataType)}</Badge>
                         {a.enumValues && a.enumValues.length > 0 && (
                           <span className="truncate text-gray-500">{a.enumValues.join(' · ')}</span>
                         )}

@@ -22,6 +22,7 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Modal } from '@/components/settings/modal';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
+import { etichettaTipoDato, TIPI_DATO } from '@/lib/tipi-dato';
 
 const KINDS = [
   { value: 'factual', label: 'Fattuale' },
@@ -29,20 +30,6 @@ const KINDS = [
   { value: 'generative', label: 'Generativo' },
 ];
 
-const DATA_TYPES = [
-  'text',
-  'long_text',
-  'integer',
-  'decimal',
-  'boolean',
-  'date',
-  'enum',
-  'multi_enum',
-  'measurement',
-  'percentage',
-  'currency',
-  'json',
-];
 
 export function AttributesClient({
   initialAttributes,
@@ -306,7 +293,7 @@ export function AttributesClient({
                         a.attributeKind}
                     </Badge>
                   </TD>
-                  <TD className="text-gray-500">{a.dataType}</TD>
+                  <TD className="text-gray-500">{etichettaTipoDato(a.dataType)}</TD>
                   <TD>
                     {a.isSystem ? (
                       <Badge tone="gray">Sistema</Badge>
@@ -466,9 +453,11 @@ export function AttributesClient({
                   setForm((f) => ({ ...f, dataType: e.target.value }))
                 }
               >
-                {DATA_TYPES.map((d) => (
+                {/* Si leggeva `multi_enum`: un identificatore di database, in
+                    un menu dove bisogna scegliere. */}
+                {TIPI_DATO.map((d) => (
                   <option key={d} value={d}>
-                    {d}
+                    {etichettaTipoDato(d)}
                   </option>
                 ))}
               </Select>

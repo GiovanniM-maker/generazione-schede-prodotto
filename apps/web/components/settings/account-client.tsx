@@ -96,11 +96,17 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
               <Label htmlFor="del-confirm">
                 Digita <span className="font-mono font-semibold">ELIMINA</span> per confermare
               </Label>
+              {/* Nessun segnaposto.
+                  Era `placeholder="ELIMINA"`, cioè esattamente la parola da
+                  digitare: il campo sembrava già compilato e il pulsante
+                  sembrava disattivato senza motivo. La parola richiesta è già
+                  scritta sopra, in grassetto; ripeterla dentro al campo non
+                  aiuta a scriverla, aiuta solo a non accorgersi di non averla
+                  scritta. */}
               <Input
                 id="del-confirm"
                 value={confirmation}
                 onChange={(e) => setConfirmation(e.target.value)}
-                placeholder="ELIMINA"
                 className="mt-1 max-w-xs"
               />
             </div>
