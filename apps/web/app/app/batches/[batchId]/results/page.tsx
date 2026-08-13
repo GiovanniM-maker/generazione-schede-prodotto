@@ -213,10 +213,14 @@ export default async function ResultsPage({
   const importIssues = await computeImportIssues(supabase, batchId);
 
   return (
+    // `piena`: qui i dati SONO il contenuto. La tabella vuole 1314 px e ne
+    // riceveva 1102, quindi scorreva di lato di 212 px a qualsiasi larghezza di
+    // schermo — su un monitor da 2560 con 1408 px di margine vuoto ai lati.
     <PageShell
       title="Risultati"
       subtitle={`${batch.name} — rivedi, modifica e approva le schede generate, poi esporta il catalogo.`}
       actions={<ReanalyzeButton batchId={batchId} />}
+      larghezza="piena"
     >
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
       <ResultsTable batchId={batchId} presetId={presetId} rows={rows} />

@@ -175,7 +175,7 @@ export function PresetsClient({
             </p>
           </div>
         ) : (
-          <Table>
+          <Table scorrevole>
             <THead>
               <TR>
                 <TH>Nome</TH>

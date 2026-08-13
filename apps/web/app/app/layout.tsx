@@ -35,8 +35,14 @@ export default async function AppLayout({
   const credits = contesto?.credits ?? 0;
   const openDoubts = contesto?.openDoubts ?? 0;
 
+  // `group` sulla radice: serve alle due fasce qui sotto — intestazione e
+  // contenuto — per accorgersi che la pagina dentro `main` ha chiesto la
+  // larghezza piena. Il selettore è `:has()`, quindi la richiesta parte dal
+  // contenuto: questo file non deve sapere QUALI pagine sono fatte di dati.
+  // E si allargano insieme, altrimenti il logo resterebbe allineato a 1152 e
+  // la tabella a 1600 — due colonne di lettura invece di una.
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="group min-h-screen bg-[var(--background)]">
       {/* Dieci tappe di Tab prima di arrivare al contenuto, e quarantatré per
           l'ultima azione dei risultati con tre soli prodotti. Chi naviga da
           tastiera rifaceva l'intera intestazione a ogni pagina. Il
@@ -55,7 +61,7 @@ export default async function AppLayout({
           dello zoom al 200% su 1440 — cioè di chi ha bisogno di ingrandire.
           I test provavano 390 e 1440: il buco stava esattamente in mezzo. */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-brand text-white shadow-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-2 sm:gap-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-2 motion-safe:transition-[max-width] sm:gap-4 sm:px-6 group-has-[[data-larghezza=piena]]:max-w-[1600px]">
           <Logo href="/app" className="shrink-0 text-white" />
 
           {/* `min-w-0` e `justify-end`: sotto i 328px sei comandi da 40px più la
@@ -147,7 +153,11 @@ export default async function AppLayout({
 
       </header>
 
-      <main id="contenuto" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 sm:px-6 focus:outline-none">
+      <main
+        id="contenuto"
+        tabIndex={-1}
+        className="mx-auto max-w-6xl px-4 py-8 motion-safe:transition-[max-width] focus:outline-none sm:px-6 group-has-[[data-larghezza=piena]]:max-w-[1600px]"
+      >
         {children}
       </main>
       <AppFooter />

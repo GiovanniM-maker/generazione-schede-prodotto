@@ -773,7 +773,7 @@ export function ResultsTable({
 
             {/* DESKTOP: tabella completa */}
             <div className={cn('hidden sm:block', vista === 'lettura' && 'sm:hidden')}>
-            <Table>
+            <Table scorrevole>
               <THead>
                 <TR>
                   <TH className="w-10">
@@ -819,20 +819,30 @@ export function ResultsTable({
                       <TD className="font-mono text-xs text-ink-600">
                         {r.externalId}
                       </TD>
-                      {/* Larghezza dichiarata e troncatura, come la colonna
-                          accanto: senza, un nome lungo andava a capo su quattro
-                          righe e l'altezza delle righe ballava fra 73 e 105px. */}
-                      <TD className="max-w-[14rem] truncate font-medium text-ink-900" title={r.name}>
+                      {/* Larghezza dichiarata e troncatura, come le due
+                          colonne accanto: senza, un nome lungo andava a capo su
+                          quattro righe e l'altezza delle righe ballava fra 73 e
+                          105px.
+                          I tre limiti crescono con lo schermo. Erano fissi, e
+                          su un monitor largo restavano quelli di un portatile:
+                          **tutti e sei** i nomi, titoli e descrizioni misurati
+                          su dati veri erano troncati — il piu' stretto a 256px
+                          per un testo che ne voleva 326. Il nome del prodotto e'
+                          l'identita' della riga, quindi e' il primo a smettere
+                          di essere tagliato; la descrizione breve e' un
+                          paragrafo, e in una riga di tabella e' giusto che si
+                          fermi. */}
+                      <TD className="max-w-[14rem] truncate font-medium text-ink-900 xl:max-w-[22rem]" title={r.name}>
                         {r.name !== r.externalId ? (
                           r.name
                         ) : (
                           <span className="font-normal text-ink-300">—</span>
                         )}
                       </TD>
-                      <TD className="max-w-[16rem] truncate text-ink-700">
+                      <TD className="max-w-[16rem] truncate text-ink-700 xl:max-w-[20rem]">
                         {eff?.title || <span className="text-ink-300">—</span>}
                       </TD>
-                      <TD className="max-w-[18rem] truncate text-ink-500">
+                      <TD className="max-w-[18rem] truncate text-ink-500 xl:max-w-[20rem] 2xl:max-w-[24rem]">
                         {eff?.shortDescription || (
                           <span className="text-ink-300">—</span>
                         )}
