@@ -13,6 +13,7 @@ import {
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { DallaRigaAllaScheda } from '@/components/vetrina/dalla-riga-alla-scheda';
 import { formattaPrezzo, prezzoPerCredito } from '@app/core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Metadata } from 'next';
@@ -131,7 +132,7 @@ export default async function LandingPage() {
 
       <main>
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-medium text-ink-600">
               <Sparkles className="h-3.5 w-3.5 text-brand-accent" />
@@ -171,6 +172,15 @@ export default async function LandingPage() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* La prova, non la promessa.
+              «Descrizioni fedeli ai dati — mai inventate» è l'unica frase che
+              distingue questo prodotto da un generatore di testo qualsiasi, ed
+              era solo affermata: la dimostrazione stava 780 px più in basso, e
+              senza il dato di partenza accanto. */}
+          <div className="mx-auto mt-14 max-w-5xl">
+            <DallaRigaAllaScheda />
           </div>
         </section>
 
@@ -248,37 +258,13 @@ export default async function LandingPage() {
                   ))}
                 </ul>
               </div>
-              {/* L'unico esempio era un blazer in lana, su un prodotto che
-                  vende soprattutto al food: chi arriva con un listino di
-                  conserve non si riconosceva in niente. Ora sono due, e sotto
-                  c'è la riga di partenza — che è il punto: la prosa esce dai
-                  dati, non dalla fantasia. */}
+              {/* L'esempio era uno solo, un blazer in lana, su un prodotto
+                  che vende soprattutto al food: chi arriva con un listino di
+                  conserve non si riconosceva in niente. Ora i settori sono due
+                  e stanno in due punti diversi — il food nell'apertura, con
+                  accanto la riga da cui esce, la moda qui. Tenerli entrambi qui
+                  voleva dire ripetere l'apertura duecento pixel più in basso. */}
               <div className="space-y-4">
-                <Card>
-                  <CardContent className="space-y-3 p-6 pt-6">
-                    <div className="text-xs font-medium uppercase tracking-wide text-ink-500">
-                      Anteprima scheda · food
-                    </div>
-                    <div className="text-lg font-semibold text-ink-900">
-                      Passata di pomodoro datterino giallo
-                    </div>
-                    <p className="text-sm text-ink-600">
-                      Datterini gialli raccolti a mano e lavorati entro poche ore, per una
-                      passata densa e naturalmente dolce.
-                    </p>
-                    <ul className="space-y-1 text-sm text-ink-600">
-                      <li>• Ingredienti: pomodoro datterino giallo (99%), sale marino</li>
-                      <li>• Formato: vasetto in vetro 340 g</li>
-                      <li>• Origine: Sicilia</li>
-                    </ul>
-                    <p className="border-t border-ink-100 pt-3 text-xs text-ink-500">
-                      Dalla riga del listino:{' '}
-                      <span className="font-mono">
-                        PASS-DAT-340 · datterino giallo · 340 g · Sicilia · 99% pomodoro
-                      </span>
-                    </p>
-                  </CardContent>
-                </Card>
                 <Card>
                   <CardContent className="space-y-3 p-6 pt-6">
                     <div className="text-xs font-medium uppercase tracking-wide text-ink-500">

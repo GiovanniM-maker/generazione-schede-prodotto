@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
+import { ProvaDelCampione } from '@/components/prova-del-campione';
 import {
   COMPLETENESS_LABELS,
   COMPLETENESS_TONES,
@@ -256,100 +257,43 @@ export function SampleRunner({
             </Avviso>
           )}
 
-          {/* Completezza campione */}
-          {sample.completeness && (
-            <Card>
-              <CardContent className="space-y-2 p-6">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-500">
-                    Completezza
-                  </h3>
-                  <Badge tone={COMPLETENESS_TONES[sample.completeness.status]}>
-                    {COMPLETENESS_LABELS[sample.completeness.status]}
-                  </Badge>
-                </div>
-                {(sample.completeness.status === 'partial' ||
-                  sample.completeness.status === 'insufficient') && (
-                  <p className="text-sm text-amber-700">
-                    Generazione parziale: i dati mancanti non sono stati
-                    inventati.
-                  </p>
-                )}
-                {sample.completeness.missingAttributes.length > 0 && (
-                  <div>
-                    <FieldLabel>Attributi mancanti</FieldLabel>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {sample.completeness.missingAttributes.map((a) => (
-                        <span
-                          key={a}
-                          className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800"
-                        >
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {/* La prova, in un colpo d'occhio.
+              Erano quattro riquadri impilati — completezza, fatti, contenuto
+              come elenco di campi — e i fatti stavano a 400 px dalla prosa che
+              ne era uscita: per collegarli bisognava scorrere su e giù e
+              tenerli a mente. Ora sono affiancati, che è l'unico modo in cui
+              una prova si legge come una prova. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-semibold text-ink-900">Il campione</h2>
+            {sample.completeness && (
+              <Badge tone={COMPLETENESS_TONES[sample.completeness.status]}>
+                {COMPLETENESS_LABELS[sample.completeness.status]}
+              </Badge>
+            )}
+            {(sample.completeness?.status === 'partial' ||
+              sample.completeness?.status === 'insufficient') && (
+              <span className="text-sm text-amber-700">
+                Generazione parziale: i dati mancanti non sono stati inventati.
+              </span>
+            )}
+          </div>
 
-          {/* Fatti utilizzati */}
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-500">
-                Fatti utilizzati
-              </h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {sample.facts.length === 0 && (
-                  <span className="text-sm text-ink-500">Nessun fatto</span>
-                )}
-                {sample.facts.map((f, i) => (
-                  <Badge key={i} tone="gray">
-                    <span className="font-medium">{f.fieldKey}</span>: {f.value}
-                  </Badge>
+          <ProvaDelCampione
+            fatti={sample.facts}
+            scheda={sample.content}
+            mancanti={sample.completeness?.missingAttributes ?? []}
+          />
+
+          {sample.content.warnings.length > 0 && (
+            <Avviso tono="attenzione">
+              <p className="font-medium">Avvisi</p>
+              <ul className="mt-1 list-inside list-disc">
+                {sample.content.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Contenuto generato */}
-          <Card>
-            <CardContent className="space-y-5 p-6">
-              <Field label="Titolo" value={sample.content.title} />
-              <Field
-                label="Descrizione breve"
-                value={sample.content.shortDescription}
-              />
-              <Field
-                label="Descrizione completa"
-                value={sample.content.longDescription}
-              />
-              <div>
-                <FieldLabel>Bullet</FieldLabel>
-                <ul className="mt-1 list-inside list-disc space-y-1 text-sm text-ink-700">
-                  {sample.content.bullets.map((b, i) => (
-                    <li key={i}>{b}</li>
-                  ))}
-                </ul>
-              </div>
-              <Field
-                label="Meta description"
-                value={sample.content.metaDescription}
-              />
-
-              {sample.content.warnings.length > 0 && (
-                <Avviso tono="attenzione">
-                  <p className="font-medium">Avvisi</p>
-                  <ul className="mt-1 list-inside list-disc">
-                    {sample.content.warnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                </Avviso>
-              )}
-            </CardContent>
-          </Card>
+              </ul>
+            </Avviso>
+          )}
 
           {/* Editing indicazioni */}
           {editing && (
@@ -467,23 +411,6 @@ export function SampleRunner({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-      {children}
-    </span>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <FieldLabel>{label}</FieldLabel>
-      <p className="mt-1 text-sm text-ink-800">{value}</p>
     </div>
   );
 }

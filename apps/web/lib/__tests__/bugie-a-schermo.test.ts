@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { FakeDb, SCHEMA_APP } from './fake-supabase.js';
+
+const leggiFile = (rel: string) =>
+  readFileSync(join(process.cwd(), 'apps/web', rel), 'utf8');
 
 // ---------------------------------------------------------------------------
 // Le frasi che il prodotto diceva e che non erano vere.
@@ -93,5 +98,90 @@ describe('file senza prodotti', () => {
     const dati = (res as { data: { totalRows: number; file: { problem: string | null } } }).data;
     expect(dati.totalRows).toBe(2);
     expect(dati.file.problem).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// La prova, e la sua onestà.
+//
+// L'apertura della vetrina ora mostra una riga di listino accanto alla scheda
+// che ne esce: è la dimostrazione della sola frase che distingue questo
+// prodotto da un generatore di testo qualsiasi. Proprio per questo è il posto
+// in cui una bugia costerebbe di più — un esempio che promette più di quello
+// che il prodotto fa, o che si spaccia per il caso di un cliente vero.
+// ---------------------------------------------------------------------------
+
+describe('la prova nell’apertura non promette più di quello che c’è', () => {
+  const prova = leggiFile('components/vetrina/dalla-riga-alla-scheda.tsx');
+
+  it('ogni fatto della scheda sta anche nella riga', () => {
+    // Il punto dell'esempio è che i numeri combacino. Se qualcuno domani
+    // ritocca la descrizione per farla suonare meglio e ci infila un fatto che
+    // nella riga non c'è, l'esempio dimostra il contrario di quello che dice.
+    const riga = new Map(
+      [...prova.matchAll(/\['([a-z_]+)', '([^']+)'\]/g)].map((m) => [m[1]!, m[2]!]),
+    );
+    expect(riga.size, 'la riga d’esempio è sparita').toBeGreaterThan(3);
+
+    const scheda = prova.slice(prova.indexOf('const SCHEDA'), prova.indexOf('export function'));
+    // I fatti verificabili: il grammaggio, la percentuale, l'origine, il vaso.
+    for (const chiave of ['formato', 'origine', 'vaso', 'pomodoro_pct']) {
+      const valore = riga.get(chiave);
+      expect(valore, `manca «${chiave}» nella riga`).toBeTruthy();
+      const nudo = valore!.replace(/\s+/g, '').toLowerCase();
+      const testo = scheda.replace(/\s+/g, '').toLowerCase();
+      expect(testo, `«${chiave}: ${valore}» non compare nella scheda`).toContain(nudo);
+    }
+  });
+
+  it('è dichiarato per quello che è: un esempio', () => {
+    // Un finto caso reale, su questa pagina, sarebbe esattamente il genere di
+    // cosa che il prodotto promette di non fare.
+    expect(prova).toMatch(/Esempio/);
+  });
+
+  it('non si vanta di cose che il prodotto non fa', () => {
+    // Nessun numero di clienti, nessuna percentuale di precisione, nessun
+    // premio: sono le tre cose che una pagina di apertura scrive per prima
+    // quando comincia a mentire.
+    for (const bugia of [/\d+ ?% (di )?(precisione|accuratezza)/i, /\bclienti\b/i, /garantit/i]) {
+      expect(prova, `l’esempio promette «${bugia}»`).not.toMatch(bugia);
+    }
+  });
+});
+
+describe('il campione mostra i dati accanto alla prosa', () => {
+  const prova = leggiFile('components/prova-del-campione.tsx');
+  const runner = leggiFile('components/sample-runner.tsx');
+
+  it('i fatti e la scheda stanno nello stesso riquadro, affiancati', () => {
+    // Erano quattro riquadri impilati, con i fatti a 400 px dalla prosa che ne
+    // era uscita: per collegarli bisognava scorrere su e giù e tenerli a mente.
+    expect(prova).toMatch(/lg:grid-cols-\[/);
+    expect(prova).toMatch(/Dal tuo file/);
+    expect(prova).toMatch(/La scheda che ne esce/);
+    expect(runner).toMatch(/<ProvaDelCampione/);
+  });
+
+  it('quello che nel file non c’era viene detto, non riempito', () => {
+    // È la parte della promessa che costa di più mantenere. Nasconderla
+    // sarebbe stato il modo più rapido di non meritarsela.
+    expect(prova).toMatch(/mancanti/);
+    expect(prova).toMatch(/Nel file non c’era/);
+    expect(prova).toMatch(/non è stato inventato/i);
+    expect(runner).toMatch(/mancanti=\{sample\.completeness\?\.missingAttributes \?\? \[\]\}/);
+  });
+});
+
+describe('i risultati dicono cosa è stato consegnato', () => {
+  it('il sottotitolo porta il conto, non solo le istruzioni', () => {
+    // Diceva cosa si DEVE fare — «rivedi, modifica e approva» — e non quello
+    // che si è ottenuto. Il numero che conta si poteva solo dedurre dai filtri,
+    // che sono filtri.
+    const pagina = leggiFile('app/app/batches/[batchId]/results/page.tsx');
+    expect(pagina).toMatch(/frasiDiConsegna\(consegna\(rows\)\)/);
+    expect(pagina).toMatch(/\{consegnata\}/);
+    // E le istruzioni non sono sparite: sono scese accanto alla tabella.
+    expect(pagina).toMatch(/Rivedi, modifica e approva/);
   });
 });

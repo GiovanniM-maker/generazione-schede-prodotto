@@ -779,11 +779,86 @@ era rotto niente — si era rotta la formattazione che il test aveva scambiato p
 la proprietà. Ora cerca i due attributi dentro lo stesso `<main>`, e continua a
 diventare rosso se se ne toglie uno.
 
-### Quello che resta, nell'ordine
+### 9.5 Portare la prova in superficie — **✔ fatto**
 
-5. **Portare la prova in superficie** — il confronto riga-di-listino/prosa
-   nell'apertura della vetrina, la fascia della consegna sopra i risultati, il
-   campione composto invece che ingabbiato.
+Il prodotto ha una sola frase che lo distingue da un generatore di testo
+qualsiasi: **i dati posseggono i fatti, l'AI la prosa**. Era scritta in tre
+punti e **dimostrata in nessuno**.
+
+**Nell'apertura della vetrina** la frase c'era («descrizioni fedeli ai dati —
+mai inventate») e subito dopo venivano i pulsanti. L'unica dimostrazione stava a
+**780 px di scorrimento**, in una scheda d'esempio *senza il dato di partenza
+accanto*: si vedeva un buon testo, non da dove veniva. Chi arriva qui è qualcuno
+che ha un listino e ha già visto un'AI inventare un grammaggio; a quella persona
+non serve leggere «mai inventate», serve vedere una riga di Excel e la frase che
+ne esce, vicine, e poter contare i fatti.
+
+Ora l'apertura le mette affiancate — sette campi a sinistra, la scheda a destra
+— con sotto una didascalia che dice esattamente quanto: *sei dei sette campi
+finiscono nel testo; lo SKU resta il codice; quello che nella riga non c'è non
+compare*. A 1440 il riquadro sta sopra la piega (parte a 583 px, alto 291, in
+una finestra da 900).
+
+Tre guardie, e sono guardie sull'**onestà** più che sulla forma, perché è la
+pagina in cui una bugia costerebbe di più:
+
+- ogni fatto verificabile della scheda d'esempio (grammaggio, percentuale,
+  origine, materiale) deve stare **anche nella riga** — se domani qualcuno
+  ritocca la descrizione per farla suonare meglio e ci infila un fatto che nella
+  riga non c'è, l'esempio dimostra il contrario di quello che dice;
+- l'esempio deve restare **dichiarato come esempio**: un finto caso di un
+  cliente vero, proprio qui, sarebbe il genere di cosa che il prodotto promette
+  di non fare;
+- niente percentuali di precisione, niente numeri di clienti, niente
+  «garantito».
+
+**Nel campione** — la schermata in cui si decide se spendere i crediti su tutto
+il catalogo — la prova era spezzata in quattro riquadri impilati: completezza,
+poi i fatti, poi il contenuto reso come un elenco di campi con l'etichetta
+sopra. Tre cose vere, dette una sotto l'altra in modo che nessuna dimostrasse
+l'altra: **i fatti stavano a 400 px dalla prosa che ne era uscita**, e per
+collegarli bisognava scorrere su e giù tenendoli a mente.
+
+Ora stanno nello stesso riquadro, affiancati: a sinistra quello che c'era nel
+file, a destra la scheda **composta come si vedrà** — non un modulo, una scheda
+— e la meta description mostrata come appare nei risultati di ricerca, col
+conteggio dei caratteri. Sotto, quello che nel file *non* c'era, detto per nome:
+è la parte della promessa che costa di più mantenere, e nasconderla sarebbe
+stato il modo più rapido di non meritarsela.
+
+**Nei risultati** il sottotitolo diceva cosa si *deve* fare — «rivedi, modifica
+e approva le schede generate, poi esporta il catalogo». Vero, ma è il compito,
+non il risultato. Il numero che conta — «dodici schede che non hai scritto tu» —
+non era scritto da nessuna parte: si poteva solo dedurre dai filtri, che sono
+filtri. Ora sotto il titolo c'è il conto («3 schede generate · 3 complete») e le
+istruzioni sono scese accanto alla tabella su cui si applicano.
+
+Il conto è una funzione a sé con otto test, perché sembra aritmetica e per metà
+non lo è: una scheda fallita non va contata come generata (è il difetto del
+§3.6, e questo era il punto da cui poteva rientrare), le categorie a zero non si
+nominano — «0 fallite» mette in testa un fallimento che non c'è — ma **le
+fallite si nominano sempre**, anche una sola, perché sono l'unica parte che
+chiede di fare qualcosa. E su un batch senza nemmeno una scheda la frase tace,
+invece di dire «0 schede generate».
+
+**E un difetto vero, mio, preso da una guardia esistente.** Nel riquadro
+dell'apertura avevo scritto il nome del file a `11px` e l'etichetta «in scheda»
+a `10px` — sotto il minimo di 12, che è la soglia già custodita da
+`e2e/interfaccia.spec.ts`. Il testo piccolo è la tentazione naturale quando si
+costruisce un riquadro denso, e questa è esattamente la ragione per cui quella
+guardia esiste. Portati entrambi a 12.
+
+**Una guardia rotta da me, di nuovo, e per la stessa ragione della volta
+scorsa.** Il test «la landing non parla solo di moda» cercava la stringa
+`Anteprima scheda · food` dentro `app/page.tsx`. Spostando l'esempio food
+nell'apertura, dentro un componente suo, è diventato rosso senza che la
+proprietà fosse cambiata di una virgola. Ora legge la pagina insieme a quello
+che ci mette dentro, e cerca i due settori invece di due stringhe. È la seconda
+volta in due sezioni che un test blocca la *forma* di qualcosa di cui doveva
+custodire la *sostanza*: vale la pena scriverlo due volte.
+
+### Quello che resta
+
 6. **Le nove pagine che ignorano `PageShell`.**
 
 Rimasto fuori, e detto: le troncature dell'anteprima del foglio nel wizard
