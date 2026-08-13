@@ -955,11 +955,36 @@ deliberatamente, col motivo scritto sopra.
   test girati sono meno di novanta, se i saltati superano i girati, o se il
   resoconto non esiste.
 
-**Ancora aperto, e va detto:** `supabase/tests/rls.test.sql` è scritto contro
-lo stesso schema vecchio del seed. Non si vede perché il job `database` lo
-esegue con `|| true` e `continue-on-error: true` — è verde per costruzione.
-Finché non è portato al modello nuovo, quel job non sta verificando le regole
-di accesso.
+**Le regole di accesso** — `supabase/tests/rls.test.sql` era scritto contro lo
+stesso schema vecchio del seed, e non si vedeva perché il job `database` lo
+eseguiva con `|| true` e `continue-on-error: true`: **verde per costruzione**.
+Un job che non può fallire non è un controllo, è un rito.
+
+Portato al modello nuovo (i batch non hanno più bisogno di un preset: quella
+colonna è nullable e senza chiave esterna dalla migrazione `…000010`) e
+allargato da 7 a **11 prove**, perché il modello di configurazione — settori,
+categorie, attributi, preset — è nato dopo questo file ed è proprio dove vive
+oggi il rischio multi-tenant: una libreria di sistema condivisa fra tutti gli
+inquilini più le estensioni di ciascuno.
+
+Le quattro nuove custodiscono le regole lette dalle policy, non indovinate: la
+libreria di sistema si legge da tutti ma **non si modifica da nessuno** (né
+`update` né `delete`, perché entrambe pretendono `owner_organization_id is not
+null`), non se ne possono creare di nuove, e i preset non escono dalla propria
+organizzazione né in lettura né in scrittura.
+
+Dentro c'è anche un **controllo positivo**: i settori devono essere visibili. Su
+un database che nega tutto, ogni prova negativa passerebbe — e sarebbe di nuovo
+verde per assenza di bersaglio.
+
+Verificate rompendo la sicurezza per davvero, quattro volte: RLS spenta su
+`batches`, preset leggibili da chiunque, categorie di sistema modificabili,
+`stripe_events` aperta. Tutte e quattro fanno fallire il file con il nome della
+prova che è saltata.
+
+Il job ora **può fallire**: niente `|| true`, niente `continue-on-error`, psql
+con `ON_ERROR_STOP=1` — che era l'altra metà del motivo per cui il file è
+rimasto rotto per mesi senza che nessuno lo sapesse.
 
 **Fuori dal codice, e serve il titolare:** prezzi veri sul listino,
 `SUPPORT_EMAIL` / `LEGAL_*` / `ADMIN_EMAILS` / `NEXT_PUBLIC_APP_URL` su Vercel,

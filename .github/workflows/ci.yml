@@ -60,22 +60,53 @@ jobs:
       - name: Build worker Docker image
         run: docker build -f apps/worker/Dockerfile -t schede-worker:ci .
 
+  # ---------------------------------------------------------------------------
+  # Le regole di accesso, provate davvero.
+  #
+  # Questo job esisteva già ed era **verde per costruzione**: `|| true` sul
+  # comando e `continue-on-error: true` sul passo. Sotto quel verde,
+  # `rls.test.sql` era rotto — inseriva `presets` con le colonne del primo
+  # modello, quelle che la migrazione `…000010` elimina — quindi da mesi non
+  # veniva provata nessuna regola di accesso. Un job che non può fallire non è
+  # un controllo: è un rito.
+  #
+  # Ora il `|| true` non c'è, `continue-on-error` nemmeno, e psql gira con
+  # `ON_ERROR_STOP=1`. Se una policy si rompe, la pull request diventa rossa.
+  # ---------------------------------------------------------------------------
   database:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      # Fissata, come nel job del browser: un'azione «latest» ha già tenuto
+      # questa CI rossa un giorno intero cambiando comportamento da sé.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
-      - name: Avvia Supabase locale e applica migrazioni + seed
+          version: 2.114.0
+
+      - name: Supabase locale
+        run: supabase start
+
+      - name: Migrazioni
         run: |
-          supabase start
-          supabase db reset --no-seed || true
-        continue-on-error: true
-      - name: Esegui i test SQL (RLS)
-        run: |
-          psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" -f supabase/tests/rls.test.sql || true
-        continue-on-error: true
+          set -euo pipefail
+          supabase db reset --no-seed
+          # Stesso modo del job del browser: prefisso `env_` per non
+          # sovrascrivere variabili del job, e un errore esplicito se manca.
+          supabase status -o env | sed 's/^/env_/' > /tmp/stato.env
+          . /tmp/stato.env
+          if [ -z "${env_DB_URL:-}" ]; then
+            echo "::error::supabase status non ha dato DB_URL: il test non avrebbe un database."
+            exit 1
+          fi
+          echo "SUPABASE_DB_URL=${env_DB_URL}" >> "$GITHUB_ENV"
+
+      # Senza seed: il test si semina da sé dentro una transazione che finisce
+      # sempre con `rollback`, quindi non dipende dai dati di sistema e non ne
+      # lascia.
+      - name: Regole di accesso (RLS)
+        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.test.sql
 
   # ---------------------------------------------------------------------------
   # La suite del browser.
