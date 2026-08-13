@@ -32,6 +32,7 @@ import {
 } from '@/lib/actions/catalog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -136,106 +137,102 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
   const current = detail.categories.find((c) => c.categoryId === selectedCat);
 
   return (
-    <div className="space-y-4">
-      {/* Intestazione */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink-900">
-              {detail.preset.name}
-            </h1>
-            <Badge tone="gray">{detail.preset.sectorName}</Badge>
-            {detail.isDraft ? (
-              <Badge tone="amber">Bozza v{detail.workingVersion}</Badge>
-            ) : (
-              <Badge tone="green">Pubblicato v{detail.workingVersion}</Badge>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-ink-500">
-            Configura categorie, attributi e prompt del preset.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setError(null);
-              setCopilotOpen(true);
-            }}
-            title={
-              editable
-                ? 'Costruisci il preset con l’AI'
-                : 'Verrà creata una bozza per applicare le modifiche'
-            }
-          >
-            <Sparkles className="h-4 w-4" />
-            Chiedi al Copilot
-          </Button>
-          {editable && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => {
-                  setError(null);
-                  setImportCatMsg(null);
-                  setImportCatOpen(true);
-                }}
-              >
-                <ClipboardList className="h-4 w-4" />
-                Categorie da lista
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => {
-                  setError(null);
-                  setImportMsg(null);
-                  setImportAttrOpen(true);
-                }}
-              >
-                <ClipboardList className="h-4 w-4" />
-                Attributi da lista
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                title="Rimuovi tutte le categorie e gli attributi dalla bozza"
-                onClick={() => {
-                  setError(null);
-                  setConfirmClear(true);
-                }}
-              >
-                <Eraser className="h-4 w-4" />
-                Svuota
-              </Button>
-            </>
+    <PageShell
+      title={detail.preset.name}
+      badges={
+        <>
+          <Badge tone="gray">{detail.preset.sectorName}</Badge>
+          {detail.isDraft ? (
+            <Badge tone="amber">Bozza v{detail.workingVersion}</Badge>
+          ) : (
+            <Badge tone="green">Pubblicato v{detail.workingVersion}</Badge>
           )}
-          {editable ? (
+        </>
+      }
+      subtitle="Configura categorie, attributi e prompt del preset."
+      actions={
+        <>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setError(null);
+            setCopilotOpen(true);
+          }}
+          title={
+            editable
+              ? 'Costruisci il preset con l’AI'
+              : 'Verrà creata una bozza per applicare le modifiche'
+          }
+        >
+          <Sparkles className="h-4 w-4" />
+          Chiedi al Copilot
+        </Button>
+        {editable && (
+          <>
             <Button
+              variant="outline"
               size="sm"
               disabled={pending}
-              onClick={() =>
-                run(() =>
-                  publishPresetVersion({ presetId: detail.preset.id }),
-                )
-              }
+              onClick={() => {
+                setError(null);
+                setImportCatMsg(null);
+                setImportCatOpen(true);
+              }}
             >
-              <Rocket className="h-4 w-4" />
-              Pubblica versione
+              <ClipboardList className="h-4 w-4" />
+              Categorie da lista
             </Button>
-          ) : (
-            <Button size="sm" onClick={createDraft} disabled={pending}>
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Crea bozza per modificare
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setError(null);
+                setImportMsg(null);
+                setImportAttrOpen(true);
+              }}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Attributi da lista
             </Button>
-          )}
-        </div>
-      </div>
-
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              title="Rimuovi tutte le categorie e gli attributi dalla bozza"
+              onClick={() => {
+                setError(null);
+                setConfirmClear(true);
+              }}
+            >
+              <Eraser className="h-4 w-4" />
+              Svuota
+            </Button>
+          </>
+        )}
+        {editable ? (
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              run(() =>
+                publishPresetVersion({ presetId: detail.preset.id }),
+              )
+            }
+          >
+            <Rocket className="h-4 w-4" />
+            Pubblica versione
+          </Button>
+        ) : (
+          <Button size="sm" onClick={createDraft} disabled={pending}>
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Crea bozza per modificare
+          </Button>
+        )}
+        
+        </>
+      }
+    >
       {!editable && (
         <Avviso tono="attenzione">
           Questo preset è pubblicato. Per modificarlo verrà creata una nuova
@@ -600,7 +597,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         }}
         onCancel={() => setRemoveCatTarget(null)}
       />
-    </div>
+    </PageShell>
   );
 }
 

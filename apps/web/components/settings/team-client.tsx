@@ -11,6 +11,7 @@ import {
   type TeamInvite,
 } from '@/lib/actions/team';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -84,13 +85,10 @@ export function TeamClient({
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-900">Team</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Membri dell’organizzazione e inviti in sospeso.
-        </p>
-      </div>
+    <PageShell
+      title="Team"
+      subtitle="Membri dell’organizzazione e inviti in sospeso."
+    >
 
       {error && (
         <Avviso tono="errore">
@@ -228,6 +226,6 @@ export function TeamClient({
           </Table>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

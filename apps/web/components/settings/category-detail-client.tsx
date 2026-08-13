@@ -13,6 +13,7 @@ import {
   type CategoryAttrRow,
 } from '@/lib/actions/catalog';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -51,27 +52,21 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink-900">
-              {detail.category.name}
-            </h1>
-            <Badge tone="gray">{detail.category.sectorName}</Badge>
-            {detail.category.isSystem ? (
-              <Badge tone="gray">Sistema</Badge>
-            ) : (
-              <Badge tone="violet">Personalizzata</Badge>
-            )}
-          </div>
-          {detail.category.description && (
-            <p className="mt-1 text-sm text-ink-500">
-              {detail.category.description}
-            </p>
+    <PageShell
+      title={detail.category.name}
+      badges={
+        <>
+          <Badge tone="gray">{detail.category.sectorName}</Badge>
+          {detail.category.isSystem ? (
+            <Badge tone="gray">Sistema</Badge>
+          ) : (
+            <Badge tone="violet">Personalizzata</Badge>
           )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        </>
+      }
+      subtitle={detail.category.description || undefined}
+      actions={
+        <>
           {editable && (
             <Button
               variant="outline"
@@ -90,8 +85,9 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
               Duplica per personalizzare
             </Button>
           )}
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {detail.category.isSystem && (
         <div className="flex items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-600">
@@ -204,7 +200,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
           />
         )}
       </Modal>
-    </div>
+    </PageShell>
   );
 }
 

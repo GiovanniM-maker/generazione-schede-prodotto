@@ -4,6 +4,7 @@ import {
   listAttributes,
 } from '@/lib/actions/catalog';
 import { Card } from '@/components/ui/card';
+import { PageShell } from '@/components/page-shell';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
 
@@ -30,13 +31,10 @@ export default async function SectorsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-900">Settori</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Settori disponibili nel catalogo (sola lettura).
-        </p>
-      </div>
+    <PageShell
+      title="Settori"
+      subtitle="Settori disponibili nel catalogo (sola lettura)."
+    >
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sectorsRes.sectors.map((s) => (
@@ -67,7 +65,7 @@ export default async function SectorsPage() {
           </Card>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Download, Link2, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageShell } from '@/components/page-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -38,11 +39,10 @@ const FORMATI = [
 
 export default function IntegrationsPage() {
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-ink-900">Integrazioni</h1>
-      <p className="mt-1 text-sm text-ink-500">
-        Come portare le schede generate nel tuo negozio.
-      </p>
+    <PageShell
+      title="Integrazioni"
+      subtitle="Come portare le schede generate nel tuo negozio."
+    >
 
       <Card>
         <CardContent className="p-6">
@@ -106,6 +106,6 @@ export default function IntegrationsPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

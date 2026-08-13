@@ -857,11 +857,88 @@ che ci mette dentro, e cerca i due settori invece di due stringhe. È la seconda
 volta in due sezioni che un test blocca la *forma* di qualcosa di cui doveva
 custodire la *sostanza*: vale la pena scriverlo due volte.
 
-### Quello che resta
+### 9.6 Le pagine che ignoravano `PageShell` — **✔ fatto, con una correzione**
 
-6. **Le nove pagine che ignorano `PageShell`.**
+**Prima di tutto: la voce era gonfiata, e l'ho gonfiata io** riportando la
+revisione estetica senza rimisurare. Diceva «nove pagine», e lasciava intendere
+un titolo che salta. Misurate a 1440 tutte e quindici le rotte
+dell'applicazione: **il titolo è a 24px/600 dappertutto**, a 32 px dal bordo
+alto del contenuto, e la deriva vera era di **2 px** su due pagine (categorie e
+attributi, a 34 invece di 32). Il salto da 200 px c'era davvero, ma nel flusso
+di un batch — ed era già stato corretto nel §3.1.
+
+Le pagine fuori dal guscio, contate davvero, erano **quindici**.
+
+Il costo non era quello che diceva la voce. Era che **quindici pagine
+ricopiavano a mano la stessa intestazione** — `text-2xl font-semibold
+text-ink-900`, la riga di sottotitolo, il gruppo dei comandi a destra — e niente
+teneva insieme le copie. I 2 px erano il primo sintomo, non il difetto: il
+difetto è che la sedicesima pagina può nascere storta senza che nessuno se ne
+accorga. E ce n'era un secondo, nuovo: **la larghezza piena per i dati (§9.4) si
+chiede attraverso `PageShell`**, quindi una pagina che si scrive l'intestazione
+da sé non può chiederla senza conoscere un contratto interno.
+
+Convertite tutte e quindici. Dopo, tutti i titoli stanno a 32 px: la deriva di
+2 px è sparita perché non ci sono più due copie da far divergere.
+
+Il guscio ha guadagnato una cosa sola, `badges`: le etichette che stanno
+*accanto* al titolo — il settore di una categoria, «Sistema», «Personalizzato
+v3». Senza, le tre pagine di dettaglio non potevano entrarci, e tre pagine fuori
+vogliono dire che il guscio non è una regola ma una preferenza.
+
+**Una cosa cambia davvero**, e la dico perché non è una conversione a costo
+zero: sulla dashboard la scheda di benvenuto stava **sopra** il titolo. Ora è il
+primo figlio del guscio, quindi sotto. La pagina si presenta col nome
+dell'organizzazione e il consiglio viene subito dopo — un invito che precede
+l'identità della pagina fa sembrare l'applicazione una promozione.
+
+**Due eccezioni, scritte con il loro perché** nel test:
+
+- `onboarding` è un percorso a sé, centrato e stretto: il titolo sta in mezzo
+  apposta;
+- `settings/storico` non è una pagina, è un reindirizzo permanente.
+
+Tre guardie: nessuna pagina senza guscio (né direttamente né tramite il suo
+componente client), nessun `h1` a `text-2xl font-semibold` fuori dal guscio, e
+l'elenco delle eccezioni non può allungarsi né restare senza motivazione. Tutte
+e tre verificate rimettendo il difetto.
+
+Verificate a schermo anche le tre pagine di dettaglio — categoria, attributo,
+preset — che non hanno copertura nella suite del browser: titolo, distintivi
+accanto, comandi a destra, nessun errore.
+
+**Un errore mio, preso dal compilatore.** Chiudevo i componenti convertiti
+cercando *l'ultima* `</div>` del file: in tre file su otto quella apparteneva a
+un componente ausiliario in fondo, non a quello convertito. `tsc` l'ha detto
+subito («Expected corresponding JSX closing tag»), il che è esattamente perché
+una conversione meccanica su otto file va fatta col compilatore acceso e non a
+occhio.
 
 Rimasto fuori, e detto: le troncature dell'anteprima del foglio nel wizard
 (`160 px` sulle intestazioni di colonna, `200 px` sui valori) non le ho toccate.
 Il guadagno vero lì è passare da 768 a 1550 px di riquadro; ritoccare i due
 limiti senza rimisurare sarebbe stato indovinare.
+
+---
+
+## Dove siamo
+
+Tutte e sei le voci della revisione estetica sono chiuse. Quello che resta è
+elencato qui, per non doverlo ricostruire a memoria.
+
+**Dal §6, quattro voci minori** — 6.3, 6.4, 6.9 aperte; la 6.5 rifiutata
+deliberatamente, col motivo scritto sopra.
+
+**Nel processo, non nel prodotto:**
+
+- la **suite del browser non gira in CI**: 240 test che esistono e che nessuna
+  pull request esegue. La CI fa `lint`, `typecheck`, `test`, `build`.
+- due test del wizard **cadono sotto carico** (`Accesso non riuscito per
+  l'utente di prova`): rieseguiti da soli passano sempre. È il rate limit
+  dell'autenticazione, non il prodotto — ma finché non è distinto da un
+  fallimento vero, ogni corsa rossa va guardata a mano.
+
+**Fuori dal codice, e serve il titolare:** prezzi veri sul listino,
+`SUPPORT_EMAIL` / `LEGAL_*` / `ADMIN_EMAILS` / `NEXT_PUBLIC_APP_URL` su Vercel,
+Stripe in modalità reale, SMTP, e la **rotazione delle chiavi condivise in
+chat** (Resend e Stripe).

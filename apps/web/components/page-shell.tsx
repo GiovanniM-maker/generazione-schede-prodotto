@@ -41,6 +41,16 @@ const LARGHEZZE = {
 
 export interface PageShellProps {
   title: string;
+  /**
+   * Etichette che stanno *accanto* al titolo, non sotto: il settore di una
+   * categoria, «Sistema», «Personalizzato v3».
+   *
+   * Senza questo, le tre pagine di dettaglio non potevano usare il guscio — il
+   * loro titolo non è una stringa, è una stringa con dei distintivi in fila. E
+   * tre pagine fuori dal guscio vogliono dire che il guscio non è una regola,
+   * è una preferenza.
+   */
+  badges?: React.ReactNode;
   /** Una riga sotto il titolo: cosa si fa qui, o di quale batch si tratta. */
   subtitle?: React.ReactNode;
   /** Comandi allineati al titolo (esporta, ri-analizza…). */
@@ -52,6 +62,7 @@ export interface PageShellProps {
 
 export function PageShell({
   title,
+  badges,
   subtitle,
   actions,
   larghezza = 'larga',
@@ -65,7 +76,10 @@ export function PageShell({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-ink-900">{title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink-900">{title}</h1>
+            {badges}
+          </div>
           {subtitle && <p className="mt-1 text-sm text-ink-500">{subtitle}</p>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}

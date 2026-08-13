@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/catalog';
 import type { Json } from '@app/database';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -94,27 +95,24 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink-900">{a.name}</h1>
-            <Badge tone="gray">{a.sectorName}</Badge>
-            <Badge tone="gray">
-              {KIND_LABELS[a.attributeKind] ?? a.attributeKind}
-            </Badge>
-            {a.isSystem ? (
-              <Badge tone="gray">Sistema</Badge>
-            ) : (
-              <Badge tone="violet">Personalizzato v{a.version}</Badge>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-ink-500">
-            Tipo di dato: {etichettaTipoDato(a.dataType)}
-            {a.unit ? ` · unità ${a.unit}` : ''}
-          </p>
-        </div>
-        <Button  onClick={save} disabled={pending}>
+    <PageShell
+      title={a.name}
+      badges={
+        <>
+          <Badge tone="gray">{a.sectorName}</Badge>
+          <Badge tone="gray">
+            {KIND_LABELS[a.attributeKind] ?? a.attributeKind}
+          </Badge>
+          {a.isSystem ? (
+            <Badge tone="gray">Sistema</Badge>
+          ) : (
+            <Badge tone="violet">Personalizzato v{a.version}</Badge>
+          )}
+        </>
+      }
+      subtitle={`Tipo di dato: ${etichettaTipoDato(a.dataType)}${a.unit ? ` · unità ${a.unit}` : ''}`}
+      actions={
+        <Button onClick={save} disabled={pending}>
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : a.isSystem ? (
@@ -124,7 +122,8 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
           )}
           {a.isSystem ? 'Modifica creando una copia personalizzata' : 'Salva'}
         </Button>
-      </div>
+      }
+    >
 
       {a.isSystem && (
         <div className="flex items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-600">
@@ -284,7 +283,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
           )}
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
