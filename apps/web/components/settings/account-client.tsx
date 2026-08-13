@@ -55,8 +55,8 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Account</h1>
-        <p className="mt-1 text-sm text-gray-500">Accesso: {email}</p>
+        <h1 className="text-2xl font-semibold text-ink-900">Account</h1>
+        <p className="mt-1 text-sm text-ink-500">Accesso: {email}</p>
       </div>
 
       {error && (
@@ -66,8 +66,8 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
       )}
 
       <Card className="p-5">
-        <h3 className="text-base font-semibold text-gray-900">Esporta i tuoi dati</h3>
-        <p className="mt-1 text-sm text-gray-500">
+        <h3 className="text-base font-semibold text-ink-900">Esporta i tuoi dati</h3>
+        <p className="mt-1 text-sm text-ink-500">
           Scarica un file JSON con i dati del tuo account e della tua
           organizzazione (diritto di accesso e portabilità).
         </p>
@@ -81,8 +81,8 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
           <div>
-            <h3 className="text-base font-semibold text-gray-900">Elimina account</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <h3 className="text-base font-semibold text-ink-900">Elimina account</h3>
+            <p className="mt-1 text-sm text-ink-500">
               Elimina definitivamente l’account e <strong>tutti i dati</strong>{' '}
               dell’organizzazione (batch, prodotti, schede, configurazione).
               L’operazione è irreversibile.
@@ -120,7 +120,7 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
             </Button>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-gray-500">
+          <p className="mt-4 text-sm text-ink-500">
             Solo il proprietario dell’organizzazione può eliminarla.
           </p>
         )}

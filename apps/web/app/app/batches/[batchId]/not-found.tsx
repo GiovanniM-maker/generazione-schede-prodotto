@@ -11,14 +11,14 @@ export default function BatchNonTrovato() {
     <div className="mx-auto max-w-lg">
       <Card>
         <CardContent className="flex flex-col items-center gap-4 p-10 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-ink-100 text-ink-500">
             <PackageOpen className="h-6 w-6" aria-hidden="true" />
           </span>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-xl font-semibold text-ink-900">
               Questo lavoro non c’è più
             </h1>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-ink-500">
               Il batch non esiste, è stato eliminato, oppure appartiene a
               un’altra organizzazione. Se ci sei arrivato da un collegamento
               salvato, potrebbe essere vecchio.

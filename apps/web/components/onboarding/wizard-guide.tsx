@@ -194,21 +194,21 @@ export function WizardGuide({
       {/* Pannello chat */}
       {open && (
         <div
-          className="fixed bottom-24 right-4 z-[70] flex max-h-[min(560px,70vh)] sm:bottom-5 sm:right-5 sm:max-h-[min(560px,80vh)] w-[min(380px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+          className="fixed bottom-24 right-4 z-[70] flex max-h-[min(560px,70vh)] sm:bottom-5 sm:right-5 sm:max-h-[min(560px,80vh)] w-[min(380px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-2xl"
           role="dialog"
           aria-label="Guida del wizard"
         >
-          <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-ink-100 bg-ink-50 px-4 py-3">
             <div className="flex items-center gap-2">
               <LifeBuoy className="h-4 w-4 text-brand-accent" />
-              <p className="text-sm font-semibold text-gray-900">Guida passo-passo</p>
+              <p className="text-sm font-semibold text-ink-900">Guida passo-passo</p>
             </div>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={restart}
                 aria-label="Ricomincia la guida"
-                className="rounded p-1 text-gray-500 hover:text-gray-700"
+                className="rounded p-1 text-ink-500 hover:text-ink-700"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
@@ -219,7 +219,7 @@ export function WizardGuide({
                   onChiusa?.();
                 }}
                 aria-label="Chiudi la guida"
-                className="rounded p-1 text-gray-500 hover:text-gray-700"
+                className="rounded p-1 text-ink-500 hover:text-ink-700"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -233,7 +233,7 @@ export function WizardGuide({
                   className={
                     m.role === 'user'
                       ? 'max-w-[85%] rounded-2xl rounded-br-sm bg-brand-accent px-3 py-1.5 text-sm text-white'
-                      : 'max-w-[90%] rounded-2xl rounded-bl-sm border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-relaxed text-gray-800'
+                      : 'max-w-[90%] rounded-2xl rounded-bl-sm border border-ink-200 bg-ink-50 px-3 py-2 text-sm leading-relaxed text-ink-800'
                   }
                 >
                   {m.text}
@@ -244,7 +244,7 @@ export function WizardGuide({
 
           {/* Opzioni del nodo corrente */}
           {node.options && node.options.length > 0 && (
-            <div className="border-t border-gray-100 p-3">
+            <div className="border-t border-ink-100 p-3">
               <div className="flex flex-wrap gap-1.5">
                 {node.options.map((opt) => (
                   <button

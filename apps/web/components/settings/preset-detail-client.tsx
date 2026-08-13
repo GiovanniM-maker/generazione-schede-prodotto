@@ -141,7 +141,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold text-ink-900">
               {detail.preset.name}
             </h1>
             <Badge tone="gray">{detail.preset.sectorName}</Badge>
@@ -151,7 +151,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               <Badge tone="green">Pubblicato v{detail.workingVersion}</Badge>
             )}
           </div>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-500">
             Configura categorie, attributi e prompt del preset.
           </p>
         </div>
@@ -260,7 +260,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         {/* Sidebar categorie */}
         <Card className="h-fit p-3">
           <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
               Categorie
             </span>
           </div>
@@ -273,17 +273,17 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                   'flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors',
                   selectedCat === c.categoryId
                     ? 'bg-brand-accent/10 text-brand-accent'
-                    : 'text-gray-600 hover:bg-gray-100',
+                    : 'text-ink-600 hover:bg-ink-100',
                 )}
               >
                 <span className="truncate">{c.name}</span>
-                <span className="ml-2 text-xs text-gray-500">
+                <span className="ml-2 text-xs text-ink-500">
                   {c.attributes.length}
                 </span>
               </button>
             ))}
             {detail.categories.length === 0 && (
-              <p className="px-2 py-3 text-xs text-gray-500">
+              <p className="px-2 py-3 text-xs text-ink-500">
                 Nessuna categoria.
               </p>
             )}
@@ -309,7 +309,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             <Card className="p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-semibold text-gray-900">
+                  <h3 className="text-base font-semibold text-ink-900">
                     {current.name}
                   </h3>
                   {current.isSystem && <Badge tone="gray">Sistema</Badge>}
@@ -351,7 +351,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               />
 
               {current.attributes.length === 0 ? (
-                <p className="py-6 text-center text-sm text-gray-500">
+                <p className="py-6 text-center text-sm text-ink-500">
                   Nessun attributo in questa categoria.
                 </p>
               ) : (
@@ -370,7 +370,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               )}
             </Card>
           ) : (
-            <Card className="p-10 text-center text-sm text-gray-500">
+            <Card className="p-10 text-center text-sm text-ink-500">
               Seleziona o aggiungi una categoria per configurarne gli
               attributi.
             </Card>
@@ -379,7 +379,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
           {/* Attributi generali (senza categoria) */}
           {detail.generalAttributes.length > 0 && (
             <Card className="p-5">
-              <h3 className="mb-4 text-base font-semibold text-gray-900">
+              <h3 className="mb-4 text-base font-semibold text-ink-900">
                 Attributi generali
               </h3>
               <div className="space-y-4">
@@ -399,10 +399,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
 
           {/* Campi generati */}
           <Card className="p-5">
-            <h3 className="text-base font-semibold text-gray-900">
+            <h3 className="text-base font-semibold text-ink-900">
               Campi generati
             </h3>
-            <p className="mb-3 mt-0.5 text-xs text-gray-500">
+            <p className="mb-3 mt-0.5 text-xs text-ink-500">
               Sono i campi della <strong>scheda finale</strong> che l&apos;AI scrive (titolo,
               descrizioni, bullet, meta). Gli <strong>attributi</strong> qui sopra sono invece i
               <strong> fatti</strong> in ingresso che li alimentano: per questo i campi generati
@@ -415,7 +415,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                 </Badge>
               ))}
               {detail.generatedFields.length === 0 && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-ink-500">
                   Nessun campo generato configurato.
                 </p>
               )}
@@ -442,7 +442,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       >
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700">Tipo di dato</label>
+            <label className="text-sm font-medium text-ink-700">Tipo di dato</label>
             <Select value={importDataType} onChange={(e) => setImportDataType(e.target.value)}>
               <option value="text">Testo</option>
               <option value="boolean">Sì/No (booleano)</option>
@@ -452,7 +452,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               <option value="currency">Valuta</option>
               <option value="measurement">Misura (con unità)</option>
             </Select>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-ink-500">
               Il tipo scelto viene applicato a tutti gli attributi della lista e influenza
               come vengono usati nella generazione. Per gli elenchi (select) crea l’attributo
               a mano o col Copilot, per definirne i valori.
@@ -466,7 +466,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               placeholder={'Materiale\nColore\nVestibilità\nStagione'}
               aria-label="Attributi, uno per riga"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-ink-500">
               Un attributo per riga. Quelli non ancora esistenti vengono creati e aggiunti
               al preset. Max 300 per volta.
             </p>
@@ -508,7 +508,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               placeholder={'T-shirt\nCamicie\nPantaloni\nGiacche'}
               aria-label="Categorie, una per riga"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-ink-500">
               Una categoria per riga. Quelle non ancora esistenti vengono create e aggiunte
               al preset con i loro attributi tipici. Max 300 per volta.
             </p>
@@ -539,10 +539,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             aria-hidden
           />
           <aside className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-200 bg-white px-6 py-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Sparkles className="h-5 w-5 text-brand-accent" />
-                <h2 className="font-semibold text-gray-900">Costruisci il preset con l’AI</h2>
+                <h2 className="font-semibold text-ink-900">Costruisci il preset con l’AI</h2>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setCopilotOpen(false)} aria-label="Chiudi">
                 <X className="h-5 w-5" />
@@ -640,8 +640,8 @@ function CategoryRecognitionEditor({
 
   return (
     <div className="mb-4 rounded-lg border border-brand-accent/20 bg-brand-soft/40 p-4">
-      <p className="text-sm font-semibold text-gray-900">Prompt categoria — come si riconosce dalle foto</p>
-      <p className="mt-0.5 text-xs text-gray-500">
+      <p className="text-sm font-semibold text-ink-900">Prompt categoria — come si riconosce dalle foto</p>
+      <p className="mt-0.5 text-xs text-ink-500">
         Guida l&apos;AI a classificare questa categoria dalle immagini (forma, colore, packaging,
         diciture in etichetta). Usata sui caricamenti di sole foto.
       </p>
@@ -666,7 +666,7 @@ function CategoryRecognitionEditor({
           </div>
         </>
       ) : (
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-ink-600">
           {initial?.trim() || 'Nessuna guida impostata. Crea una bozza per modificarla.'}
         </p>
       )}
@@ -717,18 +717,18 @@ function AttributeEditor({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
+    <div className="rounded-lg border border-ink-200 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-gray-900">{attr.name}</span>
+          <span className="font-medium text-ink-900">{attr.name}</span>
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
-          <span className="text-xs text-gray-500">{etichettaTipoDato(attr.dataType)}</span>
+          <span className="text-xs text-ink-500">{etichettaTipoDato(attr.dataType)}</span>
         </div>
         <div className="flex items-center gap-1">
           <label
-            className="mr-2 flex items-center gap-1.5 text-sm text-gray-600"
+            className="mr-2 flex items-center gap-1.5 text-sm text-ink-600"
             title="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato."
           >
             <input
@@ -738,7 +738,7 @@ function AttributeEditor({
               onChange={(e) =>
                 persist({ id: attr.id, isRequired: e.target.checked })
               }
-              className="h-5 w-5 rounded border-gray-300"
+              className="h-5 w-5 rounded border-ink-300"
             />
             Obbligatorio
           </label>
@@ -774,7 +774,7 @@ function AttributeEditor({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-500">
             Prompt di estrazione
           </label>
           <Textarea
@@ -786,7 +786,7 @@ function AttributeEditor({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-500">
             Prompt di generazione
           </label>
           <Textarea
@@ -800,7 +800,7 @@ function AttributeEditor({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-500">
           Le modifiche hanno effetto sulla prossima generazione.
         </p>
         {editable && dirty && (
@@ -908,31 +908,31 @@ function AddCategoryModal({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cerca categoria…"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
           aria-label="Cerca categoria"
         />
-        <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-1">
+        <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-ink-200 p-1">
           {filtered.length === 0 ? (
-            <p className="px-2 py-4 text-center text-sm text-gray-500">
+            <p className="px-2 py-4 text-center text-sm text-ink-500">
               Nessuna categoria disponibile.
             </p>
           ) : (
             filtered.map((c) => (
               <label
                 key={c.id}
-                className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-ink-50"
               >
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 rounded border-ink-300"
                   checked={selected.has(c.id)}
                   onChange={() => toggle(c.id)}
                 />
-                <span className="flex-1 text-gray-900">
+                <span className="flex-1 text-ink-900">
                   {c.name}
-                  {c.isSystem && <span className="ml-1 text-xs text-gray-500">(sistema)</span>}
+                  {c.isSystem && <span className="ml-1 text-xs text-ink-500">(sistema)</span>}
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-ink-500">
                   {new Date(c.createdAt).toLocaleDateString('it-IT')}
                 </span>
               </label>
@@ -940,7 +940,7 @@ function AddCategoryModal({
           )}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500">{selected.size} selezionate</span>
+          <span className="text-xs text-ink-500">{selected.size} selezionate</span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>
               Annulla
@@ -1011,7 +1011,7 @@ function AddAttributeModal({
             </option>
           ))}
         </Select>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-500">
           Serve un nuovo attributo?{' '}
           <a
             href={`/app/settings/attributes?sector=${sectorId}`}

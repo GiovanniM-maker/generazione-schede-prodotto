@@ -16,14 +16,23 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
       SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      ENABLE_MOCK_AI: 'true'
-      ENABLE_MOCK_BILLING: 'true'
+    # I due `ENABLE_MOCK_*` stavano qui, validi per tutti i passi. Ma `next
+    # build` gira con `NODE_ENV=production`, e la configurazione — giustamente —
+    # rifiuta i mock in produzione: il build si fermava sulla prima pagina
+    # prerenderizzata. Restano dove servono davvero, cioè sui test, e il build
+    # gira con la configurazione vera.
     steps:
       - uses: actions/checkout@v4
 
+      # Nessun `version:` qui: la versione la dice `packageManager` in
+      # package.json, ed è l'unico posto in cui deve stare. Dichiararla anche
+      # qui non era ridondanza innocua — `pnpm/action-setup` ha cominciato a
+      # rifiutarsi di scegliere fra le due, e la CI è rimasta rossa
+      # sull'installazione per un'intera giornata. Il guasto era di
+      # infrastruttura, non di codice: nessun test è mai stato eseguito, quindi
+      # non c'era niente da leggere nel rosso — che è il motivo per cui è
+      # passato inosservato.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -41,6 +50,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+        env:
+          ENABLE_MOCK_AI: 'true'
+          ENABLE_MOCK_BILLING: 'true'
 
       - name: Build
         run: pnpm build

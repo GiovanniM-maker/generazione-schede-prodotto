@@ -410,7 +410,7 @@ export function OnboardingStepper({
   if (loadingInitial) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center gap-2 py-16 text-gray-500">
+        <CardContent className="flex items-center justify-center gap-2 py-16 text-ink-500">
           <Loader2 className="h-5 w-5 animate-spin" />
           Caricamento…
         </CardContent>
@@ -428,12 +428,12 @@ export function OnboardingStepper({
               key={i}
               className={cn(
                 'h-1.5 flex-1 rounded-full',
-                i < step ? 'bg-brand-accent' : 'bg-gray-200',
+                i < step ? 'bg-brand-accent' : 'bg-ink-200',
               )}
             />
           ))}
         </div>
-        <p className="mb-6 text-xs font-medium text-gray-500">
+        <p className="mb-6 text-xs font-medium text-ink-500">
           Passaggio {step} di {TOTAL} · {STEP_TITLES[step - 1]}
         </p>
 
@@ -441,10 +441,10 @@ export function OnboardingStepper({
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Configuriamo il sistema
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Configuriamo il sistema in base ai prodotti della tua azienda.
                 Iniziamo con qualche informazione di base.
               </p>
@@ -524,10 +524,10 @@ export function OnboardingStepper({
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Qual è il tuo settore?
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Il settore determina le categorie e gli attributi disponibili per
                 le tue schede prodotto. Potrai modificare tutto successivamente.
               </p>
@@ -550,29 +550,29 @@ export function OnboardingStepper({
                       'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                       active
                         ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
-                        : 'border-gray-200 hover:border-gray-300',
+                        : 'border-ink-200 hover:border-ink-300',
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-100 text-ink-500">
                           <Layers className="h-4 w-4" />
                         </span>
-                        <span className="font-medium text-gray-900">{s.name}</span>
+                        <span className="font-medium text-ink-900">{s.name}</span>
                       </div>
                       {active && <Check className="h-4 w-4 text-brand-accent" />}
                     </div>
                     {s.description && (
-                      <p className="mt-2 text-sm text-gray-500">{s.description}</p>
+                      <p className="mt-2 text-sm text-ink-500">{s.description}</p>
                     )}
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-500">
                       <Badge tone="blue">
                         {s.categories.length} categorie disponibili
                       </Badge>
                     </div>
                     {exCats.length > 0 && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        <span className="font-medium text-gray-600">
+                      <p className="mt-2 text-xs text-ink-500">
+                        <span className="font-medium text-ink-600">
                           Categorie:
                         </span>{' '}
                         {exCats.join(', ')}
@@ -580,8 +580,8 @@ export function OnboardingStepper({
                       </p>
                     )}
                     {exAttrs.length > 0 && (
-                      <p className="mt-1 text-xs text-gray-500">
-                        <span className="font-medium text-gray-600">
+                      <p className="mt-1 text-xs text-ink-500">
+                        <span className="font-medium text-ink-600">
                           Attributi:
                         </span>{' '}
                         {exAttrs.join(', ')}…
@@ -591,7 +591,7 @@ export function OnboardingStepper({
                 );
               })}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-500">
               Potrai modificare tutto successivamente.
             </p>
           </div>
@@ -601,10 +601,10 @@ export function OnboardingStepper({
         {step === 3 && selectedSector && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Quali categorie tratti?
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Seleziona le categorie di prodotto del tuo catalogo. Per ognuna
                 puoi vedere gli attributi suggeriti.
               </p>
@@ -621,7 +621,7 @@ export function OnboardingStepper({
                       'rounded-lg border p-4 transition-colors',
                       active
                         ? 'border-brand-accent bg-brand-soft/50 ring-1 ring-brand-accent'
-                        : 'border-gray-200',
+                        : 'border-ink-200',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -630,14 +630,14 @@ export function OnboardingStepper({
                           type="checkbox"
                           checked={active}
                           onChange={() => toggleCategory(c.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
+                          className="mt-1 h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent"
                         />
                         <span>
-                          <span className="block font-medium text-gray-900">
+                          <span className="block font-medium text-ink-900">
                             {c.name}
                           </span>
                           {c.description && (
-                            <span className="mt-0.5 block text-sm text-gray-500">
+                            <span className="mt-0.5 block text-sm text-ink-500">
                               {c.description}
                             </span>
                           )}
@@ -670,10 +670,10 @@ export function OnboardingStepper({
                       </button>
                     </div>
                     {expanded && (
-                      <ul className="mt-3 grid gap-1 border-t border-gray-200 pt-3 text-sm text-gray-600 sm:grid-cols-2">
+                      <ul className="mt-3 grid gap-1 border-t border-ink-200 pt-3 text-sm text-ink-600 sm:grid-cols-2">
                         {c.attributes.map((a) => (
                           <li key={a.id} className="flex items-center gap-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-ink-300" />
                             {a.name}
                             {a.isRequired && (
                               <span className="text-xs text-amber-600">
@@ -695,25 +695,25 @@ export function OnboardingStepper({
         {step === 4 && (
           <div className="space-y-5">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Attributi iniziali
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Questi sono gli attributi iniziali suggeriti per le categorie
                 selezionate.
               </p>
-              <dl className="mt-3 space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs">
+              <dl className="mt-3 space-y-1.5 rounded-lg border border-ink-200 bg-ink-50 p-3 text-xs">
                 <div className="flex gap-2">
-                  <dt className="w-24 shrink-0 font-medium text-gray-900">Attivo</dt>
-                  <dd className="text-gray-600">
+                  <dt className="w-24 shrink-0 font-medium text-ink-900">Attivo</dt>
+                  <dd className="text-ink-600">
                     L&apos;attributo fa parte del preset: viene cercato nei tuoi dati e nelle
                     foto, finisce nella scheda e nell&apos;export. Se lo spegni, è come se non
                     esistesse.
                   </dd>
                 </div>
                 <div className="flex gap-2">
-                  <dt className="w-24 shrink-0 font-medium text-gray-900">Obbligatorio</dt>
-                  <dd className="text-gray-600">
+                  <dt className="w-24 shrink-0 font-medium text-ink-900">Obbligatorio</dt>
+                  <dd className="text-ink-600">
                     Serve a giudicare la scheda, non a forzarla: se ci sono tutti gli
                     obbligatori la scheda risulta <strong>completa</strong>, se ne manca
                     qualcuno <strong>parziale</strong>. Non fa mai inventare un dato mancante.
@@ -724,12 +724,12 @@ export function OnboardingStepper({
             {selectedCategories.map((cat) => (
               <div
                 key={cat.id}
-                className="rounded-lg border border-gray-200"
+                className="rounded-lg border border-ink-200"
               >
-                <div className="border-b border-gray-200 bg-gray-50 px-4 py-2.5">
-                  <span className="font-medium text-gray-900">{cat.name}</span>
+                <div className="border-b border-ink-200 bg-ink-50 px-4 py-2.5">
+                  <span className="font-medium text-ink-900">{cat.name}</span>
                 </div>
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-ink-100">
                   {cat.attributes.map((attr) => {
                     const e = effective(cat, attr);
                     return (
@@ -742,7 +742,7 @@ export function OnboardingStepper({
                             <span
                               className={cn(
                                 'font-medium',
-                                e.enabled ? 'text-gray-900' : 'text-gray-500 line-through',
+                                e.enabled ? 'text-ink-900' : 'text-ink-500 line-through',
                               )}
                             >
                               {attr.name}
@@ -755,7 +755,7 @@ export function OnboardingStepper({
                             </Badge>
                           </div>
                           {attr.description && (
-                            <p className="mt-0.5 text-xs text-gray-500">
+                            <p className="mt-0.5 text-xs text-ink-500">
                               {attr.description}
                             </p>
                           )}
@@ -765,7 +765,7 @@ export function OnboardingStepper({
                             disabilita da solo. */}
                         <div className="flex shrink-0 items-center gap-4 text-sm">
                           <label
-                            className="flex items-center gap-1.5 text-gray-600"
+                            className="flex items-center gap-1.5 text-ink-600"
                             title="Se spento, l'attributo non viene estratto né generato né esportato."
                           >
                             <input
@@ -776,12 +776,12 @@ export function OnboardingStepper({
                                   enabled: ev.target.checked,
                                 })
                               }
-                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
+                              className="h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent"
                             />
                             Attivo
                           </label>
                           <label
-                            className="flex items-center gap-1.5 text-gray-600"
+                            className="flex items-center gap-1.5 text-ink-600"
                             title="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato."
                           >
                             <input
@@ -793,7 +793,7 @@ export function OnboardingStepper({
                                   isRequired: ev.target.checked,
                                 })
                               }
-                              className="h-4 w-4 rounded border-gray-300 text-brand-accent focus:ring-brand-accent disabled:opacity-40"
+                              className="h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent disabled:opacity-40"
                             />
                             Obbligatorio
                           </label>
@@ -811,10 +811,10 @@ export function OnboardingStepper({
         {step === 5 && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Preset iniziale
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Creiamo il preset principale della tua azienda. Definisce quali
                 categorie, attributi e campi generati usare per le schede.
               </p>
@@ -827,27 +827,27 @@ export function OnboardingStepper({
                 onChange={(e) => setPresetName(e.target.value)}
               />
             </div>
-            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+            <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 p-4 text-sm">
               <div className="flex justify-between gap-4">
-                <span className="text-gray-500">Settore</span>
-                <span className="font-medium text-gray-900">
+                <span className="text-ink-500">Settore</span>
+                <span className="font-medium text-ink-900">
                   {selectedSector?.name ?? '—'}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-gray-500">Categorie attive</span>
-                <span className="font-medium text-gray-900">
+                <span className="text-ink-500">Categorie attive</span>
+                <span className="font-medium text-ink-900">
                   {selectedCategories.length}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-gray-500">Attributi attivi</span>
-                <span className="font-medium text-gray-900">
+                <span className="text-ink-500">Attributi attivi</span>
+                <span className="font-medium text-ink-900">
                   {buildSelection().filter((a) => a.enabled).length}
                 </span>
               </div>
-              <div className="border-t border-gray-200 pt-2">
-                <span className="text-gray-500">Campi generati</span>
+              <div className="border-t border-ink-200 pt-2">
+                <span className="text-ink-500">Campi generati</span>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {['Titolo', 'Descrizione breve', 'Descrizione lunga', 'Punti elenco', 'Meta description'].map(
                     (f) => (
@@ -866,10 +866,10 @@ export function OnboardingStepper({
         {step === 6 && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Profilo del brand
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Definisce il tono di voce delle descrizioni generate. Puoi anche
                 saltare questo passaggio e configurarlo più tardi.
               </p>
@@ -884,16 +884,16 @@ export function OnboardingStepper({
                     'rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                     style === s.value
                       ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
-                      : 'border-gray-200 hover:border-gray-300',
+                      : 'border-ink-200 hover:border-ink-300',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{s.label}</span>
+                    <span className="font-medium text-ink-900">{s.label}</span>
                     {style === s.value && (
                       <Check className="h-4 w-4 text-brand-accent" />
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">{s.desc}</p>
+                  <p className="mt-1 text-sm text-ink-500">{s.desc}</p>
                 </button>
               ))}
             </div>
@@ -936,16 +936,16 @@ export function OnboardingStepper({
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                 <Check className="h-7 w-7" />
               </span>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-ink-900">
                 Configurazione quasi pronta
               </h2>
-              <p className="max-w-md text-sm text-gray-500">
+              <p className="max-w-md text-sm text-ink-500">
                 Abbiamo configurato settore, categorie, attributi e il preset
                 principale della tua azienda. Conferma per accedere alla
                 dashboard e creare il primo batch.
               </p>
             </div>
-            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+            <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 p-4 text-sm">
               <ChecklistRow label="Azienda configurata" done={!!organizationId} />
               <ChecklistRow label="Settore selezionato" done={!!sectorId} />
               <ChecklistRow
@@ -1078,15 +1078,15 @@ function ChecklistRow({
       <span
         className={cn(
           'flex h-5 w-5 items-center justify-center rounded-full',
-          done ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500',
+          done ? 'bg-emerald-100 text-emerald-600' : 'bg-ink-200 text-ink-500',
         )}
       >
         <Check className="h-3 w-3" />
       </span>
-      <span className={cn('text-gray-700', !done && 'text-gray-500')}>
+      <span className={cn('text-ink-700', !done && 'text-ink-500')}>
         {label}
         {optional && !done && (
-          <span className="ml-1 text-xs text-gray-500">(opzionale)</span>
+          <span className="ml-1 text-xs text-ink-500">(opzionale)</span>
         )}
       </span>
     </div>

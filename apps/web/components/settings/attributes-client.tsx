@@ -157,8 +157,8 @@ export function AttributesClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Attributi</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-ink-900">Attributi</h1>
+          <p className="mt-1 text-sm text-ink-500">
             Libreria di attributi di sistema ed estensioni della tua
             organizzazione.
           </p>
@@ -266,12 +266,12 @@ export function AttributesClient({
           className="w-56"
           aria-label="Cerca attributo"
         />
-        {pending && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+        {pending && <Loader2 className="h-4 w-4 animate-spin text-ink-400" />}
       </div>
 
       <Card>
         {filtered.length === 0 ? (
-          <div className="p-10 text-center text-sm text-gray-500">
+          <div className="p-10 text-center text-sm text-ink-500">
             Nessun attributo trovato.
           </div>
         ) : (
@@ -290,7 +290,7 @@ export function AttributesClient({
             <TBody>
               {filtered.map((a) => (
                 <TR key={a.id}>
-                  <TD className="font-medium text-gray-900">{a.name}</TD>
+                  <TD className="font-medium text-ink-900">{a.name}</TD>
                   <TD>
                     <Badge tone="gray">{a.sectorName}</Badge>
                   </TD>
@@ -300,7 +300,7 @@ export function AttributesClient({
                         a.attributeKind}
                     </Badge>
                   </TD>
-                  <TD className="text-gray-500">{etichettaTipoDato(a.dataType)}</TD>
+                  <TD className="text-ink-500">{etichettaTipoDato(a.dataType)}</TD>
                   <TD>
                     {a.isSystem ? (
                       <Badge tone="gray">Sistema</Badge>
@@ -376,7 +376,7 @@ export function AttributesClient({
               onChange={(e) => setImportText(e.target.value)}
               placeholder={'Materiale\nColore\nVestibilità\nStagione'}
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-ink-500">
               Il tipo scelto vale per tutti. Per gli elenchi (select) crea l’attributo a
               mano o col Copilot per definirne i valori. I nomi già esistenti vengono
               saltati. Max 300 per volta.

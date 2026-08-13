@@ -82,13 +82,13 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
   if (products !== null && cats.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-lg border border-ink-200 bg-white">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="flex items-center gap-2 text-sm font-medium text-gray-800">
+        <span className="flex items-center gap-2 text-sm font-medium text-ink-800">
           <FolderTree className="h-4 w-4 text-brand-accent" />
           Assegna le categorie a mano
           {withoutCategory > 0 && (
@@ -97,26 +97,26 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
             </span>
           )}
         </span>
-        <span className="text-xs text-gray-500">{open ? 'nascondi' : 'apri'}</span>
+        <span className="text-xs text-ink-500">{open ? 'nascondi' : 'apri'}</span>
       </button>
 
       {open && (
-        <div className="border-t border-gray-100 p-4">
+        <div className="border-t border-ink-100 p-4">
           {products === null ? (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-ink-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Carico i prodotti…
             </div>
           ) : (
             <>
-              <p className="mb-3 text-xs text-gray-500">
+              <p className="mb-3 text-xs text-ink-500">
                 Utile per i batch di sole foto: assegna la categoria per SKU. La categoria decide gli
                 attributi usati in generazione (poi puoi rigenerare le schede).
               </p>
 
               {/* Bulk sui senza categoria */}
               {withoutCategory > 0 && (
-                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-2">
-                  <span className="text-xs text-gray-600">
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-ink-50 p-2">
+                  <span className="text-xs text-ink-600">
                     Assegna a tutti i {withoutCategory} senza categoria:
                   </span>
                   <Select value={bulk} onChange={(e) => setBulk(e.target.value)} className="max-w-[220px]">
@@ -139,11 +139,11 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
                 {products.map((p) => (
                   <div
                     key={p.id}
-                    className="grid grid-cols-1 items-center gap-2 rounded-md border border-gray-100 p-2 sm:grid-cols-[1fr_1.2fr]"
+                    className="grid grid-cols-1 items-center gap-2 rounded-md border border-ink-100 p-2 sm:grid-cols-[1fr_1.2fr]"
                   >
                     <div className="min-w-0">
-                      <span className="font-mono text-xs text-gray-600">{p.sku ?? '—'}</span>
-                      <span className="ml-2 truncate text-sm text-gray-800">{p.name ?? ''}</span>
+                      <span className="font-mono text-xs text-ink-600">{p.sku ?? '—'}</span>
+                      <span className="ml-2 truncate text-sm text-ink-800">{p.name ?? ''}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
@@ -158,7 +158,7 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
                           </option>
                         ))}
                       </Select>
-                      {busyId === p.id && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+                      {busyId === p.id && <Loader2 className="h-4 w-4 animate-spin text-ink-400" />}
                     </div>
                   </div>
                 ))}

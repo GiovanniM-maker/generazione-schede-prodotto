@@ -506,14 +506,14 @@ export function ResultsTable({
         onClick={() => setStrumentiAperti((v) => !v)}
         aria-expanded={strumentiAperti}
         aria-controls="barra-strumenti-risultati"
-        className="inline-flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:hidden"
+        className="inline-flex w-full items-center justify-between rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm font-medium text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:hidden"
       >
         <span className="inline-flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+          <SlidersHorizontal className="h-4 w-4 text-ink-500" />
           Cerca, filtra ed esporta
         </span>
         <ChevronDown
-          className={cn('h-4 w-4 text-gray-500 transition-transform', strumentiAperti && 'rotate-180')}
+          className={cn('h-4 w-4 text-ink-500 transition-transform', strumentiAperti && 'rotate-180')}
         />
       </button>
 
@@ -526,7 +526,7 @@ export function ResultsTable({
         )}
       >
         <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -571,7 +571,7 @@ export function ResultsTable({
               if (v === 'shopify' || v === 'woocommerce' || v === 'prestashop') exportBatch(v);
             }}
             aria-label="Esporta per piattaforma e-commerce"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 disabled:opacity-50"
+            className="rounded-lg border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 disabled:opacity-50"
           >
             <option value="">
               {exporting && ['shopify', 'woocommerce', 'prestashop'].includes(exporting)
@@ -591,7 +591,7 @@ export function ResultsTable({
           cosa detta con due parole, e la differenza è quella che decide se una
           scheda si pubblica o no. */}
       {SPIEGAZIONI[filter] && (
-        <p className="text-sm text-gray-600">{SPIEGAZIONI[filter]}</p>
+        <p className="text-sm text-ink-600">{SPIEGAZIONI[filter]}</p>
       )}
 
       {/* Tabs + azione multipla */}
@@ -607,7 +607,7 @@ export function ResultsTable({
                 'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                 filter === t.key
                   ? 'border-brand-accent bg-brand-soft text-brand-accent'
-                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+                  : 'border-ink-200 bg-white text-ink-600 hover:bg-ink-50',
               )}
             >
               {t.label}
@@ -616,7 +616,7 @@ export function ResultsTable({
                   'rounded-full px-1.5 text-xs',
                   filter === t.key
                     ? 'bg-brand-accent text-white'
-                    : 'bg-gray-100 text-gray-500',
+                    : 'bg-ink-100 text-ink-500',
                 )}
               >
                 {counts[t.key]}
@@ -687,8 +687,8 @@ export function ResultsTable({
       {rows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <PackageOpen className="h-8 w-8 text-gray-400" />
-            <p className="text-sm text-gray-500">
+            <PackageOpen className="h-8 w-8 text-ink-400" />
+            <p className="text-sm text-ink-500">
               Nessun risultato disponibile per questo batch.
             </p>
           </CardContent>
@@ -698,7 +698,7 @@ export function ResultsTable({
           <CardContent className="p-0">
             {/* LETTURA: una colonna, niente troncato, uguale su ogni schermo. */}
             {vista === 'lettura' && (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-ink-100">
                 {visibili.map((r) => (
                   <SchedaLettura
                     key={r.id}
@@ -717,7 +717,7 @@ export function ResultsTable({
 
             {/* MOBILE: schede al posto della tabella (8 colonne su un telefono
                 sono illeggibili e costringono a scorrere in orizzontale). */}
-            <div className={cn('divide-y divide-gray-100 sm:hidden', vista === 'lettura' && 'hidden')}>
+            <div className={cn('divide-y divide-ink-100 sm:hidden', vista === 'lettura' && 'hidden')}>
               {visibili.map((r) => {
                 const eff = effective(r);
                 return (
@@ -728,15 +728,15 @@ export function ResultsTable({
                         checked={selected.has(r.id)}
                         onChange={() => toggleSelect(r.id)}
                         aria-label={`Seleziona ${r.name}`}
-                        className="mt-0.5 h-6 w-6 shrink-0 rounded border-gray-300"
+                        className="mt-0.5 h-6 w-6 shrink-0 rounded border-ink-300"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="font-mono text-xs text-gray-500">{r.externalId}</p>
-                        <p className="mt-0.5 font-medium text-gray-900">
-                          {eff?.title || <span className="text-gray-300">— nessun titolo —</span>}
+                        <p className="font-mono text-xs text-ink-500">{r.externalId}</p>
+                        <p className="mt-0.5 font-medium text-ink-900">
+                          {eff?.title || <span className="text-ink-300">— nessun titolo —</span>}
                         </p>
                         {eff?.shortDescription && (
-                          <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                          <p className="mt-1 line-clamp-2 text-sm text-ink-500">
                             {eff.shortDescription}
                           </p>
                         )}
@@ -763,7 +763,7 @@ export function ResultsTable({
                         <X className="h-4 w-4 text-red-600" />
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => regenerate(r.id)} disabled={pending} aria-label="Rigenera">
-                        <RefreshCw className="h-4 w-4 text-gray-500" />
+                        <RefreshCw className="h-4 w-4 text-ink-500" />
                       </Button>
                     </div>
                   </div>
@@ -782,7 +782,7 @@ export function ResultsTable({
                       checked={allSelected}
                       onChange={toggleSelectAll}
                       aria-label="Seleziona tutte le schede che passano il filtro, anche nelle altre pagine"
-                      className="h-6 w-6 rounded border-gray-300"
+                      className="h-6 w-6 rounded border-ink-300"
                     />
                   </TH>
                   <TH>ID</TH>
@@ -797,7 +797,7 @@ export function ResultsTable({
                       schermo — il limite è il guscio, non il monitor. Una
                       tabella di dati può scorrere; i comandi per agire su una
                       riga no. */}
-                  <TH className="sticky right-0 z-10 bg-gray-50 text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
+                  <TH className="sticky right-0 z-10 bg-ink-50 text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                     Azioni
                   </TH>
                 </TR>
@@ -813,28 +813,28 @@ export function ResultsTable({
                           checked={selected.has(r.id)}
                           onChange={() => toggleSelect(r.id)}
                           aria-label={`Seleziona ${r.name}`}
-                          className="h-6 w-6 rounded border-gray-300"
+                          className="h-6 w-6 rounded border-ink-300"
                         />
                       </TD>
-                      <TD className="font-mono text-xs text-gray-600">
+                      <TD className="font-mono text-xs text-ink-600">
                         {r.externalId}
                       </TD>
                       {/* Larghezza dichiarata e troncatura, come la colonna
                           accanto: senza, un nome lungo andava a capo su quattro
                           righe e l'altezza delle righe ballava fra 73 e 105px. */}
-                      <TD className="max-w-[14rem] truncate font-medium text-gray-900" title={r.name}>
+                      <TD className="max-w-[14rem] truncate font-medium text-ink-900" title={r.name}>
                         {r.name !== r.externalId ? (
                           r.name
                         ) : (
-                          <span className="font-normal text-gray-300">—</span>
+                          <span className="font-normal text-ink-300">—</span>
                         )}
                       </TD>
-                      <TD className="max-w-[16rem] truncate text-gray-700">
-                        {eff?.title || <span className="text-gray-300">—</span>}
+                      <TD className="max-w-[16rem] truncate text-ink-700">
+                        {eff?.title || <span className="text-ink-300">—</span>}
                       </TD>
-                      <TD className="max-w-[18rem] truncate text-gray-500">
+                      <TD className="max-w-[18rem] truncate text-ink-500">
                         {eff?.shortDescription || (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-ink-300">—</span>
                         )}
                       </TD>
                       <TD>
@@ -843,7 +843,7 @@ export function ResultsTable({
                             {COMPLETENESS_LABELS[r.completeness.status]}
                           </Badge>
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-ink-300">—</span>
                         )}
                       </TD>
                       <TD>
@@ -894,7 +894,7 @@ export function ResultsTable({
                             disabled={pending}
                             aria-label="Rigenera"
                           >
-                            <RefreshCw className="h-4 w-4 text-gray-500" />
+                            <RefreshCw className="h-4 w-4 text-ink-500" />
                           </Button>
                         </div>
                       </TD>
@@ -905,7 +905,7 @@ export function ResultsTable({
             </Table>
             </div>
             {filtered.length === 0 && (
-              <div className="px-6 py-10 text-center text-sm text-gray-500">
+              <div className="px-6 py-10 text-center text-sm text-ink-500">
                 Nessun risultato in questa categoria.
               </div>
             )}
@@ -913,8 +913,8 @@ export function ResultsTable({
             {/* I comandi compaiono solo quando servono davvero: sotto le 50
                 schede una barra di paginazione è arredamento. */}
             {fetta.pagine > 1 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3">
-                <p className="text-sm text-gray-600" aria-live="polite">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-4 py-3">
+                <p className="text-sm text-ink-600" aria-live="polite">
                   Schede {fetta.primo}–{fetta.ultimo} di {filtered.length}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -926,7 +926,7 @@ export function ResultsTable({
                   >
                     Precedenti
                   </Button>
-                  <span className="text-sm tabular-nums text-gray-600">
+                  <span className="text-sm tabular-nums text-ink-600">
                     {fetta.pagina + 1} / {fetta.pagine}
                   </span>
                   <Button
@@ -1023,7 +1023,7 @@ function SchedaLettura({
           checked={selezionata}
           onChange={onSeleziona}
           aria-label={`Seleziona ${riga.name}`}
-          className="mt-1 h-6 w-6 shrink-0 rounded border-gray-300"
+          className="mt-1 h-6 w-6 shrink-0 rounded border-ink-300"
         />
 
         {/* La foto del pack accanto al testo: rivedere una scheda guardando il
@@ -1034,7 +1034,7 @@ function SchedaLettura({
             href={riga.imageUrl}
             target="_blank"
             rel="noreferrer"
-            className="hidden shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:block"
+            className="hidden shrink-0 overflow-hidden rounded-lg border border-ink-200 bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:block"
             aria-label={`Apri la foto di ${riga.name}`}
           >
             {/* Immagine da URL firmato di Supabase: next/image richiederebbe di
@@ -1054,7 +1054,7 @@ function SchedaLettura({
               href={riga.imageUrl}
               target="_blank"
               rel="noreferrer"
-              className="mb-3 block overflow-hidden rounded-lg border border-gray-200 bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:hidden"
+              className="mb-3 block overflow-hidden rounded-lg border border-ink-200 bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent sm:hidden"
               aria-label={`Apri la foto di ${riga.name}`}
             >
               <img
@@ -1066,7 +1066,7 @@ function SchedaLettura({
             </a>
           )}
           {/* Occhiello discreto: identificativo e categoria non rubano la scena. */}
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
             <span className="font-mono">{riga.externalId}</span>
             {riga.category && (
               <>
@@ -1077,17 +1077,17 @@ function SchedaLettura({
           </p>
 
           {eff?.title ? (
-            <h3 className="mt-1 text-lg font-semibold leading-snug text-gray-900 sm:text-xl">
+            <h3 className="mt-1 text-lg font-semibold leading-snug text-ink-900 sm:text-xl">
               {eff.title}
             </h3>
           ) : (
-            <h3 className="mt-1 text-lg font-semibold italic text-gray-300">
+            <h3 className="mt-1 text-lg font-semibold italic text-ink-300">
               nessun titolo generato
             </h3>
           )}
 
           {eff?.shortDescription && (
-            <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-gray-600">
+            <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-ink-600">
               {eff.shortDescription}
             </p>
           )}
@@ -1095,8 +1095,8 @@ function SchedaLettura({
           {eff?.bullets && eff.bullets.length > 0 && (
             <ul className="mt-3 max-w-prose space-y-1.5">
               {eff.bullets.map((b, i) => (
-                <li key={i} className="flex gap-2 text-sm text-gray-700">
-                  <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+                <li key={i} className="flex gap-2 text-sm text-ink-700">
+                  <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-ink-400" />
                   <span>{b}</span>
                 </li>
               ))}
@@ -1118,22 +1118,22 @@ function SchedaLettura({
               </button>
 
               {espansa && (
-                <div className="mt-3 space-y-4 border-l-2 border-gray-100 pl-4">
+                <div className="mt-3 space-y-4 border-l-2 border-ink-100 pl-4">
                   {eff?.longDescription && (
-                    <p className="max-w-prose whitespace-pre-line text-sm leading-relaxed text-gray-700">
+                    <p className="max-w-prose whitespace-pre-line text-sm leading-relaxed text-ink-700">
                       {eff.longDescription}
                     </p>
                   )}
                   {eff?.faq && eff.faq.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                         Domande frequenti
                       </p>
                       <dl className="mt-2 max-w-prose space-y-2">
                         {eff.faq.map((f, i) => (
                           <div key={i}>
-                            <dt className="text-sm font-medium text-gray-900">{f.question}</dt>
-                            <dd className="text-sm text-gray-600">{f.answer}</dd>
+                            <dt className="text-sm font-medium text-ink-900">{f.question}</dt>
+                            <dd className="text-sm text-ink-600">{f.answer}</dd>
                           </div>
                         ))}
                       </dl>
@@ -1176,7 +1176,7 @@ function SchedaLettura({
               Rifiuta
             </Button>
             <Button variant="outline" size="sm" onClick={onRigenera} disabled={inCorso}>
-              <RefreshCw className="h-4 w-4 text-gray-500" />
+              <RefreshCw className="h-4 w-4 text-ink-500" />
               Rigenera
             </Button>
           </div>
@@ -1201,7 +1201,7 @@ function SelettoreVista({
     <div
       role="radiogroup"
       aria-label="Come guardare i risultati"
-      className="inline-flex shrink-0 rounded-lg border border-gray-200 bg-white p-0.5"
+      className="inline-flex shrink-0 rounded-lg border border-ink-200 bg-white p-0.5"
     >
       {opzioni.map(({ chiave, etichetta, Icona }) => (
         <button
@@ -1214,7 +1214,7 @@ function SelettoreVista({
             'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
             vista === chiave
               ? 'bg-brand-soft text-brand-accent'
-              : 'text-gray-500 hover:text-gray-800',
+              : 'text-ink-500 hover:text-ink-800',
           )}
         >
           <Icona className="h-4 w-4" />
@@ -1251,10 +1251,10 @@ function ImprovementModal({
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
       <div className="relative my-4 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
-        <div className="sticky top-0 flex items-center justify-between rounded-t-xl border-b border-gray-200 bg-white px-5 py-4">
+        <div className="sticky top-0 flex items-center justify-between rounded-t-xl border-b border-ink-200 bg-white px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
             <Wand2 className="h-5 w-5 text-violet-600" />
-            <h2 className="font-semibold text-gray-900">Miglioramento del prompt</h2>
+            <h2 className="font-semibold text-ink-900">Miglioramento del prompt</h2>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Chiudi">
             <X className="h-5 w-5" />
@@ -1272,36 +1272,36 @@ function ImprovementModal({
           </div>
 
           {changes.map((c) => (
-            <div key={c.fieldKey} className="rounded-lg border border-gray-200">
-              <div className="border-b border-gray-100 px-3 py-2 text-sm font-semibold text-gray-800">
+            <div key={c.fieldKey} className="rounded-lg border border-ink-200">
+              <div className="border-b border-ink-100 px-3 py-2 text-sm font-semibold text-ink-800">
                 {c.label}
               </div>
               <div className="grid gap-0 sm:grid-cols-2">
-                <div className="border-b border-gray-100 p-3 sm:border-b-0 sm:border-r">
-                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
+                <div className="border-b border-ink-100 p-3 sm:border-b-0 sm:border-r">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
                     Prima
                   </p>
-                  <p className="whitespace-pre-wrap text-sm text-gray-500">
-                    {c.before || <span className="italic text-gray-300">(nessuna istruzione)</span>}
+                  <p className="whitespace-pre-wrap text-sm text-ink-500">
+                    {c.before || <span className="italic text-ink-300">(nessuna istruzione)</span>}
                   </p>
                 </div>
                 <div className="bg-emerald-50/40 p-3">
                   <p className="mb-1 text-xs font-medium uppercase tracking-wide text-emerald-600">
                     Dopo
                   </p>
-                  <p className="whitespace-pre-wrap text-sm text-gray-800">{c.after}</p>
+                  <p className="whitespace-pre-wrap text-sm text-ink-800">{c.after}</p>
                 </div>
               </div>
               {c.rationale && (
-                <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-500">
-                  <span className="font-medium text-gray-600">Perché:</span> {c.rationale}
+                <div className="border-t border-ink-100 px-3 py-2 text-xs text-ink-500">
+                  <span className="font-medium text-ink-600">Perché:</span> {c.rationale}
                 </div>
               )}
             </div>
           ))}
         </div>
 
-        <div className="sticky bottom-0 flex flex-col gap-2 rounded-b-xl border-t border-gray-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="sticky bottom-0 flex flex-col gap-2 rounded-b-xl border-t border-ink-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose} disabled={pending}>
             Scarta
           </Button>
@@ -1385,9 +1385,9 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
         Traduci in 6 lingue
       </Button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+        <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-ink-200 bg-white p-3 shadow-xl">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-800">Traduci le schede</p>
+            <p className="text-sm font-medium text-ink-800">Traduci le schede</p>
             <button
               type="button"
               onClick={() => setLangs(allSelected ? new Set() : new Set(LANGS.map((l) => l.code)))}
@@ -1396,7 +1396,7 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
               {allSelected ? 'Deseleziona tutte' : 'Seleziona tutte'}
             </button>
           </div>
-          <p className="mt-0.5 text-xs text-gray-500">
+          <p className="mt-0.5 text-xs text-ink-500">
             Circa una chiamata AI per prodotto e lingua ({productCount} prodotti). Le traduzioni
             restano fedeli al testo verificato: nessun claim aggiunto.
           </p>
@@ -1404,19 +1404,19 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
             {LANGS.map((l) => (
               <label
                 key={l.code}
-                className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-ink-700 hover:bg-ink-50"
               >
                 <input
                   type="checkbox"
                   checked={langs.has(l.code)}
                   onChange={() => toggle(l.code)}
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 rounded border-ink-300"
                 />
                 {l.label}
               </label>
             ))}
           </div>
-          {msg && <p className="mt-2 text-xs text-gray-600">{msg}</p>}
+          {msg && <p className="mt-2 text-xs text-ink-600">{msg}</p>}
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={busy}>
               Chiudi
@@ -1541,26 +1541,26 @@ function ProductAttributesPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-gray-800">Campi e affidabilità</p>
+        <p className="text-sm font-semibold text-ink-800">Campi e affidabilità</p>
         {doubtCount > 0 && (
           <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
             {doubtCount} da confermare
           </span>
         )}
       </div>
-      <p className="-mt-1 text-xs text-gray-500">
+      <p className="-mt-1 text-xs text-ink-500">
         I campi in <span className="font-semibold text-red-600">rosso</span> sono{' '}
         <strong>dubbi</strong> dell&apos;AI (letti dalle foto con bassa sicurezza): confermali o
         correggili.
       </p>
       {attrs === null && !error && (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="flex items-center gap-2 text-sm text-ink-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Carico i campi…
         </div>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {attrs && attrs.length === 0 && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-ink-500">
           Nessun campo valorizzato. Con le sole foto vengono riempiti solo i dati leggibili sul
           pack; aggiungi un Excel per completare gli altri.
         </p>
@@ -1581,12 +1581,12 @@ function ProductAttributesPanel({
               key={a.attributeId}
               className={cn(
                 'rounded-lg border p-3',
-                doubt ? 'border-red-200 bg-red-50/50' : 'border-gray-200 bg-white',
+                doubt ? 'border-red-200 bg-red-50/50' : 'border-ink-200 bg-white',
               )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className={cn('text-sm', doubt ? 'font-bold text-red-700' : 'text-gray-800')}>
+                  <p className={cn('text-sm', doubt ? 'font-bold text-red-700' : 'text-ink-800')}>
                     <span className="font-medium">{a.name}:</span>{' '}
                     {isEditing ? null : a.value}
                   </p>
@@ -1594,7 +1594,7 @@ function ProductAttributesPanel({
                 <div className="flex shrink-0 items-center gap-2">
                   {/* Barra di affidabilità + % */}
                   <div className="flex items-center gap-1.5" title={`Affidabilità ${pct}%`}>
-                    <div className="h-1.5 w-12 overflow-hidden rounded-full bg-gray-200">
+                    <div className="h-1.5 w-12 overflow-hidden rounded-full bg-ink-200">
                       <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
                     </div>
                     <span className={cn('w-9 text-right text-xs font-bold tabular-nums', pctColor)}>
@@ -1697,10 +1697,10 @@ function TranslationsViewer({
   if (codes.length === 0) return null;
   const active = lang && translations[lang] ? translations[lang] : null;
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <div className="rounded-lg border border-ink-200 bg-white p-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <Globe className="h-4 w-4 text-brand-accent" />
-        <span className="text-sm font-medium text-gray-700">Traduzioni</span>
+        <span className="text-sm font-medium text-ink-700">Traduzioni</span>
         {codes.map((c) => (
           <button
             key={c}
@@ -1710,7 +1710,7 @@ function TranslationsViewer({
               'rounded-full border px-2 py-0.5 font-mono text-xs uppercase',
               lang === c
                 ? 'border-brand-accent bg-brand-accent text-white'
-                : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400',
+                : 'border-ink-300 bg-white text-ink-600 hover:border-ink-400',
             )}
           >
             {c}
@@ -1718,10 +1718,10 @@ function TranslationsViewer({
         ))}
       </div>
       {active && (
-        <div className="mt-3 space-y-2 text-sm text-gray-700">
-          <p className="font-semibold text-gray-900">{active.title}</p>
+        <div className="mt-3 space-y-2 text-sm text-ink-700">
+          <p className="font-semibold text-ink-900">{active.title}</p>
           <p>{active.shortDescription}</p>
-          <p className="whitespace-pre-line text-gray-600">{active.longDescription}</p>
+          <p className="whitespace-pre-line text-ink-600">{active.longDescription}</p>
           {active.bullets.length > 0 && (
             <ul className="list-inside list-disc space-y-0.5">
               {active.bullets.map((b, i) => (
@@ -1730,14 +1730,14 @@ function TranslationsViewer({
             </ul>
           )}
           {active.metaDescription && (
-            <p className="text-xs text-gray-500">meta: {active.metaDescription}</p>
+            <p className="text-xs text-ink-500">meta: {active.metaDescription}</p>
           )}
-          {active.altText && <p className="text-xs text-gray-500">alt: {active.altText}</p>}
+          {active.altText && <p className="text-xs text-ink-500">alt: {active.altText}</p>}
           {active.faq.length > 0 && (
             <div className="space-y-1">
               {active.faq.map((f, i) => (
-                <p key={i} className="text-xs text-gray-600">
-                  <span className="font-medium text-gray-800">{f.question}</span> — {f.answer}
+                <p key={i} className="text-xs text-ink-600">
+                  <span className="font-medium text-ink-800">{f.question}</span> — {f.answer}
                 </p>
               ))}
             </div>
@@ -1834,15 +1834,15 @@ function DetailDrawer({
         aria-hidden
       />
       <aside className="relative flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-xl">
-        <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+        <div className="sticky top-0 flex items-center justify-between border-b border-ink-200 bg-white px-6 py-4">
           <div className="min-w-0">
-            <h2 className="truncate font-semibold text-gray-900">{row.name}</h2>
-            <p className="font-mono text-xs text-gray-500">
+            <h2 className="truncate font-semibold text-ink-900">{row.name}</h2>
+            <p className="font-mono text-xs text-ink-500">
               {row.externalId}
               {row.category && (
                 <>
                   {' · '}
-                  <span className="font-sans text-gray-600">{row.category}</span>
+                  <span className="font-sans text-ink-600">{row.category}</span>
                 </>
               )}
             </p>
@@ -1854,9 +1854,9 @@ function DetailDrawer({
 
         <div className="flex-1 space-y-5 px-6 py-5">
           {row.completeness && (
-            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-ink-700">
                   Completezza
                 </span>
                 <Badge tone={COMPLETENESS_TONES[row.completeness.status]}>
@@ -1878,7 +1878,7 @@ function DetailDrawer({
               )}
               {row.completeness.missingAttributes.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                     Attributi mancanti
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -1901,23 +1901,23 @@ function DetailDrawer({
           <TranslationsViewer translations={row.translations} />
 
           {base && (base.altText || (base.faq?.length ?? 0) > 0) && (
-            <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+            <div className="space-y-3 rounded-lg border border-ink-200 bg-white p-3">
               {base.altText && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                     Alt text immagine
                   </p>
-                  <p className="mt-0.5 text-sm text-gray-700">{base.altText}</p>
+                  <p className="mt-0.5 text-sm text-ink-700">{base.altText}</p>
                 </div>
               )}
               {(base.faq?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">FAQ</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">FAQ</p>
                   <div className="mt-1 space-y-2">
                     {base.faq.map((f, i) => (
                       <div key={i}>
-                        <p className="text-sm font-medium text-gray-800">{f.question}</p>
-                        <p className="text-sm text-gray-600">{f.answer}</p>
+                        <p className="text-sm font-medium text-ink-800">{f.question}</p>
+                        <p className="text-sm text-ink-600">{f.answer}</p>
                       </div>
                     ))}
                   </div>
@@ -1927,21 +1927,21 @@ function DetailDrawer({
           )}
 
           {original && (
-            <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <summary className="cursor-pointer text-sm font-medium text-gray-600">
+            <details className="rounded-lg border border-ink-200 bg-ink-50 p-3">
+              <summary className="cursor-pointer text-sm font-medium text-ink-600">
                 Testo originale generato
               </summary>
-              <div className="mt-3 space-y-2 text-sm text-gray-600">
+              <div className="mt-3 space-y-2 text-sm text-ink-600">
                 <p>
-                  <span className="font-medium text-gray-800">Titolo:</span>{' '}
+                  <span className="font-medium text-ink-800">Titolo:</span>{' '}
                   {original.title}
                 </p>
                 <p>
-                  <span className="font-medium text-gray-800">Breve:</span>{' '}
+                  <span className="font-medium text-ink-800">Breve:</span>{' '}
                   {original.shortDescription}
                 </p>
                 <p>
-                  <span className="font-medium text-gray-800">Completa:</span>{' '}
+                  <span className="font-medium text-ink-800">Completa:</span>{' '}
                   {original.longDescription}
                 </p>
                 {original.bullets.length > 0 && (
@@ -1952,7 +1952,7 @@ function DetailDrawer({
                   </ul>
                 )}
                 <p>
-                  <span className="font-medium text-gray-800">Meta:</span>{' '}
+                  <span className="font-medium text-ink-800">Meta:</span>{' '}
                   {original.metaDescription}
                 </p>
               </div>
@@ -2024,7 +2024,7 @@ function DetailDrawer({
           </div>
         </div>
 
-        <div className="sticky bottom-0 flex items-center gap-2 border-t border-gray-200 bg-white px-6 py-4">
+        <div className="sticky bottom-0 flex items-center gap-2 border-t border-ink-200 bg-white px-6 py-4">
           <Button
             onClick={() => {
               const { content, changes } = buildContentAndChanges();

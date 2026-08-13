@@ -33,7 +33,7 @@ export function Logo({
     <Link
       href={href}
       className={cn(
-        'inline-flex items-center gap-2 font-extrabold tracking-tight text-gray-900',
+        'inline-flex items-center gap-2 font-extrabold tracking-tight text-ink-900',
         className,
       )}
     >

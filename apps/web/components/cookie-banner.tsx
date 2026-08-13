@@ -71,10 +71,22 @@ export function CookieBanner() {
       ref={riquadro}
       role="region"
       aria-label="Avviso cookie"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur"
+      // `z-20`, non `z-50`.
+      //
+      // Il banner è arredamento di pagina: qualunque cosa si apra sopra la
+      // pagina deve coprirlo. A `z-50` copriva invece tutto — le modali della
+      // configurazione (z-50, ma rese dopo, quindi il banner vinceva), i
+      // cassetti dei risultati (z-40 e z-30) e quello del preset (z-40). Su
+      // telefono, alla prima visita, non si riusciva a creare un attributo
+      // senza prima accettare i cookie.
+      //
+      // La scala, dal basso: 10 contenuto appiccicato · 20 intestazione e
+      // QUESTO banner · 30-40 cassetti · 50 modali · 60 barra dei comandi del
+      // wizard · 70 guide a fumetti · 100 «salta al contenuto».
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-ink-200 bg-white/95 p-4 shadow-lg backdrop-blur"
     >
       <div className="mx-auto flex max-w-4xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           Usiamo solo cookie tecnici essenziali per il funzionamento e
           l'autenticazione. Continuando accetti l'uso di questi cookie. Maggiori
           dettagli nella{' '}

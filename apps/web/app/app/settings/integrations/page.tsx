@@ -39,8 +39,8 @@ const FORMATI = [
 export default function IntegrationsPage() {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-gray-900">Integrazioni</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <h1 className="text-2xl font-semibold text-ink-900">Integrazioni</h1>
+      <p className="mt-1 text-sm text-ink-500">
         Come portare le schede generate nel tuo negozio.
       </p>
 
@@ -52,20 +52,20 @@ export default function IntegrationsPage() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-ink-900">
                   Esportazione nei formati dei negozi
                 </h2>
                 <Badge tone="green">Disponibile</Badge>
               </div>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 A fine generazione, dalla pagina dei risultati, scarichi un file già nel
                 tracciato del tuo negozio: si importa senza rimaneggiarlo.
               </p>
-              <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
+              <ul className="mt-3 space-y-1.5 text-sm text-ink-700">
                 {FORMATI.map((f) => (
                   <li key={f.nome} className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-medium">{f.nome}</span>
-                    <span className="text-gray-500">{f.dettaglio}</span>
+                    <span className="text-ink-500">{f.dettaglio}</span>
                   </li>
                 ))}
               </ul>
@@ -80,12 +80,12 @@ export default function IntegrationsPage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-ink-100 text-ink-500">
               <Link2 className="h-6 w-6" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-ink-900">
                   Collegamento diretto al negozio
                 </h2>
                 <Badge tone="gray">
@@ -96,7 +96,7 @@ export default function IntegrationsPage() {
               {/* Prima c'era scritto «Disponibile a breve». Nessuno può
                   promettere una data, e una promessa che scade fa più danno del
                   silenzio. */}
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-ink-500">
                 Scrivere le schede nel negozio senza passare da un file — e rileggere il
                 catalogo da lì — non c’è ancora. Non diamo una data: quando ci sarà, si
                 vedrà da questa pagina. Nel frattempo l’esportazione qui sopra fa lo stesso

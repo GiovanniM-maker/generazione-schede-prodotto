@@ -54,7 +54,7 @@ export default function LoginPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--background)]">
-      <header className="border-b border-gray-200 bg-white">
+      <header className="border-b border-ink-200 bg-white">
         <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
           <Logo />
         </div>
@@ -70,8 +70,8 @@ export default function LoginPage({
                       pagina intitolata «Accedi»: una promessa e un'altra cosa.
                       Non esistono due percorsi — il primo accesso crea
                       l'account — e adesso il titolo lo dice. */}
-                  <h1 className="text-2xl font-semibold text-gray-900">Accedi o registrati</h1>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <h1 className="text-2xl font-semibold text-ink-900">Accedi o registrati</h1>
+                  <p className="mt-1 text-sm text-ink-500">
                     Ti invieremo un <strong>codice a 6 cifre</strong> via email. Nessuna
                     password da ricordare: se è la prima volta, l’account si crea da sé.
                   </p>
@@ -86,7 +86,7 @@ export default function LoginPage({
                     <div>
                       <Label htmlFor="email">Indirizzo email</Label>
                       <div className="relative">
-                        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
                         <Input
                           id="email"
                           name="email"
@@ -106,10 +106,10 @@ export default function LoginPage({
                 </>
               ) : (
                 <>
-                  <h1 className="text-2xl font-semibold text-gray-900">Inserisci il codice</h1>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <h1 className="text-2xl font-semibold text-ink-900">Inserisci il codice</h1>
+                  <p className="mt-1 text-sm text-ink-500">
                     Abbiamo inviato un codice a 6 cifre a{' '}
-                    <strong className="text-gray-700">{email}</strong>. Controlla la posta
+                    <strong className="text-ink-700">{email}</strong>. Controlla la posta
                     (anche lo spam) e inseriscilo qui sotto.
                   </p>
 
@@ -118,7 +118,7 @@ export default function LoginPage({
                     <div>
                       <Label htmlFor="token">Codice di accesso</Label>
                       <div className="relative">
-                        <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
                         {/* Niente segnaposto «123456»: con la spaziatura ampia
                             era indistinguibile da un codice già digitato, e
                             dopo un codice sbagliato il campo si svuota — si
@@ -146,7 +146,7 @@ export default function LoginPage({
                     <input type="hidden" name="email" value={email} />
                     <button
                       type="submit"
-                      className="text-sm text-gray-500 underline-offset-2 hover:text-brand-accent hover:underline"
+                      className="text-sm text-ink-500 underline-offset-2 hover:text-brand-accent hover:underline"
                     >
                       Non hai ricevuto il codice? Rinvialo
                     </button>
@@ -159,7 +159,7 @@ export default function LoginPage({
           <div className="mt-6 text-center">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 py-2 text-sm text-gray-500 hover:text-gray-900"
+              className="inline-flex items-center gap-1.5 py-2 text-sm text-ink-500 hover:text-ink-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Torna alla home

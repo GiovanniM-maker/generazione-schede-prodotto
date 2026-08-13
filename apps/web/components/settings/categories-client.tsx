@@ -110,8 +110,8 @@ export function CategoriesClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Categorie</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-ink-900">Categorie</h1>
+          <p className="mt-1 text-sm text-ink-500">
             Categorie di sistema e categorie personalizzate della tua
             organizzazione.
           </p>
@@ -191,7 +191,7 @@ export function CategoriesClient({
 
       <Card>
         {filtered.length === 0 ? (
-          <div className="p-10 text-center text-sm text-gray-500">
+          <div className="p-10 text-center text-sm text-ink-500">
             Nessuna categoria trovata.
           </div>
         ) : (
@@ -208,7 +208,7 @@ export function CategoriesClient({
             <TBody>
               {filtered.map((c) => (
                 <TR key={c.id}>
-                  <TD className="font-medium text-gray-900">{c.name}</TD>
+                  <TD className="font-medium text-ink-900">{c.name}</TD>
                   <TD>
                     <Badge tone="gray">{c.sectorName}</Badge>
                   </TD>
@@ -338,7 +338,7 @@ export function CategoriesClient({
               onChange={(e) => setImportText(e.target.value)}
               placeholder={'T-shirt\nCamicie\nPantaloni\nGiacche'}
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-ink-500">
               Incolla la tua lista. I nomi già esistenti vengono saltati. Max 300 per volta.
             </p>
           </div>

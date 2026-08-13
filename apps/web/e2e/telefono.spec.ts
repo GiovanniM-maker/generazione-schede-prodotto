@@ -184,6 +184,58 @@ test.describe('dentro l’applicazione', () => {
     expect(await comandiChePerdonoIlTesto(page)).toEqual([]);
   });
 
+  test('il banner cookie non copre le modali', async ({ page }) => {
+    // Il banner è `fixed` e stava a `z-50`, cioè alla stessa quota delle
+    // modali — ma reso DOPO nel documento, quindi vinceva lui. Copriva anche i
+    // cassetti dei risultati (z-40) e del preset (z-40). Alla prima visita, su
+    // telefono, non si riusciva a creare un attributo senza prima accettare i
+    // cookie: il banner è arredamento di pagina, e stava sopra il lavoro.
+    //
+    // Il consenso sta in `localStorage`, non nei cookie: cancellare i cookie
+    // qui butterebbe via la sessione e basta — il primo tentativo è finito
+    // proprio così, sulla pagina di accesso, ad aspettare per un minuto un
+    // pulsante che stava dietro un login.
+    await page.addInitScript(() => {
+      try {
+        localStorage.removeItem('cookie-consent-v1');
+      } catch {
+        /* private mode */
+      }
+    });
+    await page.setViewportSize(TELEFONO);
+    await page.goto('/app/settings/categories', { waitUntil: 'networkidle' });
+
+    const banner = page.getByRole('region', { name: /avviso cookie/i });
+    if ((await banner.count()) === 0) test.skip();
+
+    const apri = page.getByRole('button', { name: /nuova categoria/i }).first();
+    await apri.click();
+    await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 15000 });
+
+    // Il confronto NON si fa col riquadro bianco della modale: su un telefono
+    // quello sta in alto e il banner in fondo, quindi non si toccano quasi mai
+    // e la verifica passerebbe per assenza di bersaglio. Il primo tentativo di
+    // questo test faceva esattamente così — verde, e non guardava niente.
+    //
+    // Il bersaglio giusto è la **velatura**, che è `fixed inset-0`: copre tutto
+    // lo schermo, quindi copre sempre anche il banner. Se col dito sul banner
+    // si tocca il banner invece della velatura, allora il banner sta davanti a
+    // una modale aperta — che è il difetto, ed è quello che si vedeva: il
+    // rettangolo bianco del banner bucava lo schermo scurito.
+    const davanti = await page.evaluate(() => {
+      const b = document.querySelector('[aria-label="Avviso cookie"]') as HTMLElement | null;
+      const d = document.querySelector('[role="dialog"]') as HTMLElement | null;
+      const velo = d?.parentElement as HTMLElement | null;
+      if (!b || !velo) return 'manca un pezzo';
+      const rb = b.getBoundingClientRect();
+      const rv = velo.getBoundingClientRect();
+      if (rv.bottom <= rb.top || rv.top >= rb.bottom) return 'la velatura non copre il banner';
+      const el = document.elementFromPoint(rb.left + rb.width / 2, rb.top + rb.height / 2);
+      return b.contains(el) ? 'banner' : 'velatura';
+    });
+    expect(davanti, 'con la modale aperta il banner cookie resta cliccabile').toBe('velatura');
+  });
+
   test('ogni comando si prende col dito, anche dentro l’applicazione', async ({ page }) => {
     // La soglia WCAG 2.2 AA è 24×24. Il controllo esisteva solo per le pagine
     // pubbliche, e dentro l'applicazione restavano «Cosa significa?» e «Chiudi

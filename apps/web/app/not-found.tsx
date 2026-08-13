@@ -22,7 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 export default function NonTrovata() {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--background)]">
-      <header className="border-b border-gray-200 bg-white">
+      <header className="border-b border-ink-200 bg-white">
         <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
           <Logo href="/" />
         </div>
@@ -31,14 +31,14 @@ export default function NonTrovata() {
       <main className="mx-auto flex w-full max-w-lg flex-1 items-center px-4 py-12 sm:px-6">
         <Card className="w-full">
           <CardContent className="flex flex-col items-center gap-4 p-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-ink-100 text-ink-500">
               <Compass className="h-6 w-6" aria-hidden="true" />
             </span>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">
+              <h1 className="text-xl font-semibold text-ink-900">
                 Questa pagina non esiste
               </h1>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-ink-500">
                 L’indirizzo potrebbe essere scritto male, oppure la pagina è
                 stata spostata. Non è colpa tua: da qui si riparte.
               </p>

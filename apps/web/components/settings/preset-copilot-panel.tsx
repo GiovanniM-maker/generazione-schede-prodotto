@@ -198,9 +198,9 @@ export function PresetCopilotPanel({
   return (
     <div className="flex h-full flex-col">
       {/* Intro */}
-      <div className="flex items-start gap-2 border-b border-gray-100 px-1 pb-3">
+      <div className="flex items-start gap-2 border-b border-ink-100 px-1 pb-3">
         <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-brand-accent" />
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           Descrivi il preset che vuoi, oppure incolla un elenco di categorie e attributi. Preparo un
           piano (categorie, attributi e tipi) da confermare — <strong>ciò che è già nel preset non
           te lo richiedo di nuovo</strong>.
@@ -210,7 +210,7 @@ export function PresetCopilotPanel({
       {/* Conversazione (scorre) */}
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto py-4">
         {history.length === 0 && !busy && (
-          <div className="mt-6 space-y-2 text-center text-sm text-gray-500">
+          <div className="mt-6 space-y-2 text-center text-sm text-ink-500">
             <p>Esempi:</p>
             <p className="italic">«Crea 5 categorie di pasta con 3 attributi ciascuna»</p>
             <p className="italic">
@@ -225,7 +225,7 @@ export function PresetCopilotPanel({
                 className={
                   m.role === 'user'
                     ? 'rounded-2xl rounded-br-sm bg-brand-accent px-3.5 py-2 text-sm text-white'
-                    : 'rounded-2xl rounded-bl-sm border border-gray-200 bg-white px-3.5 py-2 text-sm text-gray-800'
+                    : 'rounded-2xl rounded-bl-sm border border-ink-200 bg-white px-3.5 py-2 text-sm text-ink-800'
                 }
               >
                 {m.content}
@@ -234,7 +234,7 @@ export function PresetCopilotPanel({
                 <button
                   type="button"
                   onClick={() => copyMsg(m.content, i)}
-                  className="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 opacity-0 transition hover:text-gray-700 group-hover:opacity-100"
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-ink-500 opacity-0 transition hover:text-ink-700 group-hover:opacity-100"
                 >
                   {copiedIdx === i ? (
                     <>
@@ -251,7 +251,7 @@ export function PresetCopilotPanel({
           </div>
         ))}
         {busy && (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-ink-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             Sto progettando il preset…
           </div>
@@ -260,10 +260,10 @@ export function PresetCopilotPanel({
 
       {/* Anteprima del piano */}
       {plan && (
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2.5 text-sm">
-            <span className="font-semibold text-gray-900">Piano proposto</span>
-            <span className="text-gray-500">
+        <div className="mb-3 rounded-lg border border-ink-200 bg-white">
+          <div className="flex items-center justify-between border-b border-ink-100 px-4 py-2.5 text-sm">
+            <span className="font-semibold text-ink-900">Piano proposto</span>
+            <span className="text-ink-500">
               {nothingNew ? (
                 'tutto già presente'
               ) : (
@@ -276,7 +276,7 @@ export function PresetCopilotPanel({
           <div className="max-h-[38vh] space-y-3 overflow-y-auto p-4">
             {plan.categories.map((c, i) => (
               <div key={i}>
-                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-ink-900">
                   <FolderTree className="h-4 w-4 text-brand-accent" />
                   {c.name}
                   {c.existing ? (
@@ -286,8 +286,8 @@ export function PresetCopilotPanel({
                   )}
                 </div>
                 {c.recognitionHint && (
-                  <p className="mt-1 pl-5 text-xs text-gray-500">
-                    <span className="font-medium text-gray-600">Si riconosce dalle foto:</span>{' '}
+                  <p className="mt-1 pl-5 text-xs text-ink-500">
+                    <span className="font-medium text-ink-600">Si riconosce dalle foto:</span>{' '}
                     {c.recognitionHint}
                   </p>
                 )}
@@ -297,35 +297,35 @@ export function PresetCopilotPanel({
                       key={j}
                       className={
                         a.existing
-                          ? 'rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5'
+                          ? 'rounded-md border border-ink-200 bg-ink-50 px-2.5 py-1.5'
                           : 'rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5'
                       }
                     >
                       <div className="flex items-center gap-1.5 text-xs">
                         {a.existing ? (
-                          <Check className="h-3 w-3 shrink-0 text-gray-400" />
+                          <Check className="h-3 w-3 shrink-0 text-ink-400" />
                         ) : (
                           <Tags className="h-3 w-3 shrink-0 text-emerald-500" />
                         )}
-                        <span className={a.existing ? 'text-gray-500' : 'font-medium text-gray-800'}>
+                        <span className={a.existing ? 'text-ink-500' : 'font-medium text-ink-800'}>
                           {a.name}
                         </span>
                         <Badge tone="gray">{etichettaTipoDato(a.dataType)}</Badge>
                         {a.enumValues && a.enumValues.length > 0 && (
-                          <span className="truncate text-gray-500">{a.enumValues.join(' · ')}</span>
+                          <span className="truncate text-ink-500">{a.enumValues.join(' · ')}</span>
                         )}
                       </div>
                       {!a.existing && (a.extractionInstruction || a.generationInstruction) && (
-                        <div className="mt-1 space-y-0.5 pl-[18px] text-[11px] leading-snug text-gray-500">
+                        <div className="mt-1 space-y-0.5 pl-[18px] text-[11px] leading-snug text-ink-500">
                           {a.extractionInstruction && (
                             <p>
-                              <span className="font-medium text-gray-500">Estrazione:</span>{' '}
+                              <span className="font-medium text-ink-500">Estrazione:</span>{' '}
                               {a.extractionInstruction}
                             </p>
                           )}
                           {a.generationInstruction && (
                             <p>
-                              <span className="font-medium text-gray-500">Nel testo:</span>{' '}
+                              <span className="font-medium text-ink-500">Nel testo:</span>{' '}
                               {a.generationInstruction}
                             </p>
                           )}
@@ -334,14 +334,14 @@ export function PresetCopilotPanel({
                     </div>
                   ))}
                   {c.attributes.length === 0 && (
-                    <span className="text-xs text-gray-500">nessun attributo</span>
+                    <span className="text-xs text-ink-500">nessun attributo</span>
                   )}
                 </div>
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between gap-2 border-t border-gray-100 px-4 py-3">
-            <span className="text-xs text-gray-500">
+          <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-4 py-3">
+            <span className="text-xs text-ink-500">
               {nothingNew
                 ? 'Niente da aggiungere: è già tutto nel preset.'
                 : 'Verranno aggiunti solo gli elementi in verde.'}
@@ -380,7 +380,7 @@ export function PresetCopilotPanel({
       )}
 
       {/* Input pinnato in basso */}
-      <div className="border-t border-gray-100 pt-3">
+      <div className="border-t border-ink-100 pt-3">
         <div className="flex items-end gap-2">
           {voiceSupported && (
             <Button
@@ -419,7 +419,7 @@ export function PresetCopilotPanel({
             </Button>
           )}
         </div>
-        <p className="mt-1.5 px-1 text-xs text-gray-500">
+        <p className="mt-1.5 px-1 text-xs text-ink-500">
           Invio per inviare · Shift+Invio per andare a capo
         </p>
       </div>

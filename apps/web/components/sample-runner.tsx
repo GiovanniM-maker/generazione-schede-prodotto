@@ -188,7 +188,7 @@ export function SampleRunner({
       {!hasProfile && (
         <Card>
           <CardContent className="space-y-4 p-6">
-            <h2 className="font-semibold text-gray-900">Imposta il tono</h2>
+            <h2 className="font-semibold text-ink-900">Imposta il tono</h2>
             <div>
               <Label htmlFor="style">Stile</Label>
               <Select
@@ -261,7 +261,7 @@ export function SampleRunner({
             <Card>
               <CardContent className="space-y-2 p-6">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-500">
                     Completezza
                   </h3>
                   <Badge tone={COMPLETENESS_TONES[sample.completeness.status]}>
@@ -297,12 +297,12 @@ export function SampleRunner({
           {/* Fatti utilizzati */}
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-500">
                 Fatti utilizzati
               </h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {sample.facts.length === 0 && (
-                  <span className="text-sm text-gray-500">Nessun fatto</span>
+                  <span className="text-sm text-ink-500">Nessun fatto</span>
                 )}
                 {sample.facts.map((f, i) => (
                   <Badge key={i} tone="gray">
@@ -327,7 +327,7 @@ export function SampleRunner({
               />
               <div>
                 <FieldLabel>Bullet</FieldLabel>
-                <ul className="mt-1 list-inside list-disc space-y-1 text-sm text-gray-700">
+                <ul className="mt-1 list-inside list-disc space-y-1 text-sm text-ink-700">
                   {sample.content.bullets.map((b, i) => (
                     <li key={i}>{b}</li>
                   ))}
@@ -409,7 +409,7 @@ export function SampleRunner({
                 <RefreshCw className="h-4 w-4" />
                 Rigenera il campione
               </Button>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-ink-500">
                 {remaining} rigenerazioni rimaste
               </span>
             </div>
@@ -420,7 +420,7 @@ export function SampleRunner({
                   <Check className="h-5 w-5" />
                   <span className="font-medium">Tono approvato</span>
                 </div>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-ink-500">
                   Verrà riservato 1 credito per ogni prodotto idoneo. La
                   generazione avviene in background.
                 </p>
@@ -473,7 +473,7 @@ export function SampleRunner({
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+    <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
       {children}
     </span>
   );
@@ -483,7 +483,7 @@ function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <p className="mt-1 text-sm text-gray-800">{value}</p>
+      <p className="mt-1 text-sm text-ink-800">{value}</p>
     </div>
   );
 }

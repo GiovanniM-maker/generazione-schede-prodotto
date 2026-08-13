@@ -43,7 +43,7 @@ const TONI: Record<
     ruolo: 'status',
   },
   informazione: {
-    classi: 'border-gray-200 bg-gray-50 text-gray-700',
+    classi: 'border-ink-200 bg-ink-50 text-ink-700',
     icona: Info,
     ruolo: 'status',
   },

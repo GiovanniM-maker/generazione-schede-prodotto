@@ -151,24 +151,24 @@ export function GuidedTour({
       />
       {/* Fumetto */}
       <div
-        className="fixed rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+        className="fixed rounded-xl border border-ink-200 bg-white p-4 shadow-xl"
         style={{ top: bubbleTop, bottom: bubbleBottom, left, width: BUBBLE_W, maxWidth: 'calc(100vw - 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold text-gray-900">{step.title}</p>
+          <p className="text-sm font-semibold text-ink-900">{step.title}</p>
           <button
             type="button"
             onClick={() => onClose(true)}
             aria-label="Chiudi la guida"
-            className="-m-1 rounded p-1 text-gray-500 hover:text-gray-700"
+            className="-m-1 rounded p-1 text-ink-500 hover:text-ink-700"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-1 text-sm text-gray-600">{step.body}</p>
+        <p className="mt-1 text-sm text-ink-600">{step.body}</p>
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-ink-500">
             {idx + 1} di {total}
           </span>
           <div className="flex gap-2">

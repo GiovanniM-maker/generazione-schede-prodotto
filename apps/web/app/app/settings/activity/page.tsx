@@ -36,13 +36,13 @@ const EVENT_META: Record<
   onboarding_completed: { label: 'Onboarding completato', icon: CheckCircle2, tone: 'text-emerald-600' },
   batch_created: { label: 'Batch creato', icon: PackagePlus, tone: 'text-blue-600' },
   batch_deleted: { label: 'Batch eliminato', icon: Eraser, tone: 'text-amber-600' },
-  file_uploaded: { label: 'File caricato', icon: Upload, tone: 'text-gray-500' },
-  mapping_confirmed: { label: 'Mappatura confermata', icon: ClipboardList, tone: 'text-gray-500' },
+  file_uploaded: { label: 'File caricato', icon: Upload, tone: 'text-ink-500' },
+  mapping_confirmed: { label: 'Mappatura confermata', icon: ClipboardList, tone: 'text-ink-500' },
   sample_generated: { label: 'Campione generato', icon: Sparkles, tone: 'text-violet-600' },
   generation_started: { label: 'Generazione avviata', icon: Rocket, tone: 'text-blue-600' },
   visual_extraction_run: { label: 'Analisi immagini eseguita', icon: ImageIcon, tone: 'text-violet-600' },
-  export_created: { label: 'Esportazione creata', icon: FileDown, tone: 'text-gray-500' },
-  checkout_started: { label: 'Checkout avviato', icon: CreditCard, tone: 'text-gray-500' },
+  export_created: { label: 'Esportazione creata', icon: FileDown, tone: 'text-ink-500' },
+  checkout_started: { label: 'Checkout avviato', icon: CreditCard, tone: 'text-ink-500' },
   payment_completed: { label: 'Pagamento completato', icon: CreditCard, tone: 'text-emerald-600' },
   preset_published: { label: 'Preset pubblicato', icon: Rocket, tone: 'text-emerald-600' },
   categories_imported: { label: 'Categorie importate', icon: ClipboardList, tone: 'text-blue-600' },
@@ -109,8 +109,8 @@ export default async function StoricoPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Storico attività</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-semibold text-ink-900">Storico attività</h1>
+        <p className="mt-1 text-sm text-ink-500">
           Cronologia delle azioni sulla configurazione, sulle generazioni e sui
           miglioramenti del prompt. Ultime 100 attività.
         </p>
@@ -120,35 +120,35 @@ export default async function StoricoPage() {
         <CardContent className="p-0">
           {rows.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-              <History className="h-8 w-8 text-gray-300" />
-              <p className="text-sm text-gray-500">
+              <History className="h-8 w-8 text-ink-300" />
+              <p className="text-sm text-ink-500">
                 Nessuna attività registrata per ora.
               </p>
             </div>
           ) : (
-            <ol className="divide-y divide-gray-100">
+            <ol className="divide-y divide-ink-100">
               {rows.map((ev) => {
                 const meta = EVENT_META[ev.event_name] ?? {
                   label: ev.event_name,
                   icon: Circle,
-                  tone: 'text-gray-500',
+                  tone: 'text-ink-500',
                 };
                 const Icon = meta.icon;
                 const detail = describe(ev);
                 return (
                   <li key={ev.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-50">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-50">
                       <Icon className={`h-4 w-4 ${meta.tone}`} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-ink-900">
                         {meta.label}
                       </p>
                       {detail && (
-                        <p className="truncate text-xs text-gray-500">{detail}</p>
+                        <p className="truncate text-xs text-ink-500">{detail}</p>
                       )}
                     </div>
-                    <time className="shrink-0 whitespace-nowrap text-xs text-gray-500">
+                    <time className="shrink-0 whitespace-nowrap text-xs text-ink-500">
                       {formatDate(ev.created_at)}
                     </time>
                   </li>

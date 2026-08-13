@@ -61,8 +61,8 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
 
   return (
     <div id="dati-fattura">
-      <h2 className="text-lg font-semibold text-gray-900">Dati per la fattura</h2>
-      <p className="mt-1 text-sm text-gray-500">
+      <h2 className="text-lg font-semibold text-ink-900">Dati per la fattura</h2>
+      <p className="mt-1 text-sm text-ink-500">
         Servono per emettere la fattura elettronica. Vanno compilati prima del
         primo acquisto.
       </p>
@@ -82,7 +82,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
         )}
 
         {!isOwner ? (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-ink-500">
             I dati di fatturazione li imposta il proprietario dell’organizzazione.
           </p>
         ) : (
@@ -108,7 +108,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                   placeholder="12345678903"
                   inputMode="numeric"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-500">
                   Senza il prefisso IT. Se non ne hai una, lascia vuoto e
                   compila il codice fiscale.
                 </p>
@@ -121,7 +121,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                   onChange={set('taxCode')}
                   placeholder="RSSMRA80A01H501U"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-500">
                   Per i privati sostituisce la partita IVA.
                 </p>
               </div>
@@ -137,7 +137,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                   placeholder="0000000"
                   maxLength={7}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-500">
                   7 caratteri. Se non ce l’hai scrivi 0000000 e indica la PEC.
                 </p>
               </div>
@@ -150,7 +150,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                   onChange={set('pecEmail')}
                   placeholder="azienda@pec.it"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-500">
                   In alternativa al codice destinatario.
                 </p>
               </div>

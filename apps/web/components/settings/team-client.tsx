@@ -86,8 +86,8 @@ export function TeamClient({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-semibold text-ink-900">Team</h1>
+        <p className="mt-1 text-sm text-ink-500">
           Membri dell’organizzazione e inviti in sospeso.
         </p>
       </div>
@@ -100,7 +100,7 @@ export function TeamClient({
 
       {isOwner && (
         <Card className="p-5">
-          <h3 className="text-base font-semibold text-gray-900">Invita un membro</h3>
+          <h3 className="text-base font-semibold text-ink-900">Invita un membro</h3>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <Label htmlFor="inv-email">Email</Label>
@@ -135,7 +135,7 @@ export function TeamClient({
               </div>
             </Avviso>
           )}
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-ink-500">
             Condividi il link con la persona invitata: dovrà accedere con questa email per
             entrare nell’organizzazione.
           </p>
@@ -143,7 +143,7 @@ export function TeamClient({
       )}
 
       <Card>
-        <div className="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">
+        <div className="border-b border-ink-100 px-5 py-3 text-sm font-semibold text-ink-900">
           Membri ({members.length})
         </div>
         <Table>
@@ -162,9 +162,9 @@ export function TeamClient({
           <TBody>
             {members.map((m) => (
               <TR key={m.userId}>
-                <TD className="text-gray-900">
+                <TD className="text-ink-900">
                   {m.email}
-                  {m.isYou && <span className="ml-2 text-xs text-gray-500">(tu)</span>}
+                  {m.isYou && <span className="ml-2 text-xs text-ink-500">(tu)</span>}
                 </TD>
                 <TD>
                   <Badge tone={m.role === 'owner' ? 'violet' : 'gray'}>
@@ -188,7 +188,7 @@ export function TeamClient({
 
       {invites.length > 0 && (
         <Card>
-          <div className="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">
+          <div className="border-b border-ink-100 px-5 py-3 text-sm font-semibold text-ink-900">
             Inviti in sospeso ({invites.length})
           </div>
           <Table>
@@ -203,7 +203,7 @@ export function TeamClient({
             <TBody>
               {invites.map((i) => (
                 <TR key={i.id}>
-                  <TD className="text-gray-900">{i.email}</TD>
+                  <TD className="text-ink-900">{i.email}</TD>
                   <TD>
                     <Badge tone={i.role === 'owner' ? 'violet' : 'gray'}>
                       {i.role === 'owner' ? 'Proprietario' : 'Membro'}

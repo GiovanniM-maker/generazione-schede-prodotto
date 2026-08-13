@@ -18,7 +18,7 @@ export default async function CategoryDetailPage({
     <div className="space-y-4">
       <Link
         href="/app/settings/categories"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"
+        className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-800"
       >
         <ArrowLeft className="h-4 w-4" />
         Tutte le categorie

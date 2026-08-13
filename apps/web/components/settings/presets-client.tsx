@@ -125,8 +125,8 @@ export function PresetsClient({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Preset</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-ink-900">Preset</h1>
+          <p className="mt-1 text-sm text-ink-500">
             Configurazioni riutilizzabili di categorie, attributi e prompt.
           </p>
         </div>
@@ -158,7 +158,7 @@ export function PresetsClient({
       <Card>
         {presets.length === 0 ? (
           <div className="flex flex-col items-center gap-3 p-10 text-center">
-            <p className="max-w-md text-sm text-gray-500">
+            <p className="max-w-md text-sm text-ink-500">
               Nessun preset. Il preset è la forma delle tue schede: quali categorie esistono e
               quali dati servono per ciascuna.
             </p>
@@ -169,7 +169,7 @@ export function PresetsClient({
               {esempioInCorso && <Loader2 className="h-4 w-4 animate-spin" />}
               Parti da un esempio
             </Button>
-            <p className="max-w-md text-xs text-gray-500">
+            <p className="max-w-md text-xs text-ink-500">
               Crea un preset già pronto per il tuo settore, con categorie e attributi tipici.
               Lo puoi cambiare in tutto.
             </p>
@@ -214,7 +214,7 @@ export function PresetsClient({
                       <Badge tone="amber">Bozza</Badge>
                     )}
                   </TD>
-                  <TD className="text-gray-500">{formatDate(p.updatedAt)}</TD>
+                  <TD className="text-ink-500">{formatDate(p.updatedAt)}</TD>
                   <TD>
                     <div className="flex justify-end gap-1">
                       <Button

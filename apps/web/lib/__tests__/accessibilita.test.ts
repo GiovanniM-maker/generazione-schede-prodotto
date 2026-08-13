@@ -162,14 +162,25 @@ describe('arrivare al contenuto', () => {
 });
 
 describe('il testo si legge', () => {
-  it('nessun testo a `gray-400`: è 2,4:1 sul nostro fondo', () => {
-    // #9ca3af sul crema #fbf8f3 fa 2,4:1, contro un minimo di 4,5:1. Resta
-    // legittimo sulle icone, che sono decorative.
+  it('nessun testo al quarto gradino: non arriva a 4,5:1 sul nostro fondo', () => {
+    // Era scritto su `gray-400`: #9ca3af sul crema #fbf8f3 fa 2,4:1, contro un
+    // minimo di 4,5:1.
+    //
+    // Poi tutti i grigi freddi sono diventati inchiostro caldo, e questa
+    // guardia ha smesso di guardare qualcosa: `text-gray-400` non esiste più
+    // in nessun file, quindi il test passava da solo — verde per assenza di
+    // bersaglio, non per assenza di difetto. Il gradino corrispondente,
+    // `ink-400`, sta a 3,48:1: meglio, ma sempre sotto il minimo. Il vincolo
+    // vale su entrambi, e `identita-visiva.test.ts` ricalcola i due numeri
+    // dalla configurazione.
+    //
+    // Resta legittimo sulle icone, che sono decorative.
     const ICONA = /aria-hidden|h-[23456] |w-[23456] |className="h-|<X |<Check|Icon|icon/;
+    const QUARTO = /text-(gray|ink)-400/;
     const colpevoli: string[] = [];
     for (const f of sorgenti) {
-      for (const riga of f.src.split('\n')) {
-        if (riga.includes('text-gray-400') && !ICONA.test(riga)) {
+      for (const riga of senzaCommenti(f.src).split('\n')) {
+        if (QUARTO.test(riga) && !ICONA.test(riga)) {
           colpevoli.push(`${f.path}: ${riga.trim().slice(0, 60)}`);
         }
       }

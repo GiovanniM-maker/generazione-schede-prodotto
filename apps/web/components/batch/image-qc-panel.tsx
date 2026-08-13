@@ -25,7 +25,7 @@ export function ImageQcPanel({ batchId, reloadKey }: { batchId: string; reloadKe
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-500">
+      <div className="flex items-center gap-2 rounded-lg border border-ink-100 bg-ink-50 p-3 text-sm text-ink-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Controllo qualità foto…
       </div>
     );

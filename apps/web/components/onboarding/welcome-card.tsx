@@ -39,35 +39,35 @@ export function WelcomeCard({ pronto }: { pronto: boolean }) {
         type="button"
         onClick={dismiss}
         aria-label="Chiudi il benvenuto"
-        className="absolute right-3 top-3 rounded p-1 text-gray-500 hover:text-gray-700"
+        className="absolute right-3 top-3 rounded p-1 text-ink-500 hover:text-ink-700"
       >
         <X className="h-4 w-4" />
       </button>
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-brand-accent" />
-        <p className="font-semibold text-gray-900">Benvenuto! In 3 mosse hai le tue schede prodotto</p>
+        <p className="font-semibold text-ink-900">Benvenuto! In 3 mosse hai le tue schede prodotto</p>
       </div>
       <ol className="mt-3 grid gap-3 sm:grid-cols-3">
-        <li className="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-white p-3">
+        <li className="flex items-start gap-2.5 rounded-lg border border-ink-200 bg-white p-3">
           <Settings2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
-          <span className="text-sm text-gray-700">
-            <b className="text-gray-900">1. Prepara il preset</b>
+          <span className="text-sm text-ink-700">
+            <b className="text-ink-900">1. Prepara il preset</b>
             <br />
             Categorie e dati della scheda. Puoi farlo a chat con il Copilot.
           </span>
         </li>
-        <li className="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-white p-3">
+        <li className="flex items-start gap-2.5 rounded-lg border border-ink-200 bg-white p-3">
           <PackageOpen className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
-          <span className="text-sm text-gray-700">
-            <b className="text-gray-900">2. Crea un batch</b>
+          <span className="text-sm text-ink-700">
+            <b className="text-ink-900">2. Crea un batch</b>
             <br />
             Carica foto e/o Excel: il wizard ti guida passo per passo, con fumetti e una chat di aiuto.
           </span>
         </li>
-        <li className="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-white p-3">
+        <li className="flex items-start gap-2.5 rounded-lg border border-ink-200 bg-white p-3">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
-          <span className="text-sm text-gray-700">
-            <b className="text-gray-900">3. Campione gratis, poi genera</b>
+          <span className="text-sm text-ink-700">
+            <b className="text-ink-900">3. Campione gratis, poi genera</b>
             <br />
             Vedi una scheda di prova senza spendere, poi avvii tutto il batch.
           </span>
@@ -81,7 +81,7 @@ export function WelcomeCard({ pronto }: { pronto: boolean }) {
           href="/app/settings/presets"
           className={
             pronto
-              ? 'inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50'
+              ? 'inline-flex items-center gap-1.5 rounded-lg border border-ink-300 bg-white px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50'
               : 'inline-flex items-center gap-1.5 rounded-lg bg-brand-accent px-3.5 py-2 text-sm font-medium text-white hover:brightness-110'
           }
         >

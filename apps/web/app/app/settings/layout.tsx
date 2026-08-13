@@ -22,7 +22,7 @@ export default async function SettingsLayout({
             menu è già sotto il titolo della sezione, e una riga in più di
             maiuscoletto è spazio tolto al contenuto. Il nome resta comunque
             annunciato, perché è l'`aria-label` della navigazione. */}
-        <p className="mb-3 hidden px-3 text-xs font-semibold uppercase tracking-wide text-gray-500 lg:block">
+        <p className="mb-3 hidden px-3 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:block">
           Configurazione catalogo
         </p>
         <SettingsNav aria-label="Configurazione catalogo" />

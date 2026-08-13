@@ -33,10 +33,10 @@ export default function Error({
         <AlertTriangle className="h-7 w-7" />
       </span>
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-xl font-semibold text-ink-900">
           Si è verificato un errore
         </h1>
-        <p className="mt-1 max-w-md text-sm text-gray-500">
+        <p className="mt-1 max-w-md text-sm text-ink-500">
           Qualcosa non ha funzionato. Puoi riprovare oppure tornare alla home.
         </p>
       </div>
