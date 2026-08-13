@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { RecentBatchCard } from '@/components/recent-batch-card';
 import { batchHref } from '@/lib/batch-href';
 import { WelcomeCard } from '@/components/onboarding/welcome-card';
+import { PageShell } from '@/components/page-shell';
 
 export const dynamic = 'force-dynamic';
 
@@ -155,35 +156,37 @@ export default async function DashboardPage() {
   const batchTotali = batchesRes.count ?? batches.length;
 
   return (
-    <div className="space-y-8">
-      <WelcomeCard pronto={canCreateBatch} />
-
-      {/* Intestazione */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-900">
-            {orgRow.name}
-          </h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-ink-500">
-            {sectorName && <Badge tone="blue">{sectorName}</Badge>}
-            <span>{categoryCount} categorie</span>
-            <span>·</span>
-            <span>
-              {presetCount} preset{presetCount === 1 ? '' : ''}
-            </span>
-            <span>·</span>
-            <span>{credits} crediti</span>
-          </div>
-        </div>
-        {canCreateBatch && (
+    <PageShell
+      title={orgRow.name}
+      subtitle={
+        // Un `<span>` e non un `<div>`: il sottotitolo del guscio vive dentro
+        // un `<p>`, e un `<div>` lì dentro è HTML non valido — il browser
+        // chiuderebbe il paragrafo da sé e React se ne lamenterebbe.
+        <span className="flex flex-wrap items-center gap-2">
+          {sectorName && <Badge tone="blue">{sectorName}</Badge>}
+          <span>{categoryCount} categorie</span>
+          <span>·</span>
+          <span>{presetCount} preset</span>
+          <span>·</span>
+          <span>{credits} crediti</span>
+        </span>
+      }
+      actions={
+        canCreateBatch && (
           <Link href="/app/batches/new">
             <Button size="lg">
               <Plus className="h-4 w-4" />
               Nuovo batch
             </Button>
           </Link>
-        )}
-      </div>
+        )
+      }
+    >
+      {/* La scheda di benvenuto stava SOPRA il titolo. Ora è il primo figlio:
+          la pagina si presenta col nome dell'organizzazione, e il consiglio
+          viene subito dopo. Un invito che precede l'identità della pagina fa
+          sembrare l'applicazione una promozione. */}
+      <WelcomeCard pronto={canCreateBatch} />
 
       {/* Completezza configurazione */}
       <Card>
@@ -334,6 +337,6 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

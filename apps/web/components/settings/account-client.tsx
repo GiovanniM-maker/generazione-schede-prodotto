@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Download, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { exportMyData, deleteAccount } from '@/lib/actions/account';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,11 +54,7 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-900">Account</h1>
-        <p className="mt-1 text-sm text-ink-500">Accesso: {email}</p>
-      </div>
+    <PageShell title="Account" subtitle={`Accesso: ${email}`}>
 
       {error && (
         <Avviso tono="errore">
@@ -125,6 +122,6 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
           </p>
         )}
       </Card>
-    </div>
+    </PageShell>
   );
 }

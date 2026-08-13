@@ -317,14 +317,95 @@ describe('dove sta il titolo di una pagina', () => {
       expect(src, `${p} si stringe per conto suo`).not.toMatch(/mx-auto max-w-/);
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // Il flusso di un batch era la parte messa a posto per prima, perché lì il
+  // salto si vedeva: quasi 200 px di lato a ogni «Avanti». Nel resto
+  // dell'applicazione il salto non c'era — misurate a 1440, quindici rotte
+  // avevano tutte il titolo a 24px/600, e la deriva era di **2 px** su due
+  // pagine. Vale la pena scriverlo, perché la voce di partenza di questa
+  // sezione prometteva molto di più.
+  //
+  // Il costo non era quello. Era che **quindici pagine ricopiavano a mano la
+  // stessa intestazione** — `text-2xl font-semibold text-ink-900` e la riga di
+  // sottotitolo — e niente teneva insieme le copie. I 2 px erano il primo
+  // sintomo, non il difetto: il difetto è che la sedicesima pagina può nascere
+  // storta e non se ne accorge nessuno.
+  //
+  // E c'era un secondo costo, nuovo: la larghezza piena per i dati si chiede
+  // attraverso `PageShell`. Una pagina che si scrive l'intestazione da sé non
+  // può chiederla senza conoscere un contratto interno.
+  // ---------------------------------------------------------------------------
+
+  /** Non usano il guscio, e ognuna ha il suo perché scritto. */
+  const FUORI_DAL_GUSCIO: Record<string, string> = {
+    'app/app/onboarding/page.tsx':
+      'è un percorso a sé, centrato e stretto: il titolo sta in mezzo apposta',
+    'app/app/settings/storico/page.tsx':
+      'non è una pagina, è un reindirizzo permanente dal vecchio indirizzo',
+  };
+
+  it('nessuna pagina dell’applicazione si scrive l’intestazione da sé', () => {
+    const pagine = fileTsx(join(RADICE, 'app/app')).filter((f) => f.nome === 'page.tsx');
+    expect(pagine.length, 'nessuna pagina trovata').toBeGreaterThan(10);
+
+    // Il titolo può stare nella pagina o nel componente client che la riempie:
+    // quello che conta è che lungo la catena ci sia il guscio.
+    const client = fileTsx(join(RADICE, 'components'))
+      .filter((f) => f.src.includes('<PageShell'))
+      .map((f) => nomeComponente(f.nome.replace(/\.tsx$/, '')));
+
+    const colpevoli: string[] = [];
+    for (const f of pagine) {
+      if (f.percorso in FUORI_DAL_GUSCIO) continue;
+      if (f.src.includes('<PageShell')) continue;
+      const delega = client.some((c) => new RegExp(`<${c}\\b`).test(f.src));
+      if (!delega) colpevoli.push(f.percorso);
+    }
+    expect(colpevoli, 'pagine senza guscio').toEqual([]);
+  });
+
+  it('e nessun componente si ridisegna il titolo a mano', () => {
+    // La firma dell'intestazione copiata: un `h1` a `text-2xl font-semibold`.
+    // Se ricompare fuori dal guscio, qualcuno l'ha riscritta.
+    const sorgenti = fileTsx(join(RADICE, 'app/app')).concat(fileTsx(join(RADICE, 'components')));
+    const colpevoli = sorgenti
+      .filter((f) => f.percorso !== 'components/page-shell.tsx')
+      .filter((f) => !(f.percorso in FUORI_DAL_GUSCIO))
+      .filter((f) => /<h1[^>]*className="[^"]*text-2xl font-semibold/.test(senzaCommenti(f.src)))
+      .map((f) => f.percorso);
+    expect(colpevoli, 'intestazione ricopiata a mano').toEqual([]);
+  });
+
+  it('le eccezioni sono due, e ognuna ha il suo perché', () => {
+    // Il numero è il freno: se cresce, non è più un elenco di eccezioni — è la
+    // regola che si sta sciogliendo.
+    expect(Object.keys(FUORI_DAL_GUSCIO).length).toBeLessThanOrEqual(3);
+    for (const [f, perche] of Object.entries(FUORI_DAL_GUSCIO)) {
+      expect(perche.length, `«${f}» senza motivo scritto`).toBeGreaterThan(25);
+    }
+  });
 });
 
-function fileTsx(dir: string): { nome: string; src: string }[] {
-  const out: { nome: string; src: string }[] = [];
+/** `categories-client` → `CategoriesClient`. */
+function nomeComponente(nomeFile: string): string {
+  return nomeFile
+    .split('-')
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join('');
+}
+
+function fileTsx(dir: string): { nome: string; percorso: string; src: string }[] {
+  const out: { nome: string; percorso: string; src: string }[] = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
     if (e.isDirectory()) out.push(...fileTsx(p));
-    else if (e.name.endsWith('.tsx')) out.push({ nome: e.name, src: readFileSync(p, 'utf8') });
+    else if (e.name.endsWith('.tsx'))
+      out.push({
+        nome: e.name,
+        percorso: p.slice(RADICE.length + 1),
+        src: readFileSync(p, 'utf8'),
+      });
   }
   return out;
 }

@@ -17,6 +17,7 @@ import { requireUser, getUserOrg } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageShell } from '@/components/page-shell';
 import { formatDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -107,14 +108,10 @@ export default async function StoricoPage() {
   const rows = (events ?? []) as unknown as EventRow[];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-900">Storico attività</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Cronologia delle azioni sulla configurazione, sulle generazioni e sui
-          miglioramenti del prompt. Ultime 100 attività.
-        </p>
-      </div>
+    <PageShell
+      title="Storico attività"
+      subtitle="Cronologia delle azioni sulla configurazione, sulle generazioni e sui miglioramenti del prompt. Ultime 100 attività."
+    >
 
       <Card>
         <CardContent className="p-0">
@@ -158,6 +155,6 @@ export default async function StoricoPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

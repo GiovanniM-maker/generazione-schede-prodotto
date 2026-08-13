@@ -11,6 +11,7 @@ import {
   type SectorRow,
 } from '@/lib/actions/catalog';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -107,16 +108,11 @@ export function CategoriesClient({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-900">Categorie</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Categorie di sistema e categorie personalizzate della tua
-            organizzazione.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <PageShell
+      title="Categorie"
+      subtitle="Categorie di sistema e categorie personalizzate della tua organizzazione."
+      actions={
+        <>
           <Button
             variant="outline"
             onClick={() => {
@@ -150,8 +146,9 @@ export function CategoriesClient({
             <Plus className="h-4 w-4" />
             Nuova categoria
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
       {/* Non due volte.
           La modale mostra ora l'errore dell'azione che ha lanciato lei; questo
           riquadro serve alle azioni della pagina. Lasciandoli accesi insieme,
@@ -374,6 +371,6 @@ export function CategoriesClient({
           />
         )}
       </Modal>
-    </div>
+    </PageShell>
   );
 }
