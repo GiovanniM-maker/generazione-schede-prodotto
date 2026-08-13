@@ -47,6 +47,44 @@ console.log(
   `Browser: ${passati} passati, ${falliti} falliti, ${instabili} instabili, ${saltati} saltati.`,
 );
 
+// I motivi, raggruppati.
+//
+// Quando qualcosa manca all'ambiente, ottanta test falliscono per la STESSA
+// ragione: il log di CI diventa ottanta ripetizioni della stessa pila di
+// chiamate, e per trovare la frase che conta bisogna scorrere migliaia di
+// righe. Qui i messaggi si contano e si stampano una volta sola.
+function messaggi(nodo, dentro = []) {
+  for (const s of nodo.suites ?? []) messaggi(s, dentro);
+  for (const spec of nodo.specs ?? []) {
+    for (const t of spec.tests ?? []) {
+      for (const r of t.results ?? []) {
+        for (const e of r.errors ?? []) {
+          const testo = (e.message ?? '').replace(/\[[0-9;]*m/g, '');
+          // Due righe, non una: «expect(locator).toBeVisible() failed» da sola
+          // non distingue un difetto da un altro. La seconda dice quale.
+          const righe = testo
+            .split('\n')
+            .map((r2) => r2.trim())
+            .filter(Boolean)
+            .slice(0, 2);
+          if (righe.length) dentro.push(righe.join(' — ').slice(0, 200));
+        }
+      }
+    }
+  }
+  return dentro;
+}
+
+const tutti = (resoconto.suites ?? []).flatMap((s) => messaggi(s));
+if (tutti.length > 0) {
+  const conta = new Map();
+  for (const m of tutti) conta.set(m, (conta.get(m) ?? 0) + 1);
+  const ordinati = [...conta.entries()].sort((a, b) => b[1] - a[1]);
+  console.log('\nMotivi distinti dei fallimenti, dal più frequente:');
+  for (const [m, n] of ordinati.slice(0, 12)) console.log(`  ${String(n).padStart(4)} ×  ${m}`);
+  if (ordinati.length > 12) console.log(`  … e altri ${ordinati.length - 12} motivi diversi.`);
+}
+
 const problemi = [];
 if (falliti > 0) problemi.push(`${falliti} test falliti`);
 if (passati < minimo) {
