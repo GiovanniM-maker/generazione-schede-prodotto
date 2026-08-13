@@ -16,8 +16,11 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
       SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      ENABLE_MOCK_AI: 'true'
-      ENABLE_MOCK_BILLING: 'true'
+    # I due `ENABLE_MOCK_*` stavano qui, validi per tutti i passi. Ma `next
+    # build` gira con `NODE_ENV=production`, e la configurazione — giustamente —
+    # rifiuta i mock in produzione: il build si fermava sulla prima pagina
+    # prerenderizzata. Restano dove servono davvero, cioè sui test, e il build
+    # gira con la configurazione vera.
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +50,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+        env:
+          ENABLE_MOCK_AI: 'true'
+          ENABLE_MOCK_BILLING: 'true'
 
       - name: Build
         run: pnpm build
