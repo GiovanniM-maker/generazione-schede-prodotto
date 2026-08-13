@@ -931,12 +931,35 @@ deliberatamente, col motivo scritto sopra.
 
 **Nel processo, non nel prodotto:**
 
-- la **suite del browser non gira in CI**: 240 test che esistono e che nessuna
-  pull request esegue. La CI fa `lint`, `typecheck`, `test`, `build`.
-- due test del wizard **cadono sotto carico** (`Accesso non riuscito per
-  l'utente di prova`): rieseguiti da soli passano sempre. È il rate limit
-  dell'autenticazione, non il prodotto — ma finché non è distinto da un
-  fallimento vero, ogni corsa rossa va guardata a mano.
+- ~~la suite del browser non gira in CI~~ — **fatta**. Gira su ogni pull
+  request, divisa fra desktop e telefono, contro un **Supabase locale** creato
+  dal job. Prima l'unico modo di eseguirla era puntarla al database di
+  produzione, che è quello configurato in `.env.local`.
+- ~~due test del wizard cadono sotto carico~~ — **sparito da sé**: il rate
+  limit era del Supabase ospitato. Contro un database locale non c'è.
+
+  Mettercela ha trovato **tre difetti veri del repository**, tutti della stessa
+  famiglia — *quello che sta in produzione non è ricostruibile da qui*:
+
+  | | |
+  |---|---|
+  | `seed.sql` | inseriva `presets` col PRIMO schema, quello che la migrazione `…000010` fa `drop table … cascade` e ricrea. Rotto da allora, e siccome si fermava lì non arrivava nemmeno ai pacchetti crediti. **Da questo repository non si poteva tirare su un database locale funzionante.** |
+  | i permessi | in ventotto migrazioni non c'è **un solo `grant` su una tabella**. Sul progetto ospitato li ha dati la piattaforma, fuori da qui: un progetto nuovo avrebbe le tabelle giuste e un'applicazione che non riesce a leggerle. 86 test falliti con `permission denied for table organizations`. |
+  | i seed extra | tre file dichiarati in `config.toml`, uno solo applicato: 156 test falliti per un settore che nessuno aveva creato. Ora il job li applica a mano, in ordine, con `ON_ERROR_STOP=1`. |
+
+  E una quarta cosa, che è la ragione per cui il job esiste in quella forma:
+  **una suite che si salta da sola è verde**. `motivoPerSaltare()` fa saltare
+  tutti i test autenticati quando manca la configurazione — scelta giusta — ma
+  in CI basta una variabile che non arriva e la pull request passa senza aver
+  aperto una pagina. `scripts/verifica-resoconto-browser.mjs` si ferma se i
+  test girati sono meno di novanta, se i saltati superano i girati, o se il
+  resoconto non esiste.
+
+**Ancora aperto, e va detto:** `supabase/tests/rls.test.sql` è scritto contro
+lo stesso schema vecchio del seed. Non si vede perché il job `database` lo
+esegue con `|| true` e `continue-on-error: true` — è verde per costruzione.
+Finché non è portato al modello nuovo, quel job non sta verificando le regole
+di accesso.
 
 **Fuori dal codice, e serve il titolare:** prezzi veri sul listino,
 `SUPPORT_EMAIL` / `LEGAL_*` / `ADMIN_EMAILS` / `NEXT_PUBLIC_APP_URL` su Vercel,
