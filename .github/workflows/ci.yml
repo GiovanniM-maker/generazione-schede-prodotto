@@ -76,3 +76,141 @@ jobs:
         run: |
           psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" -f supabase/tests/rls.test.sql || true
         continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # La suite del browser.
+  #
+  # Erano 241 test che esistevano e che nessuna pull request eseguiva: la CI
+  # faceva `lint`, `typecheck`, `test`, `build`, e tutto quello che si vede solo
+  # aprendo una pagina — sovrapposizioni, scorrimenti laterali, aree di tocco,
+  # intestazioni che se ne vanno — restava affidato a chi si ricordava di
+  # lanciarli a mano.
+  #
+  # Gira contro un **Supabase locale**, non contro quello vero. Non è un
+  # dettaglio: i test creano utenti e scrivono dati, e finora l'unico modo di
+  # eseguirli era puntarli al database di produzione (`.env.local`). Qui il
+  # database nasce col job, si popola dai seed del repository e muore con lui.
+  # Per questo `QA_ALLOW_WRITES=1` è legittimo: la variabile esiste per impedire
+  # scritture su un database vero, e qui vero non c'è.
+  #
+  # Diviso per profilo — desktop e telefono in parallelo — perché insieme sono
+  # più di venti minuti. Ogni profilo si tira su il suo Supabase: costa qualche
+  # minuto in più di macchina e dimezza l'attesa di chi apre la pull request.
+  # ---------------------------------------------------------------------------
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Solo sulle pull request e su main. Gli altri job girano anche a ogni push
+    # sui rami di lavoro; questo no: sono due macchine per venti minuti, e a
+    # metà lavoro la domanda «regge tutto?» non è ancora quella giusta.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    strategy:
+      # `fail-fast: false`: se si rompe il telefono voglio comunque sapere se il
+      # desktop regge. Sono due domande diverse.
+      fail-fast: false
+      matrix:
+        profilo: [desktop, mobile]
+    env:
+      # Le chiavi del Supabase locale sono fisse e pubbliche (le stampa la CLI):
+      # non sono segreti, e infatti questo job non ne usa nessuno.
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      ENABLE_MOCK_AI: 'true'
+      QA_ALLOW_WRITES: '1'
+      CRON_SECRET: ci-non-usato
+      # `ENABLE_MOCK_BILLING` resta spento apposta: c'è un test che verifica che
+      # la frase «l'acquisto è simulato» NON compaia, ed è vera solo a mock
+      # spento. Accenderlo qui vorrebbe dire spegnere quel test.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Versione fissata, non `latest`. La lezione è di stamattina: la CI è
+      # rimasta rossa un giorno intero perché un'azione «latest» ha cambiato
+      # comportamento sotto i piedi.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.114.0
+
+      - name: Supabase locale, con migrazioni e seed
+        run: |
+          supabase start
+          # `db reset` senza `--no-seed`: i tre file di seed sono dichiarati in
+          # `supabase/config.toml`, e senza di loro mancano i settori e gli
+          # attributi di sistema su cui i test seminano i propri dati.
+          supabase db reset
+
+      - name: Leggi le chiavi del Supabase locale
+        run: |
+          set -euo pipefail
+          # Stampato prima di usarlo: se un giorno la CLI cambia i nomi delle
+          # variabili, questo log dice subito quali sono invece di lasciare un
+          # errore muto tre passi più in là. Sono chiavi locali e pubbliche,
+          # identiche su ogni installazione: non c'è niente da nascondere.
+          supabase status -o env | tee /tmp/stato-supabase.env
+          # `env_` davanti a tutto: `SERVICE_ROLE_KEY` e compagnia si
+          # chiamerebbero come variabili che questo job usa già.
+          sed 's/^/env_/' /tmp/stato-supabase.env > /tmp/stato.env
+          . /tmp/stato.env
+          url="${env_API_URL:-${env_SUPABASE_URL:-}}"
+          anon="${env_ANON_KEY:-${env_SUPABASE_ANON_KEY:-}}"
+          service="${env_SERVICE_ROLE_KEY:-${env_SUPABASE_SERVICE_ROLE_KEY:-}}"
+          if [ -z "$url" ] || [ -z "$anon" ] || [ -z "$service" ]; then
+            echo "::error::supabase status non ha dato URL/chiavi: la suite si salterebbe da sola."
+            exit 1
+          fi
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$url"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$anon"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$service"
+            echo "SUPABASE_DB_URL=${env_DB_URL:-}"
+          } >> "$GITHUB_ENV"
+
+      - name: Browser
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/web
+
+      # Next in `dev` compila la pagina alla prima richiesta. Senza questo, i
+      # primi test pagano la compilazione dentro il proprio limite di tempo — su
+      # una macchina lenta è la differenza fra verde e rosso, e sarebbe un rosso
+      # che non parla del prodotto.
+      - name: Scalda le pagine
+        run: |
+          set -euo pipefail
+          pnpm --filter web dev &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3000/ && break
+            sleep 3
+          done
+          for rotta in / /login /privacy /app /app/batches /app/settings/presets; do
+            curl -s -o /dev/null -w "$rotta %{http_code} %{time_total}s\n" "http://localhost:3000$rotta" || true
+          done
+
+      - name: Suite del browser (${{ matrix.profilo }})
+        run: pnpm exec playwright test --project=${{ matrix.profilo }}
+        working-directory: apps/web
+
+      # Il passo che impedisce il verde per finta: se la suite si è saltata da
+      # sola — configurazione mancante, Supabase non partito — qui si ferma.
+      - name: La suite ha davvero girato
+        if: always()
+        run: node ../../scripts/verifica-resoconto-browser.mjs playwright-report.json 90
+        working-directory: apps/web
+
+      - name: Conserva le tracce dei fallimenti
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracce-${{ matrix.profilo }}
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report.json
+          retention-days: 7

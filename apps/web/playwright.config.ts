@@ -21,7 +21,20 @@ const launch = existsSync(chromiumPath)
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
-  retries: 0,
+  // In CI un tentativo in piu', in locale nessuno.
+  //
+  // Non e' per nascondere i difetti: Playwright separa «flaky» da «passed»,
+  // quindi un test che passa solo al secondo colpo resta scritto nel resoconto.
+  // E' per non far fallire una pull request per un colpo di rete — sapendo che
+  // contro un Supabase locale la rete non c'e', quindi in CI dovrebbe servire
+  // ancora meno che qui.
+  retries: process.env.CI ? 1 : 0,
+  // Il resoconto in JSON serve al passo che conta quanti test hanno GIRATO
+  // davvero: la suite si salta da sola se manca la configurazione, e una suite
+  // che si salta e' verde. Vedi `.github/workflows/ci.yml`.
+  reporter: process.env.CI
+    ? [['list'], ['json', { outputFile: 'playwright-report.json' }]]
+    : [['list']],
   use: {
     baseURL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -44,7 +57,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm --filter web dev',
+    // `dev` e non `build && start`: la configurazione rifiuta — giustamente —
+    // `ENABLE_MOCK_AI` in produzione, e senza il finto provider ogni prova che
+    // genera testo chiamerebbe l'AI vera. Si puo' scavalcare, se un giorno
+    // servira' provare la build vera.
+    command: process.env.PLAYWRIGHT_WEB_COMMAND ?? 'pnpm --filter web dev',
     url: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
     reuseExistingServer: true,
     timeout: 120_000,
