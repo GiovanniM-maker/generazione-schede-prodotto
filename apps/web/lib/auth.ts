@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getServiceClient } from '@/lib/supabase/service';
 import { contestoApp } from '@/lib/contesto';
+import { getServerEnv } from '@/lib/env.server';
 
 // Helper di sessione e organizzazione.
 //
@@ -52,10 +53,15 @@ export async function ensureOrg(userId: string, name: string): Promise<OrgContex
   if (existing) return existing;
   const service = getServiceClient();
   const slug = `${slugify(name)}-${userId.slice(0, 8)}`;
+  // `welcome_amt` non veniva passato: `WELCOME_CREDITS` stava in `.env.example`,
+  // in `env.ts` e nella documentazione, e non arrivava a nessuno — il numero
+  // vero era il valore predefinito della funzione SQL. Una manopola che non è
+  // collegata a niente è peggio di una manopola che non c'è.
   const { data, error } = await service.rpc('create_organization_for_user', {
     user_id: userId,
     org_name: name,
     org_slug: slug,
+    welcome_amt: getServerEnv().WELCOME_CREDITS,
   });
   if (error) throw new Error(`Creazione organizzazione fallita: ${error.message}`);
   return { organizationId: data as string, role: 'owner' };

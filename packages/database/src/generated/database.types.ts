@@ -330,8 +330,64 @@ export interface Database {
         entry_type: string;
         reference_type: string | null;
         reference_id: string | null;
+        /** Il lotto da cui la riga toglie o a cui aggiunge. Obbligatorio dalle righe nuove. */
+        lot_id: string | null;
+        /** Chiave del fatto esterno che ha causato la riga. Unica. */
+        idempotency_key: string | null;
         metadata_json: Json;
         created_at: string;
+      }>;
+      /**
+       * Una concessione di crediti: quanti, da dove, entro quando. Quello che
+       * resta non è una colonna — è la somma delle righe del registro che
+       * puntano al lotto.
+       */
+      credit_lots: T<{
+        id: string;
+        organization_id: string;
+        source: 'trial' | 'pack' | 'subscription' | 'manual';
+        granted: number;
+        /** Vuoto = non scade. */
+        expires_at: string | null;
+        /** Valorizzato quando il lotto è esaurito o scaduto. */
+        closed_at: string | null;
+        reference_type: string | null;
+        reference_id: string | null;
+        metadata_json: Json;
+        created_at: string;
+      }>;
+      subscriptions: T<
+        {
+          id: string;
+          organization_id: string;
+          stripe_subscription_id: string | null;
+          stripe_price_id: string | null;
+          plan_key: string | null;
+          status:
+            | 'trialing'
+            | 'active'
+            | 'past_due'
+            | 'canceled'
+            | 'incomplete'
+            | 'unpaid';
+          monthly_credits: number;
+          current_period_start: string | null;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
+          canceled_at: string | null;
+        } & Timestamps
+      >;
+      /** Le richieste all'assistente in un ciclo: quante comprese, quante oltre. */
+      assistant_counters: T<{
+        id: string;
+        organization_id: string;
+        cycle_start: string;
+        cycle_end: string;
+        requests: number;
+        allowance_used: number;
+        billable_requests: number;
+        credits_charged: number;
+        updated_at: string;
       }>;
       stripe_events: T<{
         id: string;
@@ -587,6 +643,31 @@ export interface Database {
         Args: { org: string; act: string; max_per_window: number; window_seconds: number };
         Returns: boolean;
       };
+      expire_credit_lots: { Args: { org: string }; Returns: number };
+      grant_subscription_credits: {
+        Args: { org: string; amt: number; stripe_event: string; period_end: string };
+        Returns: undefined;
+      };
+      roll_subscription_cycle: {
+        Args: {
+          org: string;
+          stripe_event: string;
+          period_start: string;
+          period_end: string;
+          credits?: number | null;
+        };
+        Returns: undefined;
+      };
+      grant_comp_period: { Args: { org: string; months: number }; Returns: string | null };
+      current_cycle: {
+        Args: { org: string; at_time?: string };
+        Returns: { cycle_start: string; cycle_end: string }[];
+      };
+      assistant_allowance: {
+        Args: { org: string; cycle_start: string; cycle_end: string };
+        Returns: number;
+      };
+      record_assistant_request: { Args: { org: string }; Returns: Json };
       queue_send: { Args: { msg: Json }; Returns: number };
       queue_read: { Args: { vt: number; qty: number }; Returns: Json };
       queue_delete: { Args: { msg_id: number }; Returns: boolean };
