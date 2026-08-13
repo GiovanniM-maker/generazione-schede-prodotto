@@ -3,6 +3,23 @@ import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } fro
 import { seminaScenario, type ScenarioSeminato } from './semina';
 
 // ---------------------------------------------------------------------------
+// La soglia dello sforo è UN pixel, non zero.
+//
+// Non è un ammorbidimento: è la risoluzione della misura. La stessa pagina,
+// nello stesso stato, misura 0 px qui e 1 px sul runner di CI — cambia il
+// motore di disegno dei caratteri, non il layout. L'ho verificato mettendo a
+// confronto le due esecuzioni sulla pagina che falliva.
+//
+// I difetti per cui questi test esistono erano di 288 px e 768 px: due ordini
+// di grandezza sopra. Tenere lo zero vorrebbe dire far dichiarare alla suite un
+// difetto di prodotto dove c'è una differenza d'ambiente — cioè il modo più
+// rapido per insegnare a ignorare il rosso, che è esattamente l'errore già
+// scritto in `flow.spec.ts` (un test rimasto rosso per mesi).
+// ---------------------------------------------------------------------------
+const SFORO_TOLLERATO = 1;
+
+
+// ---------------------------------------------------------------------------
 // La pagina non scorre di lato. Mai.
 //
 // È già successo tre volte, in tre punti diversi, e ogni volta con la stessa
@@ -103,7 +120,7 @@ test.describe('nessuna pagina scorre di lato', () => {
       await conNomeLungo(page, '/app/batches');
 
       const px = await sforo(page);
-      expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(0);
+      expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(SFORO_TOLLERATO);
     });
 
     // Tre pagine, non una.
@@ -125,7 +142,7 @@ test.describe('nessuna pagina scorre di lato', () => {
         await page.waitForTimeout(200);
 
         const px = await sforo(page);
-        expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(0);
+        expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(SFORO_TOLLERATO);
       });
     }
 
@@ -135,7 +152,7 @@ test.describe('nessuna pagina scorre di lato', () => {
       await page.waitForTimeout(300);
 
       const px = await sforo(page);
-      expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(0);
+      expect(px, `sforo di ${px}px — ${(await colpevoli(page)).join(' | ')}`).toBeLessThanOrEqual(SFORO_TOLLERATO);
     });
   }
 });
@@ -285,6 +302,10 @@ test.describe('i dati respirano', () => {
     });
 
     expect(m, 'nessuna tabella nei risultati').not.toBeNull();
+    // Qui resta ZERO: non è lo sforo del documento, è il riquadro della
+    // tabella, e a 1920 la misura è esatta perché la tabella ci sta dentro
+    // con margine. La tolleranza di sopra vale per la larghezza del
+    // documento, dove il carattere disegnato cambia da una macchina all'altra.
     expect(m!.diLato, `la tabella scorre ancora di ${m!.diLato}px`).toBeLessThanOrEqual(0);
     expect(m!.troncate, 'celle troncate con lo spazio disponibile').toEqual([]);
   });

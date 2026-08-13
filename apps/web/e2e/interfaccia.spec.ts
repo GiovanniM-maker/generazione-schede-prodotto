@@ -1,6 +1,23 @@
 import { test, expect, type Page } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
+// La soglia dello sforo è UN pixel, non zero.
+//
+// Non è un ammorbidimento: è la risoluzione della misura. La stessa pagina,
+// nello stesso stato, misura 0 px qui e 1 px sul runner di CI — cambia il
+// motore di disegno dei caratteri, non il layout. L'ho verificato mettendo a
+// confronto le due esecuzioni sulla pagina che falliva.
+//
+// I difetti per cui questi test esistono erano di 288 px e 768 px: due ordini
+// di grandezza sopra. Tenere lo zero vorrebbe dire far dichiarare alla suite un
+// difetto di prodotto dove c'è una differenza d'ambiente — cioè il modo più
+// rapido per insegnare a ignorare il rosso, che è esattamente l'errore già
+// scritto in `flow.spec.ts` (un test rimasto rosso per mesi).
+// ---------------------------------------------------------------------------
+const SFORO_TOLLERATO = 1;
+
+
+// ---------------------------------------------------------------------------
 // Qualità dell'interfaccia, misurata su un browser vero.
 //
 // I 338 test unitari non vedono NIENTE di tutto questo: una pagina che scorre
@@ -64,7 +81,7 @@ for (const rotta of PAGINE_PUBBLICHE) {
       );
       // Lo scorrimento laterale su un telefono e' il difetto piu' fastidioso e
       // il piu' facile da introdurre: basta una tabella o un titolo lungo.
-      expect(eccesso, `${rotta} scorre di ${eccesso}px in orizzontale`).toBeLessThanOrEqual(0);
+      expect(eccesso, `${rotta} scorre di ${eccesso}px in orizzontale`).toBeLessThanOrEqual(SFORO_TOLLERATO);
     });
 
     test('nessun testo sotto i 12px', async ({ page }) => {

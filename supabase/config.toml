@@ -14,6 +14,27 @@ port = 54322
 shadow_port = 54320
 major_version = 15
 
+# I seed, dichiarati e in ordine.
+#
+# Vale per chi lancia `supabase db reset` in locale. La CI NON si fida di
+# questa dichiarazione e applica i tre file a mano con psql: al primo tentativo
+# ne è stato applicato solo il primo, e centocinquantasei test sono falliti per
+# un settore che nessuno aveva creato. Meglio un passo esplicito che una
+# configurazione che si interpreta.
+#
+# Erano tre file, e solo il primo veniva applicato da solo: gli altri due si
+# ricordavano a mano, o non si ricordavano. È il motivo per cui un database
+# locale appena creato non aveva né i settori né gli attributi di sistema — e
+# quindi la suite del browser non ci poteva girare sopra.
+#
+# L'ordine conta: `seed.sql` porta i preset di sistema e il listino,
+# `seed_config.sql` i settori, `seed_config_food_pharma.sql` le categorie e gli
+# attributi di food e pharma (compreso il settore `…0f01-…001` su cui si
+# appoggiano i dati seminati dai test).
+[db.seeds]
+enabled = true
+sql_paths = ["./seed.sql", "./seed_config.sql", "./seed_config_food_pharma.sql"]
+
 [db.pooler]
 enabled = false
 port = 54329

@@ -3,6 +3,23 @@ import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } fro
 import { seminaScenario, type ScenarioSeminato } from './semina';
 
 // ---------------------------------------------------------------------------
+// La soglia dello sforo è UN pixel, non zero.
+//
+// Non è un ammorbidimento: è la risoluzione della misura. La stessa pagina,
+// nello stesso stato, misura 0 px qui e 1 px sul runner di CI — cambia il
+// motore di disegno dei caratteri, non il layout. L'ho verificato mettendo a
+// confronto le due esecuzioni sulla pagina che falliva.
+//
+// I difetti per cui questi test esistono erano di 288 px e 768 px: due ordini
+// di grandezza sopra. Tenere lo zero vorrebbe dire far dichiarare alla suite un
+// difetto di prodotto dove c'è una differenza d'ambiente — cioè il modo più
+// rapido per insegnare a ignorare il rosso, che è esattamente l'errore già
+// scritto in `flow.spec.ts` (un test rimasto rosso per mesi).
+// ---------------------------------------------------------------------------
+const SFORO_TOLLERATO = 1;
+
+
+// ---------------------------------------------------------------------------
 // Le due pagine costruite alla cieca: il wizard e i risultati.
 //
 // Erano fuori portata perche' arrivarci richiede un'organizzazione configurata,
@@ -112,7 +129,7 @@ test.describe('risultati', () => {
     const eccesso = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
-    expect(eccesso).toBeLessThanOrEqual(0);
+    expect(eccesso).toBeLessThanOrEqual(SFORO_TOLLERATO);
   });
 
   test('ogni comando si può toccare (24px)', async ({ page }) => {
@@ -226,7 +243,7 @@ test.describe('risultati · vista lettura', () => {
     const eccesso = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
-    expect(eccesso).toBeLessThanOrEqual(0);
+    expect(eccesso).toBeLessThanOrEqual(SFORO_TOLLERATO);
     expect(await comandiTroppoPiccoli(page)).toEqual([]);
   });
 
@@ -331,7 +348,7 @@ test.describe('wizard nuovo batch', () => {
     const eccesso = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
-    expect(eccesso).toBeLessThanOrEqual(0);
+    expect(eccesso).toBeLessThanOrEqual(SFORO_TOLLERATO);
   });
 
   test('il preset seminato compare fra quelli scegliibili', async ({ page }) => {
@@ -460,7 +477,7 @@ test.describe('larghezze intermedie', () => {
       const eccesso = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
-      expect(eccesso, `a ${larghezza}px la pagina scorre di ${eccesso}px`).toBeLessThanOrEqual(0);
+      expect(eccesso, `a ${larghezza}px la pagina scorre di ${eccesso}px`).toBeLessThanOrEqual(SFORO_TOLLERATO);
     });
   }
 
