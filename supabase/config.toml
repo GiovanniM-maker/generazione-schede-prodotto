@@ -16,6 +16,12 @@ major_version = 15
 
 # I seed, dichiarati e in ordine.
 #
+# Vale per chi lancia `supabase db reset` in locale. La CI NON si fida di
+# questa dichiarazione e applica i tre file a mano con psql: al primo tentativo
+# ne è stato applicato solo il primo, e centocinquantasei test sono falliti per
+# un settore che nessuno aveva creato. Meglio un passo esplicito che una
+# configurazione che si interpreta.
+#
 # Erano tre file, e solo il primo veniva applicato da solo: gli altri due si
 # ricordavano a mano, o non si ricordavano. È il motivo per cui un database
 # locale appena creato non aveva né i settori né gli attributi di sistema — e

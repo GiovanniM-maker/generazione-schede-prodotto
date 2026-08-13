@@ -140,13 +140,8 @@ jobs:
         with:
           version: 2.114.0
 
-      - name: Supabase locale, con migrazioni e seed
-        run: |
-          supabase start
-          # `db reset` senza `--no-seed`: i tre file di seed sono dichiarati in
-          # `supabase/config.toml`, e senza di loro mancano i settori e gli
-          # attributi di sistema su cui i test seminano i propri dati.
-          supabase db reset
+      - name: Supabase locale
+        run: supabase start
 
       - name: Leggi le chiavi del Supabase locale
         run: |
@@ -173,6 +168,27 @@ jobs:
             echo "SUPABASE_SERVICE_ROLE_KEY=$service"
             echo "SUPABASE_DB_URL=${env_DB_URL:-}"
           } >> "$GITHUB_ENV"
+
+      # I seed applicati a mano, uno alla volta, con `ON_ERROR_STOP=1`.
+      #
+      # `[db.seeds]` in `config.toml` dichiara i tre file, ma affidarsi a quello
+      # qui vorrebbe dire dipendere da come la CLI interpreta la sua
+      # configurazione: al primo tentativo è stato applicato solo `seed.sql`, e
+      # centocinquantasei test sono falliti con «sector_id … is not present in
+      # table sectors» — cioè per un settore che nessuno aveva creato.
+      #
+      # `ON_ERROR_STOP=1` non è un dettaglio: senza, psql tira dritto sugli
+      # errori e il database resta a metà mentre il job resta verde. È lo stesso
+      # motivo per cui il `|| true` sul job `database` ha nascosto per mesi
+      # dei test SQL che non giravano.
+      - name: Migrazioni e seed
+        run: |
+          set -euo pipefail
+          supabase db reset --no-seed
+          for f in seed.sql seed_config.sql seed_config_food_pharma.sql; do
+            echo "── $f"
+            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f "supabase/$f"
+          done
 
       - name: Browser
         run: pnpm exec playwright install --with-deps chromium
