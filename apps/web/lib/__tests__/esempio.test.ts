@@ -156,10 +156,21 @@ describe('provare senza rischiare', () => {
 
   it('la landing non parla solo di moda', () => {
     // L'unico esempio era un blazer in lana, su un prodotto che vende
-    // soprattutto al food.
+    // soprattutto al food: chi arriva con un listino di conserve non si
+    // riconosceva in niente.
+    //
+    // Il test cercava l'etichetta «Anteprima scheda · food» dentro
+    // `app/page.tsx`. Poi l'esempio food è salito nell'apertura, dentro un
+    // componente suo, e il test è diventato rosso senza che la proprietà fosse
+    // cambiata di una virgola. Ora legge la pagina **insieme a quello che ci
+    // mette dentro**, e cerca i due settori invece di due stringhe.
     const landing = leggi('app/page.tsx');
-    expect(landing).toMatch(/Anteprima scheda · food/);
-    expect(landing).toMatch(/Anteprima scheda · moda/);
+    const dallaRiga = leggi('components/vetrina/dalla-riga-alla-scheda.tsx');
+    expect(landing, 'la prova non è più nell’apertura').toMatch(/<DallaRigaAllaScheda/);
+
+    const tutto = landing + dallaRiga;
+    expect(tutto, 'nessun esempio food').toMatch(/pomodor|passata|datterino/i);
+    expect(tutto, 'nessun esempio moda').toMatch(/blazer|lana|moda/i);
   });
 });
 

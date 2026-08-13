@@ -7,6 +7,7 @@ import { ImportIssuesBanner } from '@/components/import-issues-banner';
 import { ReanalyzeButton } from '@/components/reanalyze-button';
 import { computeImportIssues } from '@/lib/import-issues';
 import { normalizeCompleteness } from '@/lib/completeness';
+import { consegna, frasiDiConsegna } from '@/lib/riepilogo-consegna';
 
 export const dynamic = 'force-dynamic';
 
@@ -212,17 +213,39 @@ export default async function ResultsPage({
 
   const importIssues = await computeImportIssues(supabase, batchId);
 
+  // Il sottotitolo diceva cosa si DEVE fare («rivedi, modifica e approva…»).
+  // Quello che si è OTTENUTO non era scritto da nessuna parte: si poteva solo
+  // dedurre dai filtri, che sono filtri. Il conto sta dove va l'occhio dopo il
+  // titolo, e le istruzioni sono passate sotto, accanto alla tabella su cui si
+  // applicano.
+  const consegnata = frasiDiConsegna(consegna(rows));
+
   return (
     // `piena`: qui i dati SONO il contenuto. La tabella vuole 1314 px e ne
     // riceveva 1102, quindi scorreva di lato di 212 px a qualsiasi larghezza di
     // schermo — su un monitor da 2560 con 1408 px di margine vuoto ai lati.
     <PageShell
       title="Risultati"
-      subtitle={`${batch.name} — rivedi, modifica e approva le schede generate, poi esporta il catalogo.`}
+      subtitle={
+        <>
+          {batch.name}
+          {consegnata && (
+            <>
+              {' — '}
+              <span className="font-medium text-ink-700">{consegnata}</span>
+            </>
+          )}
+        </>
+      }
       actions={<ReanalyzeButton batchId={batchId} />}
       larghezza="piena"
     >
       <ImportIssuesBanner batchId={batchId} issues={importIssues} />
+      {/* Le istruzioni stavano nel sottotitolo, al posto del conto. Non sono
+          sparite: sono scese accanto alla tabella su cui si applicano. */}
+      <p className="text-sm text-ink-500">
+        Rivedi, modifica e approva le schede, poi esporta il catalogo.
+      </p>
       <ResultsTable batchId={batchId} presetId={presetId} rows={rows} />
     </PageShell>
   );
