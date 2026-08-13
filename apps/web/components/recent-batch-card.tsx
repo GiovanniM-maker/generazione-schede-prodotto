@@ -96,7 +96,7 @@ export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwne
               contenitore. Chi domani metterà questa scheda dentro un flex
               troverà la protezione già qui. */}
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h3 className="min-w-0 truncate font-semibold text-gray-900">{batch.name}</h3>
+            <h3 className="min-w-0 truncate font-semibold text-ink-900">{batch.name}</h3>
             <StatusBadge status={live.status} />
             {inProgress && (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-accent">
@@ -105,7 +105,7 @@ export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwne
               </span>
             )}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
             <span>{total} prodotti</span>
             {total > 0 && (
               <span>

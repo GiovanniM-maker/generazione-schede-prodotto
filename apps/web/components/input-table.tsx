@@ -76,8 +76,8 @@ export function InputTable({ products }: { products: InputProduct[] }) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-          <PackageOpen className="h-8 w-8 text-gray-400" />
-          <p className="text-sm text-gray-500">
+          <PackageOpen className="h-8 w-8 text-ink-400" />
+          <p className="text-sm text-ink-500">
             Nessun prodotto importato in questo batch.
           </p>
         </CardContent>
@@ -98,7 +98,7 @@ export function InputTable({ products }: { products: InputProduct[] }) {
               'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
               filter === t.key
                 ? 'border-brand-accent bg-brand-soft text-brand-accent'
-                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+                : 'border-ink-200 bg-white text-ink-600 hover:bg-ink-50',
             )}
           >
             {t.label}
@@ -107,7 +107,7 @@ export function InputTable({ products }: { products: InputProduct[] }) {
                 'rounded-full px-1.5 text-xs',
                 filter === t.key
                   ? 'bg-brand-accent text-white'
-                  : 'bg-gray-100 text-gray-500',
+                  : 'bg-ink-100 text-ink-500',
               )}
             >
               {counts[t.key]}
@@ -132,12 +132,12 @@ export function InputTable({ products }: { products: InputProduct[] }) {
             <TBody>
               {filtered.map((p) => (
                 <TR key={p.id}>
-                  <TD className="font-mono text-xs text-gray-600">
+                  <TD className="font-mono text-xs text-ink-600">
                     {p.identifier}
                   </TD>
-                  <TD className="font-medium text-gray-900">{p.name}</TD>
-                  <TD className="text-gray-600">{p.type}</TD>
-                  <TD className="text-gray-600">{p.factCount}</TD>
+                  <TD className="font-medium text-ink-900">{p.name}</TD>
+                  <TD className="text-ink-600">{p.type}</TD>
+                  <TD className="text-ink-600">{p.factCount}</TD>
                   <TD>{qualityBadge(p.level)}</TD>
                   <TD>
                     <StatusBadge status={p.verificationStatus} />
@@ -147,7 +147,7 @@ export function InputTable({ products }: { products: InputProduct[] }) {
             </TBody>
           </Table>
           {filtered.length === 0 && (
-            <div className="px-6 py-10 text-center text-sm text-gray-500">
+            <div className="px-6 py-10 text-center text-sm text-ink-500">
               Nessun prodotto in questa categoria.
             </div>
           )}

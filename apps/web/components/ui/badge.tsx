@@ -30,7 +30,12 @@ export type BadgeTone =
   | 'violet';
 
 const tones: Record<BadgeTone, string> = {
-  gray: 'bg-gray-100 text-gray-700 border-gray-200',
+  // Il nome resta `gray` perché è quello che si scrive nei punti d'uso, ma la
+  // tinta è l'inchiostro caldo: questo tono non è un colore semantico come gli
+  // altri cinque — è «nessuno stato», cioè il neutro della pagina. Dipinto col
+  // grigio freddo di serie stonava con un fondo crema, ed era l'ultimo posto in
+  // cui era rimasto.
+  gray: 'bg-ink-100 text-ink-700 border-ink-200',
   blue: 'bg-blue-50 text-blue-700 border-blue-200',
   green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   amber: 'bg-amber-50 text-amber-700 border-amber-200',

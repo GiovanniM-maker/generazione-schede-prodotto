@@ -149,19 +149,19 @@ export function Modal({
         aria-labelledby={titoloId}
         tabIndex={-1}
         className={cn(
-          'max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl focus:outline-none',
+          'max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-ink-200 bg-white shadow-xl focus:outline-none',
           className,
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-          <h2 id={titoloId} className="text-base font-semibold text-gray-900">
+        <div className="flex items-center justify-between border-b border-ink-200 px-5 py-4">
+          <h2 id={titoloId} className="text-base font-semibold text-ink-900">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="-m-1 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
+            className="-m-1 rounded-md p-2 text-ink-500 hover:bg-ink-100 hover:text-ink-600"
             aria-label="Chiudi"
           >
             <X className="h-4 w-4" />
@@ -196,7 +196,7 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onClose={onCancel} title={title} className="max-w-md">
-      <p className="text-sm text-gray-600">{message}</p>
+      <p className="text-sm text-ink-600">{message}</p>
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onCancel} disabled={busy}>
           Annulla

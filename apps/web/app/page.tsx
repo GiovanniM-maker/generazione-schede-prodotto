@@ -109,7 +109,7 @@ export default async function LandingPage() {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-ink-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
           <nav className="flex items-center gap-2">
@@ -133,14 +133,14 @@ export default async function LandingPage() {
         {/* Hero */}
         <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+            <span className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-medium text-ink-600">
               <Sparkles className="h-3.5 w-3.5 text-brand-accent" />
               Schede prodotto con AI verificata
             </span>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+            <h1 className="mt-6 text-4xl font-bold tracking-tight text-ink-900 sm:text-5xl">
               Da foto ed Excel a schede prodotto pronte da pubblicare
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
+            <p className="mx-auto mt-6 max-w-2xl text-lg text-ink-600">
               L’AI legge etichette e listini, scrive descrizioni fedeli ai dati — mai
               inventate — e le esporta per Shopify, WooCommerce e PrestaShop. In 6 lingue.
             </p>
@@ -157,7 +157,7 @@ export default async function LandingPage() {
                 </Button>
               </Link>
             </div>
-            <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-500">
+            <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-ink-500">
               {[
                 'Elaborazione in massa',
                 'Nessuna caratteristica inventata',
@@ -175,20 +175,20 @@ export default async function LandingPage() {
         </section>
 
         {/* Problema */}
-        <section className="border-y border-gray-200 bg-white">
+        <section className="border-y border-ink-200 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <div className="grid gap-8 md:grid-cols-2 md:items-center">
               <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
+                <h2 className="text-2xl font-semibold text-ink-900">
                   Scrivere schede a mano è lento e incoerente
                 </h2>
-                <p className="mt-4 text-gray-600">
+                <p className="mt-4 text-ink-600">
                   Cataloghi con centinaia di articoli richiedono ore di copy
                   ripetitivo. Il risultato è spesso disomogeneo, con descrizioni
                   di qualità variabile e dati mancanti.
                 </p>
               </div>
-              <p className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-gray-700">
+              <p className="rounded-xl border border-ink-200 bg-ink-50 p-6 text-ink-700">
                 Con Verificato parti dai dati che già possiedi: mappi le colonne
                 una sola volta, definisci il tono del brand e generi tutte le
                 schede mantenendo coerenza e controllo.
@@ -200,10 +200,10 @@ export default async function LandingPage() {
         {/* Come funziona */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
           <div className="text-center">
-            <h2 className="text-2xl font-semibold text-gray-900">
+            <h2 className="text-2xl font-semibold text-ink-900">
               Come funziona
             </h2>
-            <p className="mt-2 text-gray-600">
+            <p className="mt-2 text-ink-600">
               Un flusso lineare, dal file al catalogo pubblicabile.
             </p>
           </div>
@@ -215,12 +215,12 @@ export default async function LandingPage() {
                     <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand-accent">
                       <s.icon className="h-5 w-5" />
                     </span>
-                    <span className="text-sm font-medium text-gray-500">
+                    <span className="text-sm font-medium text-ink-500">
                       Passo {i + 1}
                     </span>
                   </div>
-                  <h3 className="mt-4 font-semibold text-gray-900">{s.title}</h3>
-                  <p className="mt-1 text-sm text-gray-600">{s.text}</p>
+                  <h3 className="mt-4 font-semibold text-ink-900">{s.title}</h3>
+                  <p className="mt-1 text-sm text-ink-600">{s.text}</p>
                 </CardContent>
               </Card>
             ))}
@@ -228,20 +228,20 @@ export default async function LandingPage() {
         </section>
 
         {/* Cosa viene generato */}
-        <section className="border-y border-gray-200 bg-white">
+        <section className="border-y border-ink-200 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <div className="grid gap-10 md:grid-cols-2 md:items-center">
               <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
+                <h2 className="text-2xl font-semibold text-ink-900">
                   Cosa viene generato
                 </h2>
-                <p className="mt-2 text-gray-600">
+                <p className="mt-2 text-ink-600">
                   Per ogni prodotto ottieni tutti gli elementi testuali di una
                   scheda completa.
                 </p>
                 <ul className="mt-6 space-y-3">
                   {generati.map((g) => (
-                    <li key={g} className="flex items-center gap-3 text-gray-700">
+                    <li key={g} className="flex items-center gap-3 text-ink-700">
                       <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
                       {g}
                     </li>
@@ -256,22 +256,22 @@ export default async function LandingPage() {
               <div className="space-y-4">
                 <Card>
                   <CardContent className="space-y-3 p-6 pt-6">
-                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <div className="text-xs font-medium uppercase tracking-wide text-ink-500">
                       Anteprima scheda · food
                     </div>
-                    <div className="text-lg font-semibold text-gray-900">
+                    <div className="text-lg font-semibold text-ink-900">
                       Passata di pomodoro datterino giallo
                     </div>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-ink-600">
                       Datterini gialli raccolti a mano e lavorati entro poche ore, per una
                       passata densa e naturalmente dolce.
                     </p>
-                    <ul className="space-y-1 text-sm text-gray-600">
+                    <ul className="space-y-1 text-sm text-ink-600">
                       <li>• Ingredienti: pomodoro datterino giallo (99%), sale marino</li>
                       <li>• Formato: vasetto in vetro 340 g</li>
                       <li>• Origine: Sicilia</li>
                     </ul>
-                    <p className="border-t border-gray-100 pt-3 text-xs text-gray-500">
+                    <p className="border-t border-ink-100 pt-3 text-xs text-ink-500">
                       Dalla riga del listino:{' '}
                       <span className="font-mono">
                         PASS-DAT-340 · datterino giallo · 340 g · Sicilia · 99% pomodoro
@@ -281,17 +281,17 @@ export default async function LandingPage() {
                 </Card>
                 <Card>
                   <CardContent className="space-y-3 p-6 pt-6">
-                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <div className="text-xs font-medium uppercase tracking-wide text-ink-500">
                       Anteprima scheda · moda
                     </div>
-                    <div className="text-lg font-semibold text-gray-900">
+                    <div className="text-lg font-semibold text-ink-900">
                       Blazer sartoriale in lana
                     </div>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-ink-600">
                       Giacca dal taglio strutturato in pura lana vergine, con revers a
                       lancia e chiusura monopetto.
                     </p>
-                    <ul className="space-y-1 text-sm text-gray-600">
+                    <ul className="space-y-1 text-sm text-ink-600">
                       <li>• Composizione: 100% lana vergine</li>
                       <li>• Vestibilità regolare</li>
                       <li>• Chiusura a un bottone</li>
@@ -311,10 +311,10 @@ export default async function LandingPage() {
                 <ShieldCheck className="h-6 w-6" />
               </span>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-xl font-semibold text-ink-900">
                   I tuoi dati restano tuoi
                 </h2>
-                <p className="mt-1 text-gray-600">
+                <p className="mt-1 text-ink-600">
                   Ogni organizzazione accede esclusivamente ai propri file e
                   risultati. I contenuti caricati vengono usati solo per generare
                   le tue schede, mai per altri account.
@@ -325,13 +325,13 @@ export default async function LandingPage() {
         </section>
 
         {/* Prezzi */}
-        <section className="border-y border-gray-200 bg-white">
+        <section className="border-y border-ink-200 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <div className="text-center">
-              <h2 className="text-2xl font-semibold text-gray-900">
+              <h2 className="text-2xl font-semibold text-ink-900">
                 Pacchetti di crediti
               </h2>
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-ink-600">
                 Un credito genera una scheda prodotto. Paghi solo ciò che usi,
                 senza abbonamenti.
               </p>
@@ -344,10 +344,10 @@ export default async function LandingPage() {
                  il prezzo c'è comunque. */
               <Card className="mx-auto mt-10 max-w-xl">
                 <CardContent className="p-8 text-center">
-                  <p className="text-gray-700">
+                  <p className="text-ink-700">
                     Il listino non è raggiungibile in questo momento.
                   </p>
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-ink-600">
                     I pacchetti si acquistano dall’area riservata, dove il prezzo mostrato
                     è sempre quello in corso.
                   </p>
@@ -364,19 +364,19 @@ export default async function LandingPage() {
                   className={i === 1 ? 'border-brand-accent ring-1 ring-brand-accent' : ''}
                 >
                   <CardContent className="p-6 pt-6 text-center">
-                    <div className="text-sm font-medium text-gray-500">
+                    <div className="text-sm font-medium text-ink-500">
                       {p.name}
                     </div>
                     {/* Il PREZZO prima di tutto: era l'unica cosa che mancava,
                         e senza di lui la sezione «Prezzi» non diceva prezzi. */}
-                    <div className="mt-3 text-4xl font-bold text-gray-900">
+                    <div className="mt-3 text-4xl font-bold text-ink-900">
                       {p.prezzo ?? '—'}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-ink-500">
                       {p.credits} crediti
                       {p.perCredito && <> · {p.perCredito} a scheda</>}
                     </div>
-                    <p className="mt-3 text-sm text-gray-600">{p.hint}</p>
+                    <p className="mt-3 text-sm text-ink-600">{p.hint}</p>
                     <Link href="/login" className="mt-6 block">
                       <Button
                         className="w-full"
@@ -395,15 +395,15 @@ export default async function LandingPage() {
 
         {/* FAQ */}
         <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-          <h2 className="text-center text-2xl font-semibold text-gray-900">
+          <h2 className="text-center text-2xl font-semibold text-ink-900">
             Domande frequenti
           </h2>
           <div className="mt-8 space-y-4">
             {faq.map((f) => (
               <Card key={f.q}>
                 <CardContent className="p-6 pt-6">
-                  <h3 className="font-semibold text-gray-900">{f.q}</h3>
-                  <p className="mt-2 text-sm text-gray-600">{f.a}</p>
+                  <h3 className="font-semibold text-ink-900">{f.q}</h3>
+                  <p className="mt-2 text-sm text-ink-600">{f.a}</p>
                 </CardContent>
               </Card>
             ))}
@@ -420,24 +420,24 @@ export default async function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white">
+      <footer className="border-t border-ink-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
           <Logo />
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <Link href="/login" className="inline-flex items-center -my-2 py-2 hover:text-gray-900">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-ink-500">
+            <Link href="/login" className="inline-flex items-center -my-2 py-2 hover:text-ink-900">
               Accedi
             </Link>
-            <Link href="/privacy" className="inline-flex items-center -my-2 py-2 hover:text-gray-900">
+            <Link href="/privacy" className="inline-flex items-center -my-2 py-2 hover:text-ink-900">
               Privacy
             </Link>
-            <Link href="/termini" className="inline-flex items-center -my-2 py-2 hover:text-gray-900">
+            <Link href="/termini" className="inline-flex items-center -my-2 py-2 hover:text-ink-900">
               Termini
             </Link>
-            <Link href="/cookie" className="inline-flex items-center -my-2 py-2 hover:text-gray-900">
+            <Link href="/cookie" className="inline-flex items-center -my-2 py-2 hover:text-ink-900">
               Cookie
             </Link>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-ink-500">
             © {new Date().getFullYear()} Verificato
           </p>
         </div>

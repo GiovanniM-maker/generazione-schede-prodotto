@@ -55,7 +55,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold text-ink-900">
               {detail.category.name}
             </h1>
             <Badge tone="gray">{detail.category.sectorName}</Badge>
@@ -66,7 +66,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
             )}
           </div>
           {detail.category.description && (
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-ink-500">
               {detail.category.description}
             </p>
           )}
@@ -94,7 +94,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
       </div>
 
       {detail.category.isSystem && (
-        <div className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        <div className="flex items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-600">
           <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>
             Questa è una categoria di sistema in sola lettura. Duplicala per
@@ -125,7 +125,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
 
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900">Attributi</h3>
+          <h3 className="text-base font-semibold text-ink-900">Attributi</h3>
           {editable && (
             <Button
               variant="outline"
@@ -143,7 +143,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
         </div>
 
         {detail.attributes.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-500">
+          <p className="py-6 text-center text-sm text-ink-500">
             Nessun attributo collegato.
           </p>
         ) : (
@@ -161,18 +161,18 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
       </Card>
 
       <Card className="p-5">
-        <h3 className="mb-3 text-base font-semibold text-gray-900">
+        <h3 className="mb-3 text-base font-semibold text-ink-900">
           Preset che la usano
         </h3>
         {detail.usedByPresets.length === 0 ? (
-          <p className="text-sm text-gray-500">Nessun preset la utilizza.</p>
+          <p className="text-sm text-ink-500">Nessun preset la utilizza.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {detail.usedByPresets.map((p) => (
               <a
                 key={p.id}
                 href={`/app/settings/presets/${p.id}`}
-                className="rounded-full border border-gray-200 px-3 py-1 text-sm text-brand-accent hover:bg-gray-50"
+                className="rounded-full border border-ink-200 px-3 py-1 text-sm text-brand-accent hover:bg-ink-50"
               >
                 {p.name}
               </a>
@@ -242,8 +242,8 @@ function RecognitionHintCard({
 
   return (
     <Card className="p-5">
-      <h3 className="text-base font-semibold text-gray-900">Come si riconosce dalle foto</h3>
-      <p className="mt-1 text-sm text-gray-500">
+      <h3 className="text-base font-semibold text-ink-900">Come si riconosce dalle foto</h3>
+      <p className="mt-1 text-sm text-ink-500">
         Aiuta l&apos;AI a capire quando un prodotto appartiene a questa categoria guardando le
         immagini (forma, colore, packaging, parole tipiche in etichetta). Più è specifica, meglio la
         categoria viene assegnata sui caricamenti di sole foto.
@@ -269,7 +269,7 @@ function RecognitionHintCard({
           </div>
         </>
       ) : (
-        <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+        <p className="mt-3 rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-sm text-ink-600">
           {initial?.trim() || 'Nessuna guida impostata. Duplica la categoria per personalizzarla.'}
         </p>
       )}
@@ -309,17 +309,17 @@ function CategoryAttributeRow({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
+    <div className="rounded-lg border border-ink-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-gray-900">{attr.name}</span>
+          <span className="font-medium text-ink-900">{attr.name}</span>
           <Badge tone="gray">
             {KIND_LABELS[attr.attributeKind] ?? attr.attributeKind}
           </Badge>
-          <span className="text-xs text-gray-500">{etichettaTipoDato(attr.dataType)}</span>
+          <span className="text-xs text-ink-500">{etichettaTipoDato(attr.dataType)}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-sm text-gray-600">
+          <label className="flex items-center gap-1.5 text-sm text-ink-600">
             <input
               type="checkbox"
               checked={attr.isRequired}
@@ -327,7 +327,7 @@ function CategoryAttributeRow({
               onChange={(e) =>
                 persist({ id: attr.id, isRequired: e.target.checked })
               }
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-ink-300"
             />
             Obbligatorio
           </label>
@@ -347,7 +347,7 @@ function CategoryAttributeRow({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-500">
             Prompt di estrazione
           </label>
           <Textarea
@@ -359,7 +359,7 @@ function CategoryAttributeRow({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-xs font-medium text-ink-500">
             Prompt di generazione
           </label>
           <Textarea
@@ -373,7 +373,7 @@ function CategoryAttributeRow({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-500">
           Le modifiche hanno effetto sulla prossima generazione.
         </p>
         {editable && dirty && (

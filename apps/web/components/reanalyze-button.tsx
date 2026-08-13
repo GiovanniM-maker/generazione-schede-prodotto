@@ -41,7 +41,7 @@ export function ReanalyzeButton({ batchId }: { batchId: string }) {
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />}
         {busy ? 'Ri-analizzo le immagini…' : 'Ri-analizza immagini'}
       </Button>
-      {msg && <span className="text-xs text-gray-500">{msg}</span>}
+      {msg && <span className="text-xs text-ink-500">{msg}</span>}
     </div>
   );
 }

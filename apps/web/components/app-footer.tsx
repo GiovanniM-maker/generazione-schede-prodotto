@@ -22,8 +22,8 @@ export function AppFooter() {
   const email = env.SUPPORT_EMAIL ?? datiTitolare().email;
 
   return (
-    <footer className="mt-12 border-t border-gray-200">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <footer className="mt-12 border-t border-ink-200">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-ink-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         {/* Senza indirizzo, il piede tace.
             Diceva «Contatto di assistenza non ancora configurato», che è vero
             e per questo l'avevo scritto: meglio del silenzio, meglio di un
@@ -35,7 +35,7 @@ export function AppFooter() {
             nella pagina «Servizio», dove ci sono le altre cose da sistemare. */}
         {email ? (
           <p className="inline-flex items-center gap-2">
-            <LifeBuoy className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+            <LifeBuoy className="h-4 w-4 shrink-0 text-ink-400" aria-hidden="true" />
             Serve aiuto? Scrivi a{' '}
             <a
               href={`mailto:${email}?subject=${encodeURIComponent('Verificato — richiesta di assistenza')}`}
@@ -50,13 +50,13 @@ export function AppFooter() {
         {/* `-my-1 py-1.5` porta l'area di tocco a 24px senza allargare la riga:
             un link di testo è alto quanto il testo, e con il dito non si prende. */}
         <nav className="-my-1 flex flex-wrap gap-x-4" aria-label="Informazioni legali">
-          <Link href="/privacy" className="inline-flex items-center py-1.5 hover:text-gray-900">
+          <Link href="/privacy" className="inline-flex items-center py-1.5 hover:text-ink-900">
             Privacy
           </Link>
-          <Link href="/termini" className="inline-flex items-center py-1.5 hover:text-gray-900">
+          <Link href="/termini" className="inline-flex items-center py-1.5 hover:text-ink-900">
             Termini
           </Link>
-          <Link href="/cookie" className="inline-flex items-center py-1.5 hover:text-gray-900">
+          <Link href="/cookie" className="inline-flex items-center py-1.5 hover:text-ink-900">
             Cookie
           </Link>
         </nav>

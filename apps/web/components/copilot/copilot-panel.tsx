@@ -342,7 +342,7 @@ export function CopilotPanel({
       <div className="flex min-h-[460px] flex-col">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-brand-accent" />
-          <h3 className="text-base font-semibold text-gray-900">
+          <h3 className="text-base font-semibold text-ink-900">
             Copilot — {isEdit ? `modifica ${label}` : `nuova ${label}`}
           </h3>
         </div>
@@ -353,15 +353,15 @@ export function CopilotPanel({
 
         <div
           ref={scrollRef}
-          className="flex-1 space-y-3 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4"
+          className="flex-1 space-y-3 overflow-y-auto rounded-lg border border-ink-200 bg-ink-50 p-4"
         >
           {starting ? (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-ink-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Avvio del copilot…
             </div>
           ) : messages.length === 0 ? (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-ink-500">
               {isEdit ? (
                 <>
                   Descrivi come vuoi modificare questa {label}. Per esempio: «
@@ -392,7 +392,7 @@ export function CopilotPanel({
                   className={
                     m.role === 'user'
                       ? 'max-w-[85%] rounded-lg bg-brand-accent px-3 py-2 text-sm text-white'
-                      : 'max-w-[85%] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800'
+                      : 'max-w-[85%] rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800'
                   }
                 >
                   {m.content}
@@ -401,7 +401,7 @@ export function CopilotPanel({
             ))
           )}
           {pending && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-ink-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Il copilot sta pensando…
             </div>
@@ -433,7 +433,7 @@ export function CopilotPanel({
         )}
 
         {recState === 'recorded' && audioUrl && (
-          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2.5">
             <audio controls src={audioUrl} className="w-full" />
             <div className="flex gap-2">
               <Button type="button" size="sm" onClick={handleTranscribe}>
@@ -449,15 +449,15 @@ export function CopilotPanel({
         )}
 
         {recState === 'transcribing' && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500">
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-ink-200 bg-ink-50 px-3 py-2.5 text-sm text-ink-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             Trascrizione in corso…
           </div>
         )}
 
         {recState === 'transcribed' && (
-          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
-            <label className="text-xs font-medium text-gray-600">
+          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2.5">
+            <label className="text-xs font-medium text-ink-600">
               Trascrizione (modificabile prima di usarla)
             </label>
             <Textarea
@@ -532,7 +532,7 @@ export function CopilotPanel({
           </Button>
         </div>
         {!audioSupported && (
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-ink-500">
             Registrazione audio non disponibile su questo browser.
           </p>
         )}
@@ -542,7 +542,7 @@ export function CopilotPanel({
       <div className="flex flex-col gap-3">
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-gray-900">
+            <h4 className="text-sm font-semibold text-ink-900">
               Bozza proposta
             </h4>
             {draft && (
@@ -553,7 +553,7 @@ export function CopilotPanel({
           </div>
 
           {!data ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-ink-500">
               La bozza comparirà qui dopo il primo messaggio.
             </p>
           ) : (
@@ -611,7 +611,7 @@ export function CopilotPanel({
           )}
 
           {confirmationSummary && (
-            <p className="mt-3 text-xs text-gray-600">{confirmationSummary}</p>
+            <p className="mt-3 text-xs text-ink-600">{confirmationSummary}</p>
           )}
 
           <div className="mt-4 flex flex-col gap-2">
@@ -653,8 +653,8 @@ export function CopilotPanel({
 function DraftField({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-[110px_1fr] sm:gap-2">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className={value ? 'text-gray-900' : 'text-gray-300'}>
+      <dt className="text-ink-500">{label}</dt>
+      <dd className={value ? 'text-ink-900' : 'text-ink-300'}>
         {value || '—'}
       </dd>
     </div>

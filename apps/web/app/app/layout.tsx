@@ -44,7 +44,7 @@ export default async function AppLayout({
           compare. */}
       <a
         href="#contenuto"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-gray-900 focus:shadow-lg focus:ring-2 focus:ring-brand-accent"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-ink-900 focus:shadow-lg focus:ring-2 focus:ring-brand-accent"
       >
         Salta al contenuto
       </a>
@@ -70,7 +70,7 @@ export default async function AppLayout({
                 collegamenti che vanno nello stesso posto, quello che si toglie
                 è il doppione — non il marchio. Sopra i 360 tornano entrambi. */}
             <Link href="/app" className="hidden min-[360px]:block">
-              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-200 hover:bg-white/10 hover:text-white">
                 <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only lg:not-sr-only">Dashboard</span>
               </Button>
@@ -81,21 +81,21 @@ export default async function AppLayout({
                 dieci batch. Sotto i dieci si arrivava alla pagina soltanto
                 scrivendo l'indirizzo — cioè mai. Qui c'è da ogni schermata. */}
             <Link href="/app/batches">
-              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-200 hover:bg-white/10 hover:text-white">
                 <PackageOpen className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only lg:not-sr-only">Lavori</span>
               </Button>
             </Link>
 
             <Link href="/app/settings/presets">
-              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-200 hover:bg-white/10 hover:text-white">
                 <Settings className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only lg:not-sr-only">Configurazione</span>
               </Button>
             </Link>
 
             <Link href="/app/inbox" className="relative">
-              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-200 hover:bg-white/10 hover:text-white">
                 <Inbox className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only lg:not-sr-only">Dubbi</span>
               </Button>
@@ -112,11 +112,14 @@ export default async function AppLayout({
             >
               <Coins className="h-4 w-4 text-amber-500" />
               {credits}
-              <span className="hidden text-gray-500 lg:inline">crediti</span>
+              {/* `ink-300` e non `ink-500`: qui il fondo è scuro (`bg-brand`),
+                  e la scala va letta al contrario. Il 500 caldo su questo
+                  fondo sta sotto il 3:1. */}
+              <span className="hidden text-ink-300 lg:inline">crediti</span>
             </span>
 
             <Link href="/app/billing">
-              <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-ink-200 hover:bg-white/10 hover:text-white">
                 <CreditCard className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only lg:not-sr-only">Fatturazione</span>
               </Button>
@@ -126,7 +129,7 @@ export default async function AppLayout({
                 pagina non esiste, e nemmeno il collegamento. */}
             {amministratore && (
               <Link href="/app/admin">
-                <Button variant="ghost" size="sm" className="text-gray-200 hover:bg-white/10 hover:text-white">
+                <Button variant="ghost" size="sm" className="text-ink-200 hover:bg-white/10 hover:text-white">
                   <Activity className="h-4 w-4" aria-hidden="true" />
                   <span className="sr-only lg:not-sr-only">Servizio</span>
                 </Button>

@@ -616,3 +616,104 @@ Vale la pena scriverlo, perché è il metro di quanto sopra.
    riverificato.
 
 Il §7 va riverificato prima di toccare qualsiasi cosa.
+
+---
+
+## 9. La revisione estetica
+
+Cinque revisioni indipendenti, chieste dopo che tutto il resto era chiuso, con
+una domanda diversa da quelle di sopra: non «cosa è rotto» ma «cosa non stupisce
+nessuno». Quattro convergenze e due difetti veri.
+
+### Le due cose rotte che ha trovato una revisione estetica — **✔ fatte**
+
+Vale la pena notare da dove sono uscite: nessuna delle sei revisioni funzionali
+le aveva viste.
+
+**9.1 Il banner cookie stava sopra tutto.** Era a `z-50`, cioè la quota delle
+modali — e reso *dopo* nel documento, quindi a parità vinceva lui. Copriva anche
+i cassetti dei risultati e del preset, che stanno più in basso. Alla prima
+visita, su telefono, non si riusciva a creare una categoria senza prima
+accettare i cookie: il banner è arredamento di pagina e stava sopra il lavoro.
+Sceso a `z-20`, e la scala delle quote è ora scritta nel file, una volta sola:
+
+```
+10 contenuto appiccicato · 20 intestazione e banner · 30-40 cassetti ·
+50 modali · 60 barra dei comandi del wizard · 70 guide a fumetti ·
+100 «salta al contenuto»
+```
+
+Guardia: `il banner cookie non copre le modali` in `e2e/telefono.spec.ts`, più un
+test unitario che il banner resti sotto la quota 30.
+
+**E la guardia me l'ero scritta sbagliata.** La prima versione confrontava il
+banner col riquadro bianco della modale: su un telefono quello sta in alto e il
+banner in fondo, quindi non si toccano — la sonda stampava «nessuna
+sovrapposizione» e il test passava **per assenza di bersaglio**. L'ho scoperto
+solo perché, invece di fidarmi del verde, ho rimesso il difetto (`z-50`) e il
+test è rimasto verde lo stesso. Il bersaglio giusto è la **velatura**, che è
+`fixed inset-0` e quindi copre sempre anche il banner: col difetto rimesso, il
+dito sul banner tocca il banner invece della velatura, ed è esattamente quello
+che si vedeva — il rettangolo bianco che buca lo schermo scurito. Rimessa la
+correzione, verde di nuovo.
+
+**9.2 Il passo 9 del wizard non diceva di stare lavorando.** `setPassoInCaricamento`
+c'era per i passi 2, 6 e 8 e **mancava proprio al 9** — l'unico che scrive i
+prodotti a database. Su un catalogo grosso si preme «Conferma», non succede
+niente per parecchi secondi, e la tentazione di premere di nuovo è tutta lì.
+Aggiunto su entrambi i rami (foglio di calcolo e URL), con `finally` e pulizia.
+Guardia: `il wizard non lascia saltare la verifica` in `parole.test.ts`, che
+pretende la chiamata per tutti e quattro i passi lenti.
+
+### 9.3 L'inchiostro caldo — **✔ fatto**
+
+Il fondo del prodotto è crema `#fbf8f3` e l'inchiostro del marchio è `#17130f`:
+caldi tutti e due. Ma ogni singolo grigio a schermo era quello di serie di
+Tailwind, che tende al blu — **641 usi di grigi freddi contro 54 dell'inchiostro
+di marca**, e `brand.muted`, il grigio caldo già scritto in configurazione, usato
+**zero volte** in tutto il prodotto. Un fondo caldo con sopra un'interfaccia
+fredda: non si nota guardando una schermata, si vede benissimo affiancandone due.
+
+Non è solo gusto. I grigi freddi su fondo caldo contrastano *meno*, e
+`gray-500` — il colore di tutto il testo secondario — stava a **4,56:1**, cioè
+sei centesimi sopra il minimo.
+
+Ora c'è una scala `ink` derivata dall'inchiostro, dieci gradini, e ogni gradino
+contrasta più del grigio che sostituisce. Il caso che conta è il 500: da 4,56 a
+**5,40:1**, in quasi trecento punti del prodotto. Sostituzione meccanica, 65
+file, **zero grigi freddi rimasti** — verificato anche a schermo, censendo i
+colori davvero disegnati sulla vetrina: sette tinte, tutte della scala calda più
+il rosso di marca e il bianco.
+
+Due cose che la sostituzione meccanica avrebbe sbagliato, e che ho corretto a
+mano:
+
+- **Sul fondo scuro la scala va letta al contrario.** L'etichetta «crediti»
+  nell'intestazione dell'app è finita a `ink-500` su `bg-brand`, dove il caldo
+  contrasta *meno* del freddo che sostituiva. Portata a `ink-300` (8,24:1).
+- **Il tono `gray` del badge** l'avevo escluso pensandolo semantico. Non lo è:
+  è il «nessuno stato», cioè il neutro della pagina, ed era l'ultimo posto in
+  cui il grigio freddo era rimasto. Il nome della proprietà resta — si scrive
+  nei punti d'uso — la tinta no.
+
+Cinque guardie in `identita-visiva.test.ts`, tutte che **ricalcolano** i numeri
+dalla configurazione invece di bloccare esadecimali: che la scala sia ordinata,
+che i gradini da testo passino il 4,5:1 sul crema, che il 500 batta `gray-500`,
+che i fondi restino chiari, che sull'intestazione scura si usi il capo chiaro. E
+una sesta che nel prodotto non rientri un grigio freddo — perché la sostituzione
+è stata meccanica, quindi il ritorno lo sarebbe altrettanto: basta un
+`text-gray-500` copiato da un esempio trovato online.
+
+La guardia esistente su `gray-400` andava aggiornata: dopo la sostituzione quel
+nome non esisteva più in nessun file, quindi il test passava **per assenza di
+bersaglio**, non per assenza di difetto. Ora copre entrambi i quarti gradini —
+`ink-400` sta a 3,48:1, meglio del 2,4 di prima, sempre sotto il minimo.
+
+### Quello che resta, nell'ordine
+
+4. **Far respirare i dati** — larghezza piena sui passi e sulle schermate che
+   mostrano dati veri, intestazioni di tabella fisse, colonne ricalcolate.
+5. **Portare la prova in superficie** — il confronto riga-di-listino/prosa
+   nell'apertura della vetrina, la fascia della consegna sopra i risultati, il
+   campione composto invece che ingabbiato.
+6. **Le nove pagine che ignorano `PageShell`.**

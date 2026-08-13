@@ -32,8 +32,8 @@ export default async function SectorsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Settori</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-semibold text-ink-900">Settori</h1>
+        <p className="mt-1 text-sm text-ink-500">
           Settori disponibili nel catalogo (sola lettura).
         </p>
       </div>
@@ -42,23 +42,23 @@ export default async function SectorsPage() {
         {sectorsRes.sectors.map((s) => (
           <Card key={s.id} className="p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-gray-900">
+              <h3 className="text-base font-semibold text-ink-900">
                 {s.name}
               </h3>
               <Badge tone="gray">Sistema</Badge>
             </div>
             {s.description && (
-              <p className="mb-4 text-sm text-gray-500">{s.description}</p>
+              <p className="mb-4 text-sm text-ink-500">{s.description}</p>
             )}
-            <div className="flex gap-4 text-sm text-gray-600">
+            <div className="flex gap-4 text-sm text-ink-600">
               <span>
-                <strong className="text-gray-900">
+                <strong className="text-ink-900">
                   {catCounts.get(s.id) ?? 0}
                 </strong>{' '}
                 categorie
               </span>
               <span>
-                <strong className="text-gray-900">
+                <strong className="text-ink-900">
                   {attrCounts.get(s.id) ?? 0}
                 </strong>{' '}
                 attributi

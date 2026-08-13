@@ -161,10 +161,10 @@ export default async function DashboardPage() {
       {/* Intestazione */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-ink-900">
             {orgRow.name}
           </h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-ink-500">
             {sectorName && <Badge tone="blue">{sectorName}</Badge>}
             <span>{categoryCount} categorie</span>
             <span>·</span>
@@ -189,10 +189,10 @@ export default async function DashboardPage() {
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">
+            <h2 className="font-semibold text-ink-900">
               Completezza configurazione
             </h2>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-ink-500">
               {checklist.filter((c) => c.done).length}/{checklist.length}
             </span>
           </div>
@@ -214,7 +214,7 @@ export default async function DashboardPage() {
                     'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
                     item.done
                       ? 'bg-emerald-100 text-emerald-600'
-                      : 'border border-gray-300 bg-white text-gray-500',
+                      : 'border border-ink-300 bg-white text-ink-500',
                   )}
                   aria-hidden="true"
                 >
@@ -223,7 +223,7 @@ export default async function DashboardPage() {
                 {/* Detto anche a chi ascolta: l'icona è decorativa, lo stato
                     no. Senza, l'elenco si legge come cinque voci identiche. */}
                 <span className="sr-only">{item.done ? 'Fatto:' : 'Da fare:'}</span>
-                <span className={cn('text-gray-700', !item.done && 'text-gray-500')}>
+                <span className={cn('text-ink-700', !item.done && 'text-ink-500')}>
                   {item.label}
                 </span>
               </li>
@@ -241,10 +241,10 @@ export default async function DashboardPage() {
                 <Settings2 className="h-5 w-5" />
               </span>
               <div>
-                <h3 className="font-semibold text-gray-900">
+                <h3 className="font-semibold text-ink-900">
                   Completa la configurazione del catalogo
                 </h3>
-                <p className="mt-0.5 text-sm text-gray-500">
+                <p className="mt-0.5 text-sm text-ink-500">
                   Termina la configurazione per poter creare i tuoi batch di
                   schede prodotto.
                 </p>
@@ -268,7 +268,7 @@ export default async function DashboardPage() {
       {/* Batch recenti */}
       <div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-gray-900">Batch recenti</h2>
+          <h2 className="text-lg font-semibold text-ink-900">Batch recenti</h2>
           {/* Compariva solo sopra i dieci batch: con cinque, dalla dashboard
               non si raggiungeva più l'elenco completo. Ora c'è appena esiste
               un lavoro, e il testo dice quanti ce ne sono solo quando questa
@@ -285,14 +285,14 @@ export default async function DashboardPage() {
         {batches.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-ink-100 text-ink-500">
                 <PackageOpen className="h-7 w-7" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-ink-900">
                   Nessun batch ancora
                 </h2>
-                <p className="mt-1 max-w-sm text-sm text-gray-500">
+                <p className="mt-1 max-w-sm text-sm text-ink-500">
                   {canCreateBatch
                     ? 'Crea il tuo primo batch caricando un file CSV o Excel con il tuo catalogo.'
                     : 'Completa la configurazione del catalogo per creare il primo batch.'}

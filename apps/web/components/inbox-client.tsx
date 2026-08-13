@@ -35,9 +35,9 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
   if (doubts.length === 0) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-center gap-2 p-10 text-center text-gray-500">
-          <InboxIcon className="h-8 w-8 text-gray-300" />
-          <p className="font-medium text-gray-700">Nessun dubbio in sospeso</p>
+        <CardContent className="flex flex-col items-center gap-2 p-10 text-center text-ink-500">
+          <InboxIcon className="h-8 w-8 text-ink-300" />
+          <p className="font-medium text-ink-700">Nessun dubbio in sospeso</p>
           <p className="text-sm">
             Quando l’AI legge un dato dalle foto senza esserne certa, te lo chiede qui.
           </p>
@@ -58,13 +58,13 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
               <MessageCircleQuestion className="mt-0.5 h-5 w-5 shrink-0 text-brand-accent" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium text-gray-900">{d.productName ?? 'Prodotto'}</span>
+                  <span className="font-medium text-ink-900">{d.productName ?? 'Prodotto'}</span>
                   {d.fieldLabel && <Badge tone="violet">{d.fieldLabel}</Badge>}
                   {d.confidence != null && (
                     <span className="text-xs text-amber-600">{Math.round(d.confidence * 100)}% sicuro</span>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-gray-700">{d.question}</p>
+                <p className="mt-1 text-sm text-ink-700">{d.question}</p>
               </div>
             </div>
 
@@ -104,7 +104,7 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
                   Correggi
                 </Button>
                 <Button size="sm" variant="ghost" disabled={pending} onClick={() => resolve(d.id, 'dismiss')}>
-                  <X className="h-4 w-4 text-gray-400" />
+                  <X className="h-4 w-4 text-ink-400" />
                   Ignora
                 </Button>
               </div>

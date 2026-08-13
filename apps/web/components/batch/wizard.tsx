@@ -574,19 +574,35 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       }
     };
 
+    // «Continua» si spegne anche QUI.
+    //
+    // Era protetto ai passi 2, 6 e 8, e non al 9 — cioè l'unico passo che
+    // SCRIVE i prodotti. Durante l'importazione la pagina è vuota, e l'unico
+    // oggetto colorato dello schermo era «Continua»: un clic e si saltava la
+    // verifica dei dati appena importati, arrivando al campione senza averli
+    // mai guardati. È lo stesso difetto già corretto per gli altri tre passi,
+    // fermatosi un passo prima.
+    setPassoInCaricamento(9);
+    const finito = () => setPassoInCaricamento((p) => (p === 9 ? null : p));
+
     // Import da URL: i prodotti sono già stati creati da importFromUrls.
     // NON rieseguire confirmImportV2 (cancellerebbe i prodotti importati).
     if (sourceMode === 'url') {
       setProducts(null);
       void (async () => {
-        const list = await getBatchProductsV2({ batchId: bid });
-        if (cancelled) return;
-        if (list.ok) setProducts(list.data.products);
-        else setError(list.error);
-        await autoAnalyze();
+        try {
+          const list = await getBatchProductsV2({ batchId: bid });
+          if (cancelled) return;
+          if (list.ok) setProducts(list.data.products);
+          else setError(list.error);
+          await autoAnalyze();
+        } finally {
+          finito();
+        }
       })();
       return () => {
         cancelled = true;
+        finito();
       };
     }
     setProducts(null);
@@ -596,6 +612,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       excludeIncomplete: importOption === 'excludeIncomplete',
     };
     void (async () => {
+      try {
       const imp = await confirmImportV2({
         batchId: bid,
         skuHeader: hasSpreadsheet ? skuHeader : '',
@@ -620,9 +637,13 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       if (list.ok) setProducts(list.data.products);
       else setError(list.error);
       await autoAnalyze();
+      } finally {
+        finito();
+      }
     })();
     return () => {
       cancelled = true;
+      finito();
     };
   }, [stepId, batchId]);
 
@@ -1067,7 +1088,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
             size="sm"
             onClick={() => setTourOpen(true)}
             aria-label="Rivedi la guida di questo passo"
-            className="shrink-0 text-gray-500"
+            className="shrink-0 text-ink-500"
           >
             <HelpCircle className="h-4 w-4" />
             Guida
@@ -1168,7 +1189,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           contenuto le passava sotto — misurate sovrapposizioni di 115×26px sulle
           schede delle categorie. Il 5% di trasparenza con la sfocatura non
           nascondeva il testo: lo rendeva illeggibile ma visibile, che è peggio. */}
-      <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-gray-200 bg-[var(--background)] px-4 py-3 sm:mx-0 sm:border-gray-100">
+      <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-ink-200 bg-[var(--background)] px-4 py-3 sm:mx-0 sm:border-ink-100">
         <div className="flex items-center gap-1">
           <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
             <ArrowLeft className="h-4 w-4" />
@@ -1246,14 +1267,14 @@ function ProgressBar({
   const pct = steps.length > 1 ? Math.round((Math.max(0, activeIndex) / (steps.length - 1)) * 100) : 0;
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
-        <span className="font-medium text-gray-700">
+      <div className="mb-2 flex items-center justify-between text-xs text-ink-500">
+        <span className="font-medium text-ink-700">
           Passo {Math.max(1, activeIndex + 1)}
           {totaleNoto ? ` di ${steps.length}` : ''}
         </span>
         <span>{steps[Math.max(0, activeIndex)]?.title}</span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
         <div className="h-full rounded-full bg-brand-accent transition-all" style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -1369,14 +1390,14 @@ function Step1({
           <HelpBubble text="Il preset è il modello della scheda: definisce le categorie (es. Vino, Ortofrutta) e i dati da compilare per ciascuna. Lo configuri in Configurazione → Preset, anche a chat con il Copilot." />
         </Label>
         {presets === null && (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-ink-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Caricamento preset…
           </div>
         )}
         {presets !== null && presets.length === 0 && (
           <Card>
-            <CardContent className="space-y-3 p-6 text-sm text-gray-600">
-              <p className="font-medium text-gray-900">Nessun preset pubblicato</p>
+            <CardContent className="space-y-3 p-6 text-sm text-ink-600">
+              <p className="font-medium text-ink-900">Nessun preset pubblicato</p>
               <p>
                 Per creare un batch devi prima configurare e pubblicare un preset con le sue categorie e i suoi attributi.
               </p>
@@ -1397,15 +1418,15 @@ function Step1({
                   onClick={() => setSelectedPresetId(p.id)}
                   className={cn(
                     'rounded-xl border p-4 text-left transition-colors',
-                    active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
+                    active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-ink-200 bg-white hover:bg-ink-50',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{p.name}</span>
+                    <span className="font-medium text-ink-900">{p.name}</span>
                     {active && <Check className="h-4 w-4 text-brand-accent" />}
                   </div>
-                  <div className="mt-1 text-sm text-gray-500">Settore: {p.sectorName}</div>
-                  <div className="mt-2 flex gap-2 text-xs text-gray-500">
+                  <div className="mt-1 text-sm text-ink-500">Settore: {p.sectorName}</div>
+                  <div className="mt-2 flex gap-2 text-xs text-ink-500">
                     <Badge tone="gray">{p.categoriesCount} categorie</Badge>
                     <Badge tone="gray">{p.attributesCount} attributi</Badge>
                   </div>
@@ -1417,7 +1438,7 @@ function Step1({
       </div>
 
       {selected && (
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-ink-500">
           {/* `-my-1 py-1.5` porta l'area di tocco a 24px senza allargare la
               riga: un collegamento di testo è alto quanto il testo — 17px — e
               col dito non si prende. È lo stesso trattamento dei link legali
@@ -1453,7 +1474,7 @@ function Step2({
 }) {
   if (explorer === null) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-ink-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Caricamento preset…
       </div>
     );
@@ -1466,17 +1487,17 @@ function Step2({
   }
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        Settore <span className="font-medium text-gray-800">{explorer.sectorName}</span>. Questi sono gli attributi che verranno estratti e generati. Sola lettura.
+      <p className="text-sm text-ink-500">
+        Settore <span className="font-medium text-ink-800">{explorer.sectorName}</span>. Questi sono gli attributi che verranno estratti e generati. Sola lettura.
       </p>
-      {explorer.categories.length === 0 && <p className="text-sm text-gray-500">Nessuna categoria configurata nel preset.</p>}
+      {explorer.categories.length === 0 && <p className="text-sm text-ink-500">Nessuna categoria configurata nel preset.</p>}
       {explorer.categories.map((cat) => {
         const open = expandedCat.has(cat.id);
         return (
           <Card key={cat.id}>
             <button type="button" onClick={() => toggle(expandedCat, setExpandedCat, cat.id)} className="flex w-full items-center justify-between p-4 text-left">
-              <span className="font-medium text-gray-900">{cat.name}</span>
-              <span className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="font-medium text-ink-900">{cat.name}</span>
+              <span className="flex items-center gap-2 text-sm text-ink-500">
                 {cat.attributes.length} attributi
                 {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </span>
@@ -1486,23 +1507,23 @@ function Step2({
                 {cat.attributes.map((attr) => {
                   const aopen = expandedAttr.has(attr.id);
                   return (
-                    <div key={attr.id} className="rounded-lg border border-gray-100">
+                    <div key={attr.id} className="rounded-lg border border-ink-100">
                       <button type="button" onClick={() => toggle(expandedAttr, setExpandedAttr, attr.id)} className="flex w-full items-center justify-between px-3 py-2 text-left">
                         <span className="flex items-center gap-2">
-                          <span className="text-sm text-gray-800">{attr.name}</span>
+                          <span className="text-sm text-ink-800">{attr.name}</span>
                           <Badge tone="gray">{etichettaTipoDato(attr.dataType)}</Badge>
                           {attr.isRequired && <Badge tone="amber">obbligatorio</Badge>}
                         </span>
-                        {aopen ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                        {aopen ? <ChevronDown className="h-4 w-4 text-ink-400" /> : <ChevronRight className="h-4 w-4 text-ink-400" />}
                       </button>
                       {aopen && (
-                        <div className="space-y-2 border-t border-gray-100 px-3 py-2 text-sm text-gray-600">
+                        <div className="space-y-2 border-t border-ink-100 px-3 py-2 text-sm text-ink-600">
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Istruzione di estrazione</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Istruzione di estrazione</span>
                             <p className="mt-0.5">{attr.extractionInstruction ?? '—'}</p>
                           </div>
                           <div>
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Istruzione di generazione</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Istruzione di generazione</span>
                             <p className="mt-0.5">{attr.generationInstruction ?? '—'}</p>
                           </div>
                         </div>
@@ -1561,7 +1582,7 @@ function Step3({
   const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-ink-500">
         Scegli da dove arrivano i dati dei prodotti. Puoi cambiare idea: se poi scopri di avere
         anche un Excel, torna a questo passo e scegli «Entrambe».
       </p>
@@ -1577,11 +1598,11 @@ function Step3({
               className={cn(
                 'rounded-xl border p-4 text-left transition-colors',
                 card.disabled && 'cursor-not-allowed opacity-60',
-                active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-gray-200 bg-white hover:bg-gray-50',
+                active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-ink-200 bg-white hover:bg-ink-50',
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-gray-900">{card.title}</span>
+                <span className="font-medium text-ink-900">{card.title}</span>
                 {/* Una fonte che si può usare e una che non c'è ancora
                     portavano la STESSA pastiglia viola: «Novità» accanto a «In
                     arrivo», stesso colore, stesso peso. Il viola dice «guarda
@@ -1595,7 +1616,7 @@ function Step3({
                 )}
                 {active && <Check className="h-4 w-4 shrink-0 text-brand-accent" />}
               </div>
-              <p className="mt-1 text-sm text-gray-500">{card.description}</p>
+              <p className="mt-1 text-sm text-ink-500">{card.description}</p>
             </button>
           );
         })}
@@ -1614,7 +1635,7 @@ function Step3({
                 placeholder={'https://www.tuosito.it/prodotti/maglione-rosso\nhttps://www.fornitore.com/p/olio-evo-500ml'}
                 className="mt-1 font-mono text-sm"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-ink-500">
                 {urlCount > 0 ? `${urlCount} URL pronti · ` : ''}Massimo 60 per volta. Estraiamo nome,
                 brand, prezzo, attributi e foto dai dati strutturati della pagina.
               </p>
@@ -1644,8 +1665,8 @@ function Step4({ batchId, hasSpreadsheet, hasImages, imageNamingGuide }: { batch
   return (
     <div className="space-y-5">
       <Card>
-        <CardContent className="space-y-2 p-5 text-sm text-gray-600">
-          <p className="font-medium text-gray-900">Regole SKU</p>
+        <CardContent className="space-y-2 p-5 text-sm text-ink-600">
+          <p className="font-medium text-ink-900">Regole SKU</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Ogni prodotto ha uno SKU univoco. Una riga per SKU.</li>
             <li>Lo SKU non può contenere underscore; sono ammessi lettere, numeri, trattini e punti.</li>
@@ -1677,7 +1698,7 @@ function Step4({ batchId, hasSpreadsheet, hasImages, imageNamingGuide }: { batch
       {hasImages && (
         <Card>
           <CardContent className="p-5">
-            <pre className="whitespace-pre-wrap font-sans text-sm text-gray-600">{imageNamingGuide}</pre>
+            <pre className="whitespace-pre-wrap font-sans text-sm text-ink-600">{imageNamingGuide}</pre>
           </CardContent>
         </Card>
       )}
@@ -1725,9 +1746,9 @@ function Step5({
             Foglio CSV o Excel{' '}
             <HelpBubble text="Serve una colonna con lo SKU (codice prodotto). Tutte le altre colonne potrai mapparle o importarle come dati extra nei passi successivi." />
           </Label>
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white p-6 text-center hover:bg-gray-50">
-            <FileSpreadsheet className="h-6 w-6 text-gray-400" />
-            <span className="text-sm text-gray-600">Seleziona un file .csv o .xlsx</span>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white p-6 text-center hover:bg-ink-50">
+            <FileSpreadsheet className="h-6 w-6 text-ink-400" />
+            <span className="text-sm text-ink-600">Seleziona un file .csv o .xlsx</span>
             <input
               type="file"
               accept=".csv,.xlsx"
@@ -1745,7 +1766,7 @@ function Step5({
               listino di conserve, da scaricare e ricaricare qui sopra: fa il
               giro completo senza mettere in mezzo il proprio catalogo. */}
           {!spreadsheetResult && (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-ink-500">
               Non hai un file sotto mano?{' '}
               <a
                 href="/listino-di-esempio.csv"
@@ -1814,12 +1835,12 @@ function Step5({
             }}
             className={cn(
               'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center',
-              dragOver ? 'border-brand-accent bg-brand-soft/70' : 'border-gray-300 bg-white hover:bg-gray-50',
+              dragOver ? 'border-brand-accent bg-brand-soft/70' : 'border-ink-300 bg-white hover:bg-ink-50',
             )}
           >
-            <UploadCloud className="h-6 w-6 text-gray-400" />
-            <span className="text-sm text-gray-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
-            <span className="text-xs text-gray-500">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
+            <UploadCloud className="h-6 w-6 text-ink-400" />
+            <span className="text-sm text-ink-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
+            <span className="text-xs text-ink-500">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
             <input
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.zip"
@@ -1833,13 +1854,13 @@ function Step5({
           </label>
           {uploadProgress && (
             <div className="mt-3">
-              <div className="mb-1 flex justify-between text-xs text-gray-500">
+              <div className="mb-1 flex justify-between text-xs text-ink-500">
                 <span>Caricamento immagini…</span>
                 <span>
                   {uploadProgress.done}/{uploadProgress.total}
                 </span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
                 <div
                   className="h-full rounded-full bg-brand-accent transition-all"
                   style={{
@@ -1851,9 +1872,9 @@ function Step5({
           )}
           {imagesResult && (
             <div className="mt-3 space-y-3 text-sm">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3" data-tour="sku-separator">
+              <div className="rounded-lg border border-ink-200 bg-ink-50 p-3" data-tour="sku-separator">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-gray-700">Separatore SKU:</span>
+                  <span className="font-medium text-ink-700">Separatore SKU:</span>
                   {([
                     { d: '_' as const, label: 'trattino_basso' },
                     { d: '-' as const, label: 'trattino -' },
@@ -1869,15 +1890,15 @@ function Step5({
                       className={
                         skuDelimiter === opt.d
                           ? 'rounded-md border border-brand-accent bg-brand-accent px-2.5 py-1 text-xs font-medium text-white'
-                          : 'rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:border-gray-400'
+                          : 'rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs text-ink-700 hover:border-ink-400'
                       }
                     >
                       {opt.label}
                     </button>
                   ))}
-                  {reparsing && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+                  {reparsing && <Loader2 className="h-4 w-4 animate-spin text-ink-400" />}
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-2 text-xs text-ink-500">
                   Lo SKU è la parte del nome file <strong>prima</strong> del separatore. Es.
                   «100356-image_IT.jpg» con separatore «-» → SKU «100356». Le immagini con lo stesso
                   SKU vengono raggruppate sullo stesso prodotto.
@@ -1894,7 +1915,7 @@ function Step5({
       )}
 
       {busy && (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="flex items-center gap-2 text-sm text-ink-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Caricamento in corso…
         </div>
       )}
@@ -1903,18 +1924,18 @@ function Step5({
 }
 
 function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record<string, string>> }) {
-  if (rows.length === 0) return <p className="text-sm text-gray-500">Nessuna riga da mostrare.</p>;
+  if (rows.length === 0) return <p className="text-sm text-ink-500">Nessuna riga da mostrare.</p>;
   const shown = rows;
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
+    <div className="overflow-hidden rounded-lg border border-ink-200">
       <div className="max-h-[28rem] overflow-auto">
         <table className="w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-gray-50">
+          <thead className="sticky top-0 z-10 bg-ink-50">
             <tr>
               {headers.map((h) => (
                 <th
                   key={h}
-                  className="border-b border-gray-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500"
+                  className="border-b border-ink-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-ink-500"
                   title={h}
                 >
                   <span className="block max-w-[160px] truncate">{h}</span>
@@ -1924,14 +1945,14 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record
           </thead>
           <tbody>
             {shown.map((r, i) => (
-              <tr key={i} className="odd:bg-white even:bg-gray-50/50">
+              <tr key={i} className="odd:bg-white even:bg-ink-50/50">
                 {headers.map((h) => (
                   <td
                     key={h}
-                    className="whitespace-nowrap border-b border-gray-100 px-3 py-1.5 text-gray-700"
+                    className="whitespace-nowrap border-b border-ink-100 px-3 py-1.5 text-ink-700"
                     title={r[h] ?? ''}
                   >
-                    <span className="block max-w-[200px] truncate">{r[h] || <span className="text-gray-300">—</span>}</span>
+                    <span className="block max-w-[200px] truncate">{r[h] || <span className="text-ink-300">—</span>}</span>
                   </td>
                 ))}
               </tr>
@@ -1939,7 +1960,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record
           </tbody>
         </table>
       </div>
-      <p className="border-t border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
+      <p className="border-t border-ink-100 bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
         {headers.length} colonne · anteprima di {shown.length} righe {rows.length > shown.length ? `(su ${rows.length})` : ''}
       </p>
     </div>
@@ -1987,7 +2008,7 @@ function CategoryColumnValidator({
   const norm = (s: string) =>
     s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
-  if (loading) return <p className="mt-2 text-xs text-gray-500">Verifico i valori della colonna…</p>;
+  if (loading) return <p className="mt-2 text-xs text-ink-500">Verifico i valori della colonna…</p>;
   if (cats.length === 0) return null;
 
   const catByNorm = new Map(cats.map((c) => [norm(c.name), c] as const));
@@ -2048,7 +2069,7 @@ function CategoryColumnValidator({
           ))}
         </div>
       )}
-      <p className="mt-1.5 text-[11px] text-gray-500">
+      <p className="mt-1.5 text-[11px] text-ink-500">
         Confronto con le {cats.length} categorie{' '}
         {fromPreset ? 'del preset scelto' : 'del settore (il preset non ne ha nessuna configurata)'}.
         Verifica basata sull&apos;anteprima ({previewRows.length} righe). I valori nuovi che compaiono
@@ -2077,7 +2098,7 @@ function FilesTable({ files }: { files: UploadedFileSummary[] }) {
             <TD>
               <Badge tone={f.status === 'valid' || f.status === 'ready' ? 'green' : 'amber'}>{f.status}</Badge>
             </TD>
-            <TD className="text-gray-500">{f.problem ?? '—'}</TD>
+            <TD className="text-ink-500">{f.problem ?? '—'}</TD>
           </TR>
         ))}
       </TBody>
@@ -2093,8 +2114,8 @@ function Metric({ label, value, tone = 'gray' }: { label: string; value: number;
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="text-2xl font-semibold text-gray-900">{value}</div>
-        <div className="mt-1 text-sm text-gray-500">{label}</div>
+        <div className="text-2xl font-semibold text-ink-900">{value}</div>
+        <div className="mt-1 text-sm text-ink-500">{label}</div>
         <div className="mt-2">
           <Badge tone={tone}>{tone === 'red' ? 'da risolvere' : tone === 'amber' ? 'da controllare' : 'ok'}</Badge>
         </div>
@@ -2106,14 +2127,14 @@ function Metric({ label, value, tone = 'gray' }: { label: string; value: number;
 function Step6({ analysis, hasImages, hasSpreadsheet }: { analysis: AnalyzeData | null; hasImages: boolean; hasSpreadsheet: boolean }) {
   if (analysis === null) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-ink-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Analisi in corso…
       </div>
     );
   }
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Risultato del confronto tra le sorgenti (unione tramite SKU esatto).</p>
+      <p className="text-sm text-ink-500">Risultato del confronto tra le sorgenti (unione tramite SKU esatto).</p>
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="SKU totali unici" value={analysis.totalUniqueSkus} tone="gray" />
         {hasSpreadsheet && hasImages && <Metric label="SKU in entrambe le fonti" value={analysis.inBoth.length} tone="gray" />}
@@ -2194,12 +2215,12 @@ function Step7({
               </option>
             ))}
           </Select>
-          <p className="mt-1 text-xs text-gray-500">Le righe senza SKU in questa colonna verranno scartate.</p>
+          <p className="mt-1 text-xs text-ink-500">Le righe senza SKU in questa colonna verranno scartate.</p>
         </div>
       )}
 
       {hasSpreadsheet && (
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-ink-200 p-4">
           <Label htmlFor="name-header">
             Colonna Nome prodotto
             <HelpBubble text="Come si chiama il prodotto nel tuo file. È il titolo che vedrai nei risultati e il punto di partenza della scheda. Senza, il prodotto si chiama come il suo codice." />
@@ -2238,7 +2259,7 @@ function Step7({
               </option>
             ))}
           </Select>
-          <p className="mt-1.5 text-xs text-gray-600">
+          <p className="mt-1.5 text-xs text-ink-600">
             La categoria di ogni prodotto viene presa da questa colonna e agganciata in automatico al
             tuo catalogo (nessuna AI). <strong>Decide quali attributi e istruzioni del preset vengono
             usati in generazione</strong>: un Vino riceve gli attributi del vino, non quelli della
@@ -2257,7 +2278,7 @@ function Step7({
       )}
 
       {hasSpreadsheet && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div className="rounded-lg border border-ink-200 bg-ink-50 p-4">
           <Label htmlFor="parent-header">Colonna «codice padre» — varianti colore/taglia (facoltativa)</Label>
           <Select
             id="parent-header"
@@ -2272,7 +2293,7 @@ function Step7({
               </option>
             ))}
           </Select>
-          <p className="mt-1.5 text-xs text-gray-600">
+          <p className="mt-1.5 text-xs text-ink-600">
             Se il tuo file ha una colonna che indica il <strong>prodotto padre</strong> (es. il codice
             modello condiviso da tutte le taglie/colori), selezionala qui: le righe con lo stesso
             codice vengono <strong>raggruppate come varianti</strong> e nell’export mantengono il
@@ -2310,17 +2331,17 @@ function SkuList({ title, skus, tone }: { title: string; skus: string[]; tone: B
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-800">{title}</span>
+          <span className="text-sm font-medium text-ink-800">{title}</span>
           <Badge tone={tone}>{skus.length}</Badge>
         </div>
         {skus.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {skus.slice(0, 30).map((s) => (
-              <span key={s} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
+              <span key={s} className="rounded bg-ink-100 px-1.5 py-0.5 text-xs text-ink-600">
                 {s}
               </span>
             ))}
-            {skus.length > 30 && <span className="text-xs text-gray-500">+{skus.length - 30}</span>}
+            {skus.length > 30 && <span className="text-xs text-ink-500">+{skus.length - 30}</span>}
           </div>
         )}
       </CardContent>
@@ -2333,14 +2354,14 @@ function OptionRow({ checked, onSelect, title, description }: { checked: boolean
     <button
       type="button"
       onClick={onSelect}
-      className={cn('flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors', checked ? 'border-brand-accent bg-brand-soft/70' : 'border-gray-200 bg-white hover:bg-gray-50')}
+      className={cn('flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors', checked ? 'border-brand-accent bg-brand-soft/70' : 'border-ink-200 bg-white hover:bg-ink-50')}
     >
-      <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', checked ? 'border-brand-accent bg-brand-accent' : 'border-gray-300')}>
+      <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', checked ? 'border-brand-accent bg-brand-accent' : 'border-ink-300')}>
         {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
       </span>
       <span>
-        <span className="block text-sm font-medium text-gray-900">{title}</span>
-        <span className="block text-sm text-gray-500">{description}</span>
+        <span className="block text-sm font-medium text-ink-900">{title}</span>
+        <span className="block text-sm text-ink-500">{description}</span>
       </span>
     </button>
   );
@@ -2373,7 +2394,7 @@ function Step8({
 }) {
   if (attributes === null) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-ink-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Caricamento attributi…
       </div>
     );
@@ -2401,29 +2422,29 @@ function Step8({
     <div className="space-y-4">
       {/* Include/escludi: di default tutte le colonne sono dati; togli quelle inutili. */}
       <div className="rounded-lg border border-brand-accent/30 bg-brand-soft/50 p-4">
-        <p className="text-sm font-semibold text-gray-900">Colonne importate come dati</p>
-        <p className="mt-0.5 text-xs text-gray-600">
+        <p className="text-sm font-semibold text-ink-900">Colonne importate come dati</p>
+        <p className="mt-0.5 text-xs text-ink-600">
           Ogni colonna del file diventa un&apos;informazione per lo SKU (es. peso, descrizione): non
           devi mappare nulla. <strong>Escludi</strong> qui sotto solo le colonne che non ti servono
           (es. costo interno). L&apos;unica cosa da mappare è la <strong>Categoria</strong> (già
           scelta). Le info restano sotto l&apos;audit anti-invenzione.
         </p>
         <div className="mt-2 flex items-center gap-3 text-xs">
-          <span className="text-gray-500">{importedCount}/{importableAll.length} colonne incluse</span>
+          <span className="text-ink-500">{importedCount}/{importableAll.length} colonne incluse</span>
           <button type="button" onClick={includeAll} className="font-medium text-brand-accent hover:underline">Includi tutte</button>
-          <button type="button" onClick={excludeAll} className="font-medium text-gray-500 hover:underline">Escludi tutte</button>
+          <button type="button" onClick={excludeAll} className="font-medium text-ink-500 hover:underline">Escludi tutte</button>
         </div>
       </div>
 
-      <details className="rounded-lg border border-gray-100">
-        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-700">
+      <details className="rounded-lg border border-ink-100">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-ink-700">
           Mappatura avanzata (facoltativa): abbina attributi del preset a colonne specifiche
         </summary>
         <div className="space-y-2 p-3" data-tour="mapping">
         {attributes.map((attr) => (
-          <div key={attr.id} className="grid grid-cols-1 items-center gap-2 rounded-lg border border-gray-100 p-3 sm:grid-cols-2">
+          <div key={attr.id} className="grid grid-cols-1 items-center gap-2 rounded-lg border border-ink-100 p-3 sm:grid-cols-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-800">{attr.name}</span>
+              <span className="text-sm font-medium text-ink-800">{attr.name}</span>
               {attr.isRequired && <Badge tone="amber">obbligatorio</Badge>}
             </div>
             <Select
@@ -2493,8 +2514,8 @@ function FreeColumnsSection({
   if (available.length === 0) return null;
   return (
     <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-4" data-tour="extra-columns">
-      <p className="text-sm font-medium text-gray-800">Colonne da importare (togli la spunta per escludere)</p>
-      <p className="mt-0.5 text-xs text-gray-600">
+      <p className="text-sm font-medium text-ink-800">Colonne da importare (togli la spunta per escludere)</p>
+      <p className="mt-0.5 text-xs text-ink-600">
         Di default vengono importate tutte come dato. <strong>Togli la spunta</strong> a quelle che
         non ti servono (es. «costo interno»). Puoi anche rinominare il campo. Ogni dato resta sotto
         l’audit anti-invenzione.
@@ -2504,7 +2525,7 @@ function FreeColumnsSection({
           const checked = h in extraCols;
           return (
             <div key={h} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[auto_1fr_1fr]">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-ink-700">
                 <input
                   type="checkbox"
                   checked={checked}
@@ -2517,13 +2538,13 @@ function FreeColumnsSection({
                       return next;
                     });
                   }}
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 rounded border-ink-300"
                 />
-                <span className="font-mono text-xs text-gray-600">{h}</span>
+                <span className="font-mono text-xs text-ink-600">{h}</span>
               </label>
               {checked ? (
                 <>
-                  <span className="hidden text-center text-xs text-gray-500 sm:block">→</span>
+                  <span className="hidden text-center text-xs text-ink-500 sm:block">→</span>
                   <Input
                     value={extraCols[h] ?? h}
                     onChange={(e) =>
@@ -2534,7 +2555,7 @@ function FreeColumnsSection({
                   />
                 </>
               ) : (
-                <span className="text-xs text-gray-500 sm:col-span-2">non importata</span>
+                <span className="text-xs text-ink-500 sm:col-span-2">non importata</span>
               )}
             </div>
           );
@@ -2567,7 +2588,7 @@ function Step9({
 }) {
   if (products === null) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-ink-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Importazione dei prodotti…
       </div>
     );
@@ -2606,7 +2627,7 @@ function Step9({
         </div>
       )}
       {hasImages && !analyzing && (
-        <p className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600">
+        <p className="rounded-lg border border-ink-100 bg-ink-50 p-3 text-sm text-ink-600">
           Foto analizzate: i dati leggibili sull’etichetta sono stati usati come fatti. Materiali,
           composizione e dati tecnici non deducibili dalle foto restano da inserire.
         </p>
@@ -2643,19 +2664,19 @@ function Step9({
           )}
           {importSummary.scartate.length > 0 && (
             <details className="w-full">
-              <summary className="cursor-pointer text-sm text-gray-600 underline underline-offset-2">
+              <summary className="cursor-pointer text-sm text-ink-600 underline underline-offset-2">
                 Quali righe sono state scartate
               </summary>
-              <ul className="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white p-2 text-xs">
+              <ul className="mt-2 max-h-48 overflow-auto rounded-lg border border-ink-200 bg-white p-2 text-xs">
                 {importSummary.scartate.map((r, i) => (
                   <li key={i} className="flex items-center justify-between gap-3 px-1 py-0.5">
-                    <span className="truncate font-mono text-gray-700">{r.sku ?? '(senza codice)'}</span>
-                    <span className="shrink-0 text-gray-500">{r.motivo}</span>
+                    <span className="truncate font-mono text-ink-700">{r.sku ?? '(senza codice)'}</span>
+                    <span className="shrink-0 text-ink-500">{r.motivo}</span>
                   </li>
                 ))}
               </ul>
               {importSummary.invalid > importSummary.scartate.length && (
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-ink-500">
                   Elenco tagliato alle prime {importSummary.scartate.length}: serve a capire cosa è
                   successo, non a rifare l’import.
                 </p>
@@ -2683,7 +2704,7 @@ function Step9({
         </div>
       )}
       {products.length === 0 ? (
-        <p className="text-sm text-gray-500">Nessun prodotto importato. Torna indietro e controlla la colonna SKU o le sorgenti.</p>
+        <p className="text-sm text-ink-500">Nessun prodotto importato. Torna indietro e controlla la colonna SKU o le sorgenti.</p>
       ) : (
         <Table>
           <THead>
@@ -2700,7 +2721,7 @@ function Step9({
           <TBody>
             {products.map((p) => (
               <TR key={p.id}>
-                <TD className="font-medium text-gray-900">{p.sku ?? '—'}</TD>
+                <TD className="font-medium text-ink-900">{p.sku ?? '—'}</TD>
                 <TD>{p.name ?? '—'}</TD>
                 <TD>{p.category ?? '—'}</TD>
                 <TD>
@@ -2743,7 +2764,7 @@ function Step10({
 }) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-ink-500">
         Genera un campione gratuito su un prodotto rappresentativo per verificare tono e correttezza
         prima della generazione in massa. Se il prodotto ha solo foto, l’AI legge prima le etichette
         in automatico.
@@ -2774,29 +2795,29 @@ function Step10({
 function SampleOutput({ content }: { content: SampleCopy }) {
   const bullets = Array.isArray(content.bullets) ? content.bullets : [];
   return (
-    <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="space-y-4 rounded-lg border border-ink-200 bg-white p-4">
       {content.title && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Titolo</p>
-          <p className="mt-0.5 text-base font-semibold text-gray-900">{content.title}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Titolo</p>
+          <p className="mt-0.5 text-base font-semibold text-ink-900">{content.title}</p>
         </div>
       )}
       {content.shortDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Descrizione breve</p>
-          <p className="mt-0.5 text-sm text-gray-700">{content.shortDescription}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Descrizione breve</p>
+          <p className="mt-0.5 text-sm text-ink-700">{content.shortDescription}</p>
         </div>
       )}
       {content.longDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Descrizione lunga</p>
-          <p className="mt-0.5 whitespace-pre-line text-sm text-gray-700">{content.longDescription}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Descrizione lunga</p>
+          <p className="mt-0.5 whitespace-pre-line text-sm text-ink-700">{content.longDescription}</p>
         </div>
       )}
       {bullets.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Punti chiave</p>
-          <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-gray-700">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Punti chiave</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-ink-700">
             {bullets.map((b, i) => (
               <li key={i}>{b}</li>
             ))}
@@ -2805,8 +2826,8 @@ function SampleOutput({ content }: { content: SampleCopy }) {
       )}
       {content.metaDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Meta description</p>
-          <p className="mt-0.5 text-sm text-gray-500">{content.metaDescription}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Meta description</p>
+          <p className="mt-0.5 text-sm text-ink-500">{content.metaDescription}</p>
         </div>
       )}
     </div>
@@ -2818,9 +2839,9 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
   const isPartial =
     completeness.status === 'partial' || completeness.status === 'insufficient';
   return (
-    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 p-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-700">Completezza campione</span>
+        <span className="text-sm font-medium text-ink-700">Completezza campione</span>
         <Badge tone={COMPLETENESS_TONES[completeness.status]}>{COMPLETENESS_LABELS[completeness.status]}</Badge>
       </div>
       {isPartial && (
@@ -2828,7 +2849,7 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
       )}
       {completeness.missingAttributes.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Attributi mancanti</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Attributi mancanti</p>
           <div className="mt-1 flex flex-wrap gap-1">
             {completeness.missingAttributes.map((a) => (
               <span key={a} className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
@@ -2858,8 +2879,8 @@ function Step11({
   return (
     <div className="space-y-4" data-tour="launch">
       <Card>
-        <CardContent className="space-y-3 p-5 text-sm text-gray-600">
-          <p className="font-medium text-gray-900">Pronto per la generazione</p>
+        <CardContent className="space-y-3 p-5 text-sm text-ink-600">
+          <p className="font-medium text-ink-900">Pronto per la generazione</p>
           {importSummary && (
             <ul className="list-inside list-disc space-y-1">
               <li>{importSummary.imported} prodotti importati</li>
@@ -2870,7 +2891,7 @@ function Step11({
           {importSummary && importSummary.imageOnly > 0 && (
             <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-3 text-brand-accent">
               <p className="font-medium">Prodotti solo-immagini</p>
-              <p className="mt-0.5 text-gray-600">
+              <p className="mt-0.5 text-ink-600">
                 All’avvio l’AI legge automaticamente le etichette delle foto ed estrae i dati (peso,
                 ingredienti, valori nutrizionali…). I prodotti con abbastanza dati leggibili
                 diventano idonei e vengono generati; l’eventuale conteggio «idonei» qui sopra si
@@ -2879,21 +2900,21 @@ function Step11({
             </div>
           )}
           <p>Verrà riservato 1 credito per ogni prodotto idoneo. La generazione avviene in background: puoi chiudere la pagina.</p>
-          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 p-3">
             <input
               type="checkbox"
               checked={notifyByEmail}
               onChange={(e) => setNotifyByEmail(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300"
+              className="mt-0.5 h-4 w-4 rounded border-ink-300"
             />
             <span>
-              <span className="font-medium text-gray-800">Avvisami via email quando è pronto</span>
-              <span className="mt-0.5 block text-gray-500">
+              <span className="font-medium text-ink-800">Avvisami via email quando è pronto</span>
+              <span className="mt-0.5 block text-ink-500">
                 Ti mandiamo un’email all’indirizzo del tuo account appena la generazione finisce.
               </span>
             </span>
           </label>
-          <div className="flex items-center gap-2 text-gray-500">
+          <div className="flex items-center gap-2 text-ink-500">
             <ImageIcon className="h-4 w-4" /> Potrai rivedere e correggere i risultati al termine.
           </div>
         </CardContent>

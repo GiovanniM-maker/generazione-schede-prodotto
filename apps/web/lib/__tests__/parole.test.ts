@@ -256,3 +256,29 @@ describe('i documenti legali descrivono il prodotto che c’è', () => {
     expect(termini).toMatch(/codice a sei cifre/i);
   });
 });
+
+describe('il wizard non lascia saltare la verifica', () => {
+  it('«Continua» si spegne anche mentre il passo 9 importa', () => {
+    // Il blocco era ai passi 2, 6 e 8 — non al 9, che è l'unico che SCRIVE i
+    // prodotti. Durante l'importazione la pagina è vuota e «Continua» era
+    // l'unico oggetto colorato dello schermo: un clic e si arrivava al
+    // campione senza aver mai guardato i dati importati.
+    const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+    for (const passo of [2, 6, 8, 9]) {
+      expect(wizard, `passo ${passo} senza blocco`).toContain(
+        `setPassoInCaricamento(${passo})`,
+      );
+    }
+  });
+});
+
+describe('le sovrapposizioni si impilano in un ordine solo', () => {
+  it('il banner cookie sta sotto tutto quello che si apre sopra la pagina', () => {
+    // A `z-50` copriva modali (z-50 rese prima), cassetti dei risultati (z-40)
+    // e del preset (z-40). È arredamento di pagina: deve stare sotto.
+    const banner = senzaCommenti(leggi('components/cookie-banner.tsx'));
+    const quota = banner.match(/fixed inset-x-0 bottom-0 z-(\d+)/);
+    expect(quota, 'quota del banner non trovata').not.toBeNull();
+    expect(Number(quota![1]), 'il banner sta alla quota delle sovrapposizioni').toBeLessThan(30);
+  });
+});

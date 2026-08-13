@@ -36,9 +36,9 @@ function Numero({
   return (
     <Card>
       <CardContent className="p-5">
-        <p className="text-sm text-gray-500">{etichetta}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{valore}</p>
-        {nota && <p className="mt-0.5 text-xs text-gray-500">{nota}</p>}
+        <p className="text-sm text-ink-500">{etichetta}</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums text-ink-900">{valore}</p>
+        {nota && <p className="mt-0.5 text-xs text-ink-500">{nota}</p>}
       </CardContent>
     </Card>
   );
@@ -123,7 +123,7 @@ export default async function AdminPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Soldi</h2>
+        <h2 className="text-lg font-semibold text-ink-900">Soldi</h2>
         <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Numero
             etichetta="Incassato"
@@ -148,8 +148,8 @@ export default async function AdminPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Chi è rimasto fermo</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-lg font-semibold text-ink-900">Chi è rimasto fermo</h2>
+        <p className="mt-1 text-sm text-ink-500">
           Batch in uno stato non terminale da più di dieci minuti — la stessa soglia del
           riconciliatore, e per lo stesso motivo: sotto quella «fermo» vuol dire solo «sta
           lavorando».
@@ -172,12 +172,12 @@ export default async function AdminPage() {
                   <TBody>
                     {s.batchBloccati.map((b) => (
                       <TR key={b.id}>
-                        <TD className="text-gray-600">{b.organizzazione}</TD>
-                        <TD className="font-medium text-gray-900">{b.nome}</TD>
+                        <TD className="text-ink-600">{b.organizzazione}</TD>
+                        <TD className="font-medium text-ink-900">{b.nome}</TD>
                         <TD>
                           <Badge tone="amber">{b.stato}</Badge>
                         </TD>
-                        <TD className="text-right tabular-nums text-gray-700">
+                        <TD className="text-right tabular-nums text-ink-700">
                           {b.fermo_da_minuti} min
                         </TD>
                       </TR>
@@ -191,8 +191,8 @@ export default async function AdminPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Cosa si è rotto</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-lg font-semibold text-ink-900">Cosa si è rotto</h2>
+        <p className="mt-1 text-sm text-ink-500">
           Scritture fallite, movimenti di credito non registrati ed errori non gestiti.{' '}
           {s.guastiTotali > s.guasti.length && `Mostrati gli ultimi ${s.guasti.length} di ${s.guastiTotali}.`}
         </p>
@@ -213,13 +213,13 @@ export default async function AdminPage() {
                   <TBody>
                     {s.guasti.map((g, i) => (
                       <TR key={i}>
-                        <TD className="whitespace-nowrap text-gray-600">
+                        <TD className="whitespace-nowrap text-ink-600">
                           {new Date(g.quando).toLocaleString('it-IT')}
                         </TD>
                         <TD>
                           <Badge tone="red">{g.evento}</Badge>
                         </TD>
-                        <TD className="max-w-md truncate font-mono text-xs text-gray-600">
+                        <TD className="max-w-md truncate font-mono text-xs text-ink-600">
                           {JSON.stringify(g.dettagli)}
                         </TD>
                       </TR>

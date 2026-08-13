@@ -78,10 +78,10 @@ export default async function BatchesPage({
       {batches.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+            <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-ink-100 text-ink-500">
               <PackageOpen className="h-7 w-7" aria-hidden="true" />
             </span>
-            <p className="max-w-sm text-sm text-gray-500">
+            <p className="max-w-sm text-sm text-ink-500">
               {chiesta > 0
                 ? 'Questa pagina è vuota: probabilmente l’elenco si è accorciato.'
                 : 'Non c’è ancora nessun batch.'}
@@ -120,7 +120,7 @@ export default async function BatchesPage({
 
       {fetta.pagine > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-600">
             {fetta.primo}–{fetta.ultimo} di {totale}
           </p>
           <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export default async function BatchesPage({
                 Precedenti
               </Button>
             </Link>
-            <span className="text-sm tabular-nums text-gray-600">
+            <span className="text-sm tabular-nums text-ink-600">
               {fetta.pagina + 1} / {fetta.pagine}
             </span>
             <Link

@@ -96,20 +96,20 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
               ) : (
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
               )}
-              <span className="font-medium text-gray-900">{esito.titolo}</span>
+              <span className="font-medium text-ink-900">{esito.titolo}</span>
             </div>
             <StatusBadge status={progress?.status} />
           </div>
 
           {/* Barra di progresso */}
           <div className="mt-5">
-            <div className="mb-1 flex justify-between text-sm text-gray-500">
+            <div className="mb-1 flex justify-between text-sm text-ink-500">
               <span>
                 {processed} / {total} prodotti
               </span>
               <span>{pct}%</span>
             </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-ink-100">
               <div
                 className="h-full rounded-full bg-brand-accent transition-all duration-500"
                 style={{ width: `${pct}%` }}
@@ -139,7 +139,7 @@ export function ProcessingMonitor({ batchId }: { batchId: string }) {
       </Card>
 
       {!finished && (
-        <p className="text-center text-sm text-gray-500">
+        <p className="text-center text-sm text-ink-500">
           Aggiornamento automatico ogni 3 secondi.
         </p>
       )}
@@ -197,11 +197,11 @@ function Stat({
       ? 'text-amber-600'
       : tone === 'red'
         ? 'text-red-600'
-        : 'text-gray-900';
+        : 'text-ink-900';
   return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+    <div className="rounded-lg border border-ink-100 bg-ink-50 p-3">
       <div className={`text-2xl font-semibold ${color}`}>{value}</div>
-      <div className="mt-0.5 text-xs text-gray-500">{label}</div>
+      <div className="mt-0.5 text-xs text-ink-500">{label}</div>
     </div>
   );
 }

@@ -93,10 +93,10 @@ export default async function BillingPage({
       <Card>
         <CardContent className="flex items-center justify-between p-6">
           <div>
-            <p className="text-sm text-gray-500">Saldo disponibile</p>
-            <p className="mt-1 text-3xl font-bold text-gray-900">
+            <p className="text-sm text-ink-500">Saldo disponibile</p>
+            <p className="mt-1 text-3xl font-bold text-ink-900">
               {credits}{' '}
-              <span className="text-base font-normal text-gray-500">
+              <span className="text-base font-normal text-ink-500">
                 crediti
               </span>
             </p>
@@ -109,7 +109,7 @@ export default async function BillingPage({
 
       {/* Pacchetti */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2 className="text-lg font-semibold text-ink-900">
           Pacchetti di crediti
         </h2>
         {/* Questo avviso vale SOLO quando la fatturazione è finta. Era scritto
@@ -129,8 +129,8 @@ export default async function BillingPage({
         {/* Un pulsante che il server rifiuterebbe non va offerto: si dice
             perché, invece di far sbattere contro un errore. */}
         {!isOwner && (
-          <div className="mt-2 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 p-3 text-sm text-ink-600">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" aria-hidden="true" />
             <span>
               L’acquisto di crediti spetta al proprietario dell’organizzazione. Puoi
               usare i crediti disponibili per generare le tue schede.
@@ -139,7 +139,7 @@ export default async function BillingPage({
         )}
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {packs.length === 0 && (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-ink-500">
               Nessun pacchetto disponibile al momento.
             </p>
           )}
@@ -149,20 +149,20 @@ export default async function BillingPage({
               className={i === 1 ? 'border-brand-accent ring-1 ring-brand-accent' : ''}
             >
               <CardContent className="p-6 text-center">
-                <div className="text-sm font-medium text-gray-500">{p.name}</div>
+                <div className="text-sm font-medium text-ink-500">{p.name}</div>
                 {/* Il prezzo davanti: era l'unica cosa che mancava, e senza di
                     lui si compra alla cieca. */}
-                <div className="mt-3 text-4xl font-bold text-gray-900">
+                <div className="mt-3 text-4xl font-bold text-ink-900">
                   {p.price_cents == null ? '—' : formattaPrezzo(p.price_cents, p.currency)}
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-ink-500">
                   {p.credits} crediti
                   {p.price_cents != null && (
                     <> · {prezzoPerCredito(p.price_cents, p.credits, p.currency)} a scheda</>
                   )}
                 </div>
                 {p.price_cents != null && (
-                  <div className="mt-1 text-xs text-gray-500">IVA esclusa</div>
+                  <div className="mt-1 text-xs text-ink-500">IVA esclusa</div>
                 )}
                 <div className="mt-6">
                   {isOwner && (
@@ -185,11 +185,11 @@ export default async function BillingPage({
 
       {/* Cronologia */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Cronologia</h2>
+        <h2 className="text-lg font-semibold text-ink-900">Cronologia</h2>
         <Card className="mt-4">
           <CardContent className="p-0">
             {ledger.length === 0 ? (
-              <div className="px-6 py-10 text-center text-sm text-gray-500">
+              <div className="px-6 py-10 text-center text-sm text-ink-500">
                 Nessun movimento registrato.
               </div>
             ) : (
@@ -205,7 +205,7 @@ export default async function BillingPage({
                 <TBody>
                   {ledger.map((l, i) => (
                     <TR key={i}>
-                      <TD className="text-gray-600">
+                      <TD className="text-ink-600">
                         {formatDate(l.created_at)}
                       </TD>
                       <TD>
@@ -218,7 +218,7 @@ export default async function BillingPage({
                           che non sono un pagamento (consumo, rilascio) non ne
                           hanno uno, e inventarne uno sarebbe peggio del
                           trattino. */}
-                      <TD className="text-right tabular-nums text-gray-700">
+                      <TD className="text-right tabular-nums text-ink-700">
                         {l.metadata_json?.amount_cents != null
                           ? formattaPrezzo(
                               l.metadata_json.amount_cents,
@@ -230,7 +230,7 @@ export default async function BillingPage({
                         className={
                           l.amount >= 0
                             ? 'text-right font-medium text-emerald-600'
-                            : 'text-right font-medium text-gray-700'
+                            : 'text-right font-medium text-ink-700'
                         }
                       >
                         {l.amount >= 0 ? `+${l.amount}` : l.amount}

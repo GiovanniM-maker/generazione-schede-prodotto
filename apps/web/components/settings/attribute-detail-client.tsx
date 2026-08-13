@@ -98,7 +98,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-gray-900">{a.name}</h1>
+            <h1 className="text-2xl font-semibold text-ink-900">{a.name}</h1>
             <Badge tone="gray">{a.sectorName}</Badge>
             <Badge tone="gray">
               {KIND_LABELS[a.attributeKind] ?? a.attributeKind}
@@ -109,7 +109,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
               <Badge tone="violet">Personalizzato v{a.version}</Badge>
             )}
           </div>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-500">
             Tipo di dato: {etichettaTipoDato(a.dataType)}
             {a.unit ? ` · unità ${a.unit}` : ''}
           </p>
@@ -127,7 +127,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
       </div>
 
       {a.isSystem && (
-        <div className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        <div className="flex items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-600">
           <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>
             Attributo di sistema in sola lettura. Salvando le modifiche verrà
@@ -186,7 +186,7 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
       </Card>
 
       <Card className="space-y-4 p-5">
-        <h3 className="text-base font-semibold text-gray-900">Prompt</h3>
+        <h3 className="text-base font-semibold text-ink-900">Prompt</h3>
         <div>
           <Label htmlFor="d-extr">Prompt di estrazione</Label>
           <Textarea
@@ -209,13 +209,13 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
             placeholder="Come usare il valore nella copy generata…"
           />
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-500">
           Le modifiche hanno effetto sulla prossima esecuzione.
         </p>
       </Card>
 
       <Card className="space-y-4 p-5">
-        <h3 className="text-base font-semibold text-gray-900">Regole</h3>
+        <h3 className="text-base font-semibold text-ink-900">Regole</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label htmlFor="d-valid">Regole di validazione (JSON)</Label>
@@ -244,18 +244,18 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="p-5">
-          <h3 className="mb-3 text-base font-semibold text-gray-900">
+          <h3 className="mb-3 text-base font-semibold text-ink-900">
             Categorie che lo usano
           </h3>
           {detail.usedByCategories.length === 0 ? (
-            <p className="text-sm text-gray-500">Nessuna categoria.</p>
+            <p className="text-sm text-ink-500">Nessuna categoria.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {detail.usedByCategories.map((c) => (
                 <a
                   key={c.id}
                   href={`/app/settings/categories/${c.id}`}
-                  className="rounded-full border border-gray-200 px-3 py-1 text-sm text-brand-accent hover:bg-gray-50"
+                  className="rounded-full border border-ink-200 px-3 py-1 text-sm text-brand-accent hover:bg-ink-50"
                 >
                   {c.name}
                 </a>
@@ -264,18 +264,18 @@ export function AttributeDetailClient({ detail }: { detail: AttributeDetail }) {
           )}
         </Card>
         <Card className="p-5">
-          <h3 className="mb-3 text-base font-semibold text-gray-900">
+          <h3 className="mb-3 text-base font-semibold text-ink-900">
             Preset che lo usano
           </h3>
           {detail.usedByPresets.length === 0 ? (
-            <p className="text-sm text-gray-500">Nessun preset.</p>
+            <p className="text-sm text-ink-500">Nessun preset.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {detail.usedByPresets.map((p) => (
                 <a
                   key={p.id}
                   href={`/app/settings/presets/${p.id}`}
-                  className="rounded-full border border-gray-200 px-3 py-1 text-sm text-brand-accent hover:bg-gray-50"
+                  className="rounded-full border border-ink-200 px-3 py-1 text-sm text-brand-accent hover:bg-ink-50"
                 >
                   {p.name}
                 </a>

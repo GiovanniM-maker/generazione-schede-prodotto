@@ -10,8 +10,8 @@ const variants: Record<Variant, string> = {
   secondary:
     'bg-brand text-white hover:bg-brand/90 focus-visible:ring-brand shadow-sm',
   outline:
-    'border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-gray-400',
-  ghost: 'text-gray-700 hover:bg-gray-100 focus-visible:ring-gray-400',
+    'border border-ink-300 bg-white text-ink-800 hover:bg-ink-50 focus-visible:ring-ink-400',
+  ghost: 'text-ink-700 hover:bg-ink-100 focus-visible:ring-ink-400',
   danger:
     'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 shadow-sm',
 };

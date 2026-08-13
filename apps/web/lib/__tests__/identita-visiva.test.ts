@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { senzaCommenti } from './senza-commenti.js';
 
 // ---------------------------------------------------------------------------
 // L'identità visiva, per quel poco che una macchina può custodire.
@@ -18,6 +19,34 @@ import { describe, expect, it } from 'vitest';
 
 const RADICE = join(process.cwd(), 'apps/web');
 const leggi = (rel: string) => readFileSync(join(RADICE, rel), 'utf8');
+
+const config = leggi('tailwind.config.ts');
+
+function esadecimale(nome: string): string {
+  const m = config.match(new RegExp(`\\b${nome}:\\s*'(#[0-9a-fA-F]{6})'`));
+  if (!m) throw new Error(`colore «${nome}» non trovato in tailwind.config.ts`);
+  return m[1]!;
+}
+
+/** Luminanza relativa secondo WCAG 2.1. */
+function luminanza(hex: string): number {
+  const canali = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = canali.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+function contrasto(a: string, b: string): number {
+  const [x, y] = [luminanza(a), luminanza(b)];
+  return (Math.max(x!, y!) + 0.05) / (Math.min(x!, y!) + 0.05);
+}
+
+const BIANCO = '#ffffff';
+/** Il fondo del prodotto, preso da `--background` invece che riscritto qui. */
+const CREMA = (() => {
+  const m = leggi('app/globals.css').match(/--background:\s*(#[0-9a-fA-F]{6})/);
+  if (!m) throw new Error('`--background` non trovato in globals.css');
+  return m[1]!;
+})();
 
 describe('il carattere', () => {
   it('viene caricato davvero, non solo evocato', () => {
@@ -98,28 +127,6 @@ describe('il rosso si legge', () => {
   // collegamenti in rosso su fondo bianco.
   // ---------------------------------------------------------------------------
 
-  const config = leggi('tailwind.config.ts');
-
-  function esadecimale(nome: string): string {
-    const m = config.match(new RegExp(`${nome}:\\s*'(#[0-9a-fA-F]{6})'`));
-    if (!m) throw new Error(`colore «${nome}» non trovato in tailwind.config.ts`);
-    return m[1]!;
-  }
-
-  /** Luminanza relativa secondo WCAG 2.1. */
-  function luminanza(hex: string): number {
-    const canali = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-    const [r, g, b] = canali.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
-  }
-
-  function contrasto(a: string, b: string): number {
-    const [x, y] = [luminanza(a), luminanza(b)];
-    return (Math.max(x!, y!) + 0.05) / (Math.min(x!, y!) + 0.05);
-  }
-
-  const BIANCO = '#ffffff';
-
   it('il testo bianco sopra l’accento raggiunge il minimo', () => {
     const r = contrasto(esadecimale('accent'), BIANCO);
     expect(r, `accento a ${r.toFixed(2)}:1 contro bianco`).toBeGreaterThanOrEqual(4.5);
@@ -143,6 +150,100 @@ describe('il rosso si legge', () => {
     // Erano scritti a mano in due file: il giorno in cui uno dei due cambia,
     // l'altro resta indietro senza che nessuno se ne accorga.
     expect(leggi('app/globals.css')).toContain(`outline: 2px solid ${esadecimale('accent')}`);
+  });
+});
+
+describe('l’inchiostro è caldo come il fondo', () => {
+  // ---------------------------------------------------------------------------
+  // Il fondo è crema, l'inchiostro del marchio è caldo — e ogni grigio a
+  // schermo era quello di serie di Tailwind, che tende al blu. Non è un
+  // capriccio: i grigi freddi su fondo caldo contrastano *meno*, e
+  // `gray-500` — il colore di tutto il testo secondario — stava a 4,56:1,
+  // sul filo del minimo.
+  //
+  // Come per il rosso, qui i numeri si RICALCOLANO dal file. Il test non
+  // custodisce dieci esadecimali: custodisce le proprietà che li rendono una
+  // scala — che sia ordinata, che i gradini da testo passino il minimo, e che
+  // il gradino del testo secondario batta davvero il grigio che sostituisce.
+  // ---------------------------------------------------------------------------
+
+  const GRADINI = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+  const inchiostro = (n: number) => esadecimale(String(n));
+
+  it('è una scala: dal chiaro allo scuro, senza inversioni', () => {
+    // Una scala che non è ordinata non è una scala: chi sceglie «un grigio più
+    // scuro» prendendo il numero più alto si ritroverebbe con uno più chiaro.
+    const luminanze = GRADINI.map(inchiostro).map(luminanza);
+    for (let i = 1; i < luminanze.length; i++) {
+      expect(
+        luminanze[i]!,
+        `ink-${GRADINI[i]} non è più scuro di ink-${GRADINI[i - 1]}`,
+      ).toBeLessThan(luminanze[i - 1]!);
+    }
+  });
+
+  it('i gradini da testo passano il minimo sul crema', () => {
+    // Dal 500 in su si scrive. Sotto sono bordi, fondi e decorazione.
+    for (const n of [500, 600, 700, 800, 900]) {
+      const r = contrasto(inchiostro(n), CREMA);
+      expect(r, `ink-${n} a ${r.toFixed(2)}:1 sul crema`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('il testo secondario contrasta più del grigio freddo che sostituisce', () => {
+    // È il gradino che conta: copre quasi trecento punti del prodotto. Se un
+    // giorno qualcuno lo schiarisce «per estetica», il cambio deve costare un
+    // test rosso, non passare inosservato.
+    const GRAY_500 = '#6b7280';
+    const nuovo = contrasto(inchiostro(500), CREMA);
+    expect(
+      nuovo,
+      `ink-500 a ${nuovo.toFixed(2)}:1 contro i ${contrasto(GRAY_500, CREMA).toFixed(2)}:1 di gray-500`,
+    ).toBeGreaterThan(contrasto(GRAY_500, CREMA));
+  });
+
+  it('il fondo e i bordi restano chiari abbastanza da starci sotto', () => {
+    // L'altro capo della scala. `ink-50` e `ink-100` sono superfici: se
+    // scuriscono, il testo che ci sta sopra — nero d'inchiostro — smette di
+    // essere il contrasto che abbiamo verificato altrove.
+    for (const n of [50, 100]) {
+      const r = contrasto(inchiostro(n), inchiostro(900));
+      expect(r, `ink-900 su ink-${n} a ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(7);
+    }
+  });
+
+  it('nel prodotto non è rimasto un grigio freddo', () => {
+    // Erano 641 usi contro 54 dell'inchiostro di marca. Ora sono zero, e questa
+    // è l'unica riga che glielo impedisce di tornare: la sostituzione è stata
+    // meccanica, quindi il ritorno lo sarebbe altrettanto — basta un `text-
+    // gray-500` copiato da un esempio trovato online.
+    //
+    // Le altre tinte di serie (rosso, ambra, smeraldo, blu, viola) restano:
+    // quelle sono semantiche, dicono uno stato. Il grigio no: il grigio è il
+    // neutro, e il nostro neutro è caldo.
+    const colpevoli: string[] = [];
+    for (const cartella of ['app', 'components']) {
+      for (const f of fileTsx(join(RADICE, cartella))) {
+        for (const riga of senzaCommenti(f.src).split('\n')) {
+          if (/\b(text|bg|border|ring|divide|from|to|via|placeholder)-(gray|slate|zinc|neutral|stone)-\d00\b/.test(riga)) {
+            colpevoli.push(`${f.nome}: ${riga.trim().slice(0, 70)}`);
+          }
+        }
+      }
+    }
+    expect(colpevoli).toEqual([]);
+  });
+
+  it('sul fondo scuro dell’intestazione si usa il capo chiaro della scala', () => {
+    // La scala va letta al contrario quando il fondo è `bg-brand`: lì `ink-500`
+    // sta sotto il 3:1. L'etichetta «crediti» ci era finita proprio così.
+    const header = senzaCommenti(leggi('app/app/layout.tsx'));
+    const intestazione = header.slice(header.indexOf('<header'), header.indexOf('</header>'));
+    const cupi = [...intestazione.matchAll(/text-ink-(\d00)/g)].map((m) => Number(m[1]));
+    for (const n of cupi) {
+      const r = contrasto(inchiostro(n), esadecimale('DEFAULT'));
+      expect(r, `text-ink-${n} sull'intestazione scura: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 
