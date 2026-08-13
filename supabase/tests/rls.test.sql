@@ -67,6 +67,21 @@ values ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaa
 insert into brand_profiles (id, organization_id, name)
 values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Tono Org A');
 
+-- Un lotto, un abbonamento e un contatore per ciascuna organizzazione: quanti
+-- crediti ha un cliente, fino a quando ha pagato e quanto ha usato l'assistente
+-- sono tre cose che si leggono in casa propria e in nessun'altra.
+insert into credit_lots (id, organization_id, source, granted, expires_at) values
+  ('a1a1a1a1-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'pack', 50, now() + interval '90 days'),
+  ('b1b1b1b1-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'pack', 50, now() + interval '90 days');
+
+insert into subscriptions (organization_id, stripe_subscription_id, status, current_period_start, current_period_end) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'sub_a', 'active', now() - interval '1 day', now() + interval '29 days'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'sub_b', 'active', now() - interval '1 day', now() + interval '29 days');
+
+insert into assistant_counters (organization_id, cycle_start, cycle_end, requests) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', date_trunc('month', now()), date_trunc('month', now()) + interval '1 month', 7),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', date_trunc('month', now()), date_trunc('month', now()) + interval '1 month', 9);
+
 -- =====================================================================
 -- TEST 1: user A NON puo' vedere i batch di Org B
 -- =====================================================================
@@ -328,6 +343,69 @@ begin
     when insufficient_privilege or check_violation then
       raise notice 'OK T11: i preset di un''altra organizzazione non si vedono e non si creano';
   end;
+end $$;
+
+-- =====================================================================
+-- TEST 12: i lotti, l'abbonamento e i contatori si leggono solo in casa
+-- =====================================================================
+-- Non è un dettaglio: qui dentro c'è quanto ha comprato un cliente, quando
+-- scade e quanto sta usando il prodotto. È il genere di riga che un concorrente
+-- pagherebbe per vedere.
+do $$
+declare
+  miei int;
+  altrui int;
+begin
+  select count(*) into miei from credit_lots where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  select count(*) into altrui from credit_lots where organization_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  if miei <> 1 then raise exception 'FALLITO T12: user A non vede i propri lotti (%)', miei; end if;
+  if altrui <> 0 then raise exception 'FALLITO T12: user A vede % lotti di Org B', altrui; end if;
+
+  select count(*) into miei from subscriptions where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  select count(*) into altrui from subscriptions where organization_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  if miei <> 1 then raise exception 'FALLITO T12: user A non vede il proprio abbonamento (%)', miei; end if;
+  if altrui <> 0 then raise exception 'FALLITO T12: user A vede l''abbonamento di Org B'; end if;
+
+  select count(*) into miei from assistant_counters where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  select count(*) into altrui from assistant_counters where organization_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  if miei <> 1 then raise exception 'FALLITO T12: user A non vede il proprio contatore (%)', miei; end if;
+  if altrui <> 0 then raise exception 'FALLITO T12: user A vede il contatore di Org B'; end if;
+
+  raise notice 'OK T12: lotti, abbonamento e contatori restano dentro l''organizzazione';
+end $$;
+
+-- =====================================================================
+-- TEST 13: e non si scrivono da fuori
+-- =====================================================================
+-- Un lotto lo crea chi ha incassato, non chi ha un account: senza questo, un
+-- utente si regala 10.000 crediti con una `insert`.
+do $$
+declare
+  toccate int;
+begin
+  begin
+    insert into credit_lots (organization_id, source, granted)
+    values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'manual', 10000);
+    raise exception 'FALLITO T13: un utente si è concesso 10.000 crediti';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  update credit_lots set granted = 9999 where id = 'a1a1a1a1-0000-0000-0000-000000000001';
+  get diagnostics toccate = row_count;
+  if toccate <> 0 then raise exception 'FALLITO T13: modificate % righe di credit_lots', toccate; end if;
+
+  update subscriptions set status = 'active', current_period_end = now() + interval '10 years'
+  where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  get diagnostics toccate = row_count;
+  if toccate <> 0 then raise exception 'FALLITO T13: prolungato l''abbonamento da authenticated'; end if;
+
+  update assistant_counters set allowance_used = 0
+  where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  get diagnostics toccate = row_count;
+  if toccate <> 0 then raise exception 'FALLITO T13: azzerato il contatore dell''assistente'; end if;
+
+  raise notice 'OK T13: crediti, abbonamento e contatori non si scrivono da un account';
 end $$;
 
 -- ---------------------------------------------------------------------

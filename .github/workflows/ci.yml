@@ -108,6 +108,18 @@ jobs:
       - name: Regole di accesso (RLS)
         run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.test.sql
 
+      # I crediti sono l'unica parte del prodotto dove uno sbaglio si misura in
+      # euro: qui girano i lotti, le scadenze, le prenotazioni e la simulazione
+      # di tre organizzazioni su tre mesi.
+      - name: Crediti, lotti e scadenze
+        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/crediti.test.sql
+
+      # Le quattro cifre su cui si decide il prezzo. Girano per ultime perché
+      # pretendono un database senza dati: le altre due suite finiscono in
+      # `rollback` e non ne lasciano, ma l'ordine lo rende evidente.
+      - name: Le quattro cifre (telemetria)
+        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/telemetria.test.sql
+
   # ---------------------------------------------------------------------------
   # La suite del browser.
   #

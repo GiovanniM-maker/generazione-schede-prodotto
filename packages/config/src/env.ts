@@ -62,7 +62,10 @@ export const serverEnvSchema = z
     MAX_IMAGES_PER_BATCH: numberFromString(300),
     MAX_PRODUCTS_PER_BATCH: numberFromString(500),
 
-    WELCOME_CREDITS: numberFromString(3),
+    // Dieci, perché è quello che la pagina dei prezzi promette. Erano tre, e
+    // una promessa in vetrina che il prodotto non mantiene è la peggiore delle
+    // bugie a schermo. Scadono dopo trenta giorni (vedi `grant_welcome_credits`).
+    WELCOME_CREDITS: numberFromString(10),
     MAX_SAMPLE_REGENERATIONS: numberFromString(5),
     MANUAL_REGEN_CONSUMES_CREDIT: boolFromString.default('false'),
 
