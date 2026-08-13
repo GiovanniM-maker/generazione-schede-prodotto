@@ -157,7 +157,15 @@ describe('arrivare al contenuto', () => {
     expect(layout).toMatch(/sr-only focus:not-sr-only/);
     // Il bersaglio deve poter ricevere il fuoco, altrimenti il salto sposta la
     // vista ma non il punto di lettura.
-    expect(layout).toMatch(/id="contenuto" tabIndex=\{-1\}/);
+    //
+    // Chiedeva le due cose ADIACENTI, sulla stessa riga: bastava mandare a capo
+    // gli attributi di `<main>` — cosa che ho fatto aggiungendo una classe — per
+    // far diventare rosso un test senza che niente si fosse rotto. La proprietà
+    // è che stiano sullo stesso elemento, non che stiano sulla stessa riga.
+    const main = layout.match(/<main[\s\S]*?>/)?.[0] ?? '';
+    expect(main, 'nessun <main> nel guscio').not.toBe('');
+    expect(main).toMatch(/id="contenuto"/);
+    expect(main).toMatch(/tabIndex=\{-1\}/);
   });
 });
 

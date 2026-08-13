@@ -236,6 +236,16 @@ const STEP_TOURS: Record<number, TourStep[]> = {
 const SPREADSHEET_STEPS = new Set([7, 8]);
 
 /**
+ * I passi in cui non si compila, si guarda: lì il guscio si allarga.
+ *
+ * È il 5 e basta. Il 7 e l'8 parlano anche loro del foglio, ma con dei menu a
+ * tendina — un menu largo 1600 px non si sceglie meglio. Il 5 invece mostra il
+ * foglio vero, ed è il momento in cui si verifica che il file sia stato letto
+ * giusto: in 768 px se ne vedevano tre colonne su dodici.
+ */
+const PASSI_DA_GUARDARE = new Set([5]);
+
+/**
  * Messaggio per un guaio di rete durante una server action.
  *
  * Senza questo l'errore restava un `Failed to fetch` inglese, o peggio: la
@@ -1076,8 +1086,20 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Il wizard vive in un guscio largo come tutto il flusso di un batch, così il
   // titolo non salta di lato fra un passo e l'altro. Il modulo però resta
   // stretto: una riga di modulo lunga 1150 px si compila peggio, non meglio.
+  //
+  // Con un'eccezione: il passo che mostra il foglio caricato. Lì non si compila
+  // niente, si GUARDA — è il momento in cui si verifica che il file sia stato
+  // letto giusto, e mostrarlo in 768 px vuol dire mostrarne tre colonne su
+  // dodici e chiedere di fidarsi del resto. Le colonne di un listino non si
+  // accorciano perché la finestra è stretta.
   return (
-    <div className="max-w-3xl space-y-6">
+    <div
+      className={cn(PASSI_DA_GUARDARE.has(stepId) ? 'max-w-none' : 'max-w-3xl', 'space-y-6')}
+      // Lo stesso segnale che usa `PageShell`: il guscio dell'app lo legge con
+      // `:has()` e allarga sé stesso e l'intestazione. Il wizard non è dentro
+      // un `PageShell` che possa chiederlo per lui, quindi lo chiede da sé.
+      data-larghezza={PASSI_DA_GUARDARE.has(stepId) ? 'piena' : undefined}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <ProgressBar steps={activeSteps} activeIndex={activeIndex} totaleNoto={sourceMode !== null} />

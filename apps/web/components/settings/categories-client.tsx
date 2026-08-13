@@ -195,7 +195,7 @@ export function CategoriesClient({
             Nessuna categoria trovata.
           </div>
         ) : (
-          <Table>
+          <Table scorrevole>
             <THead>
               <TR>
                 <TH>Nome</TH>

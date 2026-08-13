@@ -222,3 +222,101 @@ test.describe('i comandi di una riga si raggiungono sempre', () => {
     }
   });
 });
+
+test.describe('i dati respirano', () => {
+  // ---------------------------------------------------------------------------
+  // La tabella dei risultati vuole 1314 px. Ne riceveva 1102, perché il guscio
+  // dell'app è fisso a `max-w-6xl` — e quel numero non dipende dallo schermo.
+  // Misurato a 1280, 1440, 1920 e 2560: **scorreva di lato di 212 px a tutte e
+  // quattro le larghezze**, identiche. Su un monitor da 2560 restavano 1408 px
+  // di margine vuoto ai lati di una tabella che scorreva.
+  //
+  // E ogni cella misurata era troncata — sei su sei: nomi di prodotto,
+  // titoli, descrizioni. Non «qualcuna a volte»: tutte.
+  //
+  // Questo test guarda la proprietà, non il numero: su uno schermo largo la
+  // pagina dei dati deve prendersi più spazio della pagina di lettura accanto,
+  // e la tabella deve starci dentro.
+  // ---------------------------------------------------------------------------
+
+  test('su uno schermo largo i risultati prendono più spazio di una pagina di lettura', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 1000 });
+
+    await page.goto('/app/batches', { waitUntil: 'networkidle' });
+    const lettura = await page.evaluate(() => document.querySelector('main')!.clientWidth);
+
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(300);
+    const dati = await page.evaluate(() => document.querySelector('main')!.clientWidth);
+
+    expect(dati, `i dati hanno ${dati}px, la lettura ${lettura}px`).toBeGreaterThan(lettura);
+
+    // E l'intestazione si allarga con loro: un logo allineato a 1152 sopra una
+    // tabella che parte da 1600 sono due colonne di lettura invece di una.
+    const scarto = await page.evaluate(() => {
+      const barra = document.querySelector('header > div')!.getBoundingClientRect();
+      const contenuto = document.querySelector('main')!.getBoundingClientRect();
+      return Math.abs(barra.left - contenuto.left);
+    });
+    expect(scarto, `intestazione e contenuto disallineati di ${scarto}px`).toBeLessThanOrEqual(2);
+  });
+
+  test('a 1920 la tabella dei risultati ci sta, senza scorrere e senza troncare', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 1000 });
+    await page.goto(`/app/batches/${scenario.batchId}/results`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(300);
+
+    const m = await page.evaluate(() => {
+      const tab = document.querySelector('table');
+      if (!tab) return null;
+      const scatola = tab.parentElement as HTMLElement;
+      const troncate: string[] = [];
+      for (const td of document.querySelectorAll('tbody td')) {
+        const e = td as HTMLElement;
+        if (e.scrollWidth > e.clientWidth + 1) {
+          troncate.push(`«${(e.textContent || '').trim().slice(0, 24)}» ${e.clientWidth}<${e.scrollWidth}`);
+        }
+      }
+      return { diLato: scatola.scrollWidth - scatola.clientWidth, troncate };
+    });
+
+    expect(m, 'nessuna tabella nei risultati').not.toBeNull();
+    expect(m!.diLato, `la tabella scorre ancora di ${m!.diLato}px`).toBeLessThanOrEqual(0);
+    expect(m!.troncate, 'celle troncate con lo spazio disponibile').toEqual([]);
+  });
+
+  test('le intestazioni di colonna non se ne vanno con lo scorrimento', async ({ page }) => {
+    // Sulla pagina degli attributi, arrivati a metà, la testa stava a −516 px e
+    // sotto restavano 1878 px di righe: si leggeva una colonna di valori senza
+    // sapere di quale colonna si trattasse. E in una schermata di
+    // configurazione le colonne si somigliano tutte.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/app/settings/attributes', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+
+    const prima = await page.evaluate(() => document.querySelectorAll('tbody tr').length);
+    if (prima < 12) test.skip();
+
+    // Si scorre DENTRO il riquadro della tabella, che è chi scorre davvero.
+    const stato = await page.evaluate(async () => {
+      const tab = document.querySelector('table')!;
+      const scatola = tab.parentElement as HTMLElement;
+      scatola.scrollTop = scatola.scrollHeight;
+      await new Promise((r) => setTimeout(r, 150));
+      const th = tab.querySelector('thead th')!.getBoundingClientRect();
+      const sr = scatola.getBoundingClientRect();
+      return {
+        scorso: scatola.scrollTop,
+        restaSotto: scatola.scrollHeight - scatola.clientHeight - scatola.scrollTop,
+        testaDentro: th.top >= sr.top - 2 && th.bottom <= sr.bottom + 2,
+      };
+    });
+
+    expect(stato.scorso, 'il riquadro della tabella non scorre').toBeGreaterThan(100);
+    expect(stato.testaDentro, 'le intestazioni sono uscite dal riquadro').toBe(true);
+  });
+});

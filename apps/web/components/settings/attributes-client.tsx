@@ -275,7 +275,7 @@ export function AttributesClient({
             Nessun attributo trovato.
           </div>
         ) : (
-          <Table>
+          <Table scorrevole>
             <THead>
               <TR>
                 <TH>Nome</TH>

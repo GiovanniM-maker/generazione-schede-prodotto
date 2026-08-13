@@ -709,11 +709,84 @@ nome non esisteva più in nessun file, quindi il test passava **per assenza di
 bersaglio**, non per assenza di difetto. Ora copre entrambi i quarti gradini —
 `ink-400` sta a 3,48:1, meglio del 2,4 di prima, sempre sotto il minimo.
 
+### 9.4 Far respirare i dati — **✔ fatto**
+
+Prima di toccare qualcosa, la misura. La tabella dei risultati vuole **1314 px**
+e ne riceveva **1102**, perché il guscio dell'app è fisso a `max-w-6xl` — e quel
+numero non dipende dallo schermo. Misurata a 1280, 1440, 1920 e 2560:
+
+| schermo | contenuto | tabella | scorre di lato | celle troncate |
+|---:|---:|---:|---:|---:|
+| 1280 | 1152 | 1314 | **212 px** | 6 su 6 |
+| 1440 | 1152 | 1314 | **212 px** | 6 su 6 |
+| 1920 | 1152 | 1314 | **212 px** | 6 su 6 |
+| 2560 | 1152 | 1314 | **212 px** | 6 su 6 |
+
+Quattro numeri identici: su un monitor da 2560 restavano **1408 px di margine
+vuoto** ai lati di una tabella che scorreva. E ogni cella misurata su dati veri
+era troncata — nomi di prodotto, titoli, descrizioni. Non «qualcuna a volte»:
+tutte, la più stretta a 256 px per un testo che ne voleva 326.
+
+E le intestazioni di colonna se ne andavano: sulla pagina degli attributi,
+arrivati a metà, la testa stava a **−516 px** e sotto restavano **1878 px di
+righe**. Si legge una colonna di valori senza sapere di quale colonna si tratta,
+e in una schermata di configurazione le colonne si somigliano tutte.
+
+Dopo:
+
+| schermo | contenuto | tabella | scorre di lato | celle troncate |
+|---:|---:|---:|---:|---:|
+| 1280 | 1280 | 1394 | 164 px | 1 su 6 |
+| 1440 | 1440 | 1394 | **4 px** | 1 su 6 |
+| 1920 | **1600** | 1550 | **0** | **0** |
+| 2560 | **1600** | 1550 | **0** | **0** |
+
+A 1280 lo schermo davvero non tiene 1394 px, e va bene così: la tabella scorre,
+e la colonna dei comandi resta agganciata al bordo. Da 1440 in su il problema
+non c'è più.
+
+**Come.** Non allargando il guscio per tutti — una pagina di lettura larga 1600
+si legge peggio. La pagina *dichiara* di essere fatta di dati
+(`larghezza="piena"` su `PageShell`, che mette `data-larghezza="piena"`), e il
+guscio se ne accorge con `:has()`. Così questo file non deve sapere quali pagine
+sono tabelle, e chi scrive una pagina non deve sapere come è fatto il guscio.
+Si allargano **insieme intestazione e contenuto**: con una sola delle due, il
+logo resterebbe allineato a 1152 sopra una tabella che parte da 1600 — due
+colonne di lettura invece di una.
+
+Lo stesso segnale lo usa il wizard, al passo 5 e solo lì: è quello che mostra il
+foglio caricato, cioè il momento in cui si verifica che il file sia stato letto
+giusto, e in 768 px se ne vedevano tre colonne su dodici. Il 7 e l'8 parlano
+anche loro del foglio ma con dei menu a tendina, e un menu largo 1600 px non si
+sceglie meglio.
+
+**Le intestazioni.** Il trucco che *non* funziona è mettere `sticky top-0` sul
+`thead` e basta: il contenitore ha `overflow-x: auto`, il che rende `auto` anche
+l'asse verticale, e la testa si aggancia al bordo di un riquadro che non scorre
+mai per conto suo. Serve che sia il riquadro a scorrere — da qui `scorrevole`,
+un'altezza massima sulle tabelle che possono essere lunghe. Su un elenco corto
+non cambia niente, perché è un massimo e non una misura.
+
+Cinque guardie nel browser e tre unitarie. Le unitarie servono perché il
+meccanismo è fatto di due pezzi in due file che non si citano a vicenda: togli
+uno dei due e non si rompe niente — si torna semplicemente stretti, in silenzio.
+Tutte e otto verificate rimettendo il difetto.
+
+**Una guardia che ho rotto io.** Aggiungendo una classe a `<main>` ho mandato a
+capo i suoi attributi, e il test del «salta al contenuto» è diventato rosso:
+chiedeva `id="contenuto" tabIndex={-1}` *adiacenti, sulla stessa riga*. Non si
+era rotto niente — si era rotta la formattazione che il test aveva scambiato per
+la proprietà. Ora cerca i due attributi dentro lo stesso `<main>`, e continua a
+diventare rosso se se ne toglie uno.
+
 ### Quello che resta, nell'ordine
 
-4. **Far respirare i dati** — larghezza piena sui passi e sulle schermate che
-   mostrano dati veri, intestazioni di tabella fisse, colonne ricalcolate.
 5. **Portare la prova in superficie** — il confronto riga-di-listino/prosa
    nell'apertura della vetrina, la fascia della consegna sopra i risultati, il
    campione composto invece che ingabbiato.
 6. **Le nove pagine che ignorano `PageShell`.**
+
+Rimasto fuori, e detto: le troncature dell'anteprima del foglio nel wizard
+(`160 px` sulle intestazioni di colonna, `200 px` sui valori) non le ho toccate.
+Il guadagno vero lì è passare da 768 a 1550 px di riquadro; ritoccare i due
+limiti senza rimisurare sarebbe stato indovinare.

@@ -247,6 +247,58 @@ describe('l’inchiostro è caldo come il fondo', () => {
   });
 });
 
+describe('quanto spazio prendono i dati', () => {
+  // ---------------------------------------------------------------------------
+  // La verifica vera è nel browser (`e2e/larghezze.spec.ts`), perché il fatto è
+  // una misura: a 1920 la tabella dei risultati ci sta senza scorrere. Ma la
+  // suite del browser non gira in CI, e il meccanismo che la fa stare è fatto
+  // di due pezzi in due file diversi che non si citano a vicenda: la pagina
+  // mette `data-larghezza="piena"`, il guscio lo legge con `:has()`.
+  //
+  // Togli uno dei due e non si rompe niente — si torna semplicemente stretti.
+  // Questi test tengono insieme i due capi.
+  // ---------------------------------------------------------------------------
+
+  const guscio = leggi('app/app/layout.tsx');
+
+  it('il guscio si allarga quando la pagina lo chiede, e l’intestazione con lui', () => {
+    // Due volte, non una: sulla barra e sul contenuto. Con una sola, il logo
+    // resta allineato a 1152 sopra una tabella che parte da 1600 — due colonne
+    // di lettura invece di una.
+    const quante = guscio.match(/group-has-\[\[data-larghezza=piena\]\]:max-w-/g) ?? [];
+    expect(quante.length, 'l’intestazione e il contenuto non si allargano insieme').toBe(2);
+    // `:has()` guarda dentro un antenato: senza `group` sulla radice il
+    // selettore non ha da dove partire.
+    expect(guscio).toMatch(/className="group min-h-screen/);
+  });
+
+  it('qualcuno la chiede davvero', () => {
+    // Un meccanismo che nessuno usa è un meccanismo che nessuno accorge quando
+    // si rompe. I risultati sono la pagina per cui esiste.
+    const risultati = leggi('app/app/batches/[batchId]/results/page.tsx');
+    expect(risultati, 'i risultati non chiedono più la larghezza piena').toMatch(
+      /larghezza="piena"/,
+    );
+    expect(leggi('components/page-shell.tsx')).toMatch(/data-larghezza=/);
+  });
+
+  it('le tabelle lunghe scorrono da sé, se no le intestazioni non tengono', () => {
+    // `sticky top-0` sul `thead` da solo non fa niente: il contenitore ha
+    // `overflow-x: auto`, quindi la testa si aggancia a un riquadro che non
+    // scorre mai per conto suo. Serve l'altezza massima.
+    const tabella = leggi('components/ui/table.tsx');
+    expect(tabella).toMatch(/sticky top-0/);
+    expect(tabella).toMatch(/scorrevole && 'max-h-\[[^']*\] overflow-y-auto'/);
+    for (const f of [
+      'components/results-table.tsx',
+      'components/settings/attributes-client.tsx',
+      'components/settings/categories-client.tsx',
+    ]) {
+      expect(senzaCommenti(leggi(f)), `${f} non scorre da sé`).toMatch(/<Table scorrevole/);
+    }
+  });
+});
+
 describe('dove sta il titolo di una pagina', () => {
   it('tutto il flusso di un batch usa lo stesso guscio', () => {
     // `new` (768) → `input` (1152) → `sample` (768) → `results` (1152): il

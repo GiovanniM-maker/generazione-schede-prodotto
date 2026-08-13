@@ -9,21 +9,34 @@ import { cn } from '@/lib/utils';
 // a ogni «Avanti». Non è un dettaglio estetico: il punto dove si guarda cambia
 // posto mentre si sta leggendo.
 //
-// Le larghezze restano due, ma dichiarate e con un motivo:
+// Le larghezze sono tre, dichiarate e con un motivo:
 //
-//   `larga`  — tutta la misura del guscio. Per le pagine che mostrano tabelle:
-//              lì lo spazio orizzontale è il contenuto.
+//   `larga`  — tutta la misura del guscio (1152). Per la maggior parte delle
+//              pagine.
 //   `stretta`— per le pagine che si leggono e si compilano, dove una riga
 //              lunga il doppio si legge la metà.
+//   `piena`  — il guscio si allarga fino a 1600. Solo per le pagine in cui i
+//              dati SONO il contenuto.
 //
-// **Tutto il flusso di un batch usa `larga`**, comprese le pagine di modulo:
-// dentro, le singole schede si stringono da sole. Così il titolo sta sempre
-// nello stesso punto dall'inizio alla fine del lavoro.
+// **Tutto il flusso di un batch usa almeno `larga`**, comprese le pagine di
+// modulo: dentro, le singole schede si stringono da sole. Così il titolo sta
+// sempre nello stesso punto dall'inizio alla fine del lavoro.
+//
+// `piena` non si mette da sé: mette `data-larghezza="piena"` e il guscio
+// dell'app se ne accorge con `:has()`, allargando **anche l'intestazione**. È
+// l'unico modo per non ritrovarsi col logo allineato a 1152 e la tabella a
+// 1600 — due colonne di lettura invece di una.
+//
+// Serviva perché la tabella dei risultati vuole 1314 px e ne riceveva 1102:
+// scorreva di lato di 212 px **a qualsiasi larghezza di schermo**, da 1280 a
+// 2560. Su un monitor da 2560 restavano 1408 px di margine vuoto ai lati di una
+// tabella che scorreva.
 // ---------------------------------------------------------------------------
 
 const LARGHEZZE = {
   larga: '',
   stretta: 'mx-auto max-w-3xl',
+  piena: '',
 } as const;
 
 export interface PageShellProps {
@@ -46,7 +59,10 @@ export function PageShell({
   children,
 }: PageShellProps) {
   return (
-    <div className={cn(LARGHEZZE[larghezza], className)}>
+    <div
+      className={cn(LARGHEZZE[larghezza], className)}
+      data-larghezza={larghezza === 'piena' ? 'piena' : undefined}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-ink-900">{title}</h1>
