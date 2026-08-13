@@ -644,15 +644,21 @@ function CategoryRecognitionEditor({
       </p>
       {editable ? (
         <>
+          {/* Tre righe, non due.
+              Il segnaposto è un esempio di cosa scrivere, e con due righe se ne
+              vedeva la metà: misurato 76 px di testo dentro 56 px di campo, cioè
+              **20 px tagliati** a 390 e a 1152 (a 768 il riquadro è più largo e
+              ci sta). Un esempio troncato a metà frase insegna peggio di nessun
+              esempio. */}
           <Textarea
             className="mt-2"
-            rows={2}
+            rows={3}
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
               setSaved(false);
             }}
-            placeholder="Es. Tavoletta scura; in etichetta % di cacao alta (70%+) e diciture come «fondente»."
+            placeholder="Es. tavoletta scura; in etichetta «fondente» e % di cacao alta."
           />
           <div className="mt-2 flex items-center gap-2">
             <Button size="sm" onClick={save} disabled={pending || !dirty}>

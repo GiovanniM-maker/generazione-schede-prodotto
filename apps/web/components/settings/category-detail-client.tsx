@@ -254,7 +254,7 @@ function RecognitionHintCard({
               setValue(e.target.value);
               setSaved(false);
             }}
-            placeholder="Es. Tavoletta scura; in etichetta alta % di cacao (70%+) e diciture come «fondente» / «extra fondente»."
+            placeholder="Es. tavoletta scura; in etichetta «fondente» e % di cacao alta."
           />
           <div className="mt-2 flex items-center gap-2">
             <Button size="sm" onClick={save} disabled={pending || !dirty}>
