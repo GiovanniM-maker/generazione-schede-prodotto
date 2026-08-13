@@ -2,8 +2,14 @@
 -- Test RLS (SQL semplice, senza pgTAP).
 -- =====================================================================
 -- Come eseguirlo:
---   psql "$DATABASE_URL" -f supabase/tests/rls.test.sql
--- oppure tramite `supabase db test` (dopo aver applicato le migrazioni + seed).
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls.test.sql
+--
+-- `ON_ERROR_STOP=1` non è un ornamento: senza, psql stampa l'errore e tira
+-- dritto, e lo script esce con successo mentre le prove non sono passate. È
+-- metà del motivo per cui questo file è rimasto rotto per mesi senza che
+-- nessuno lo sapesse; l'altra metà era il `|| true` nel workflow.
+--
+-- Non servono i seed: tutto quello che serve se lo crea qui dentro.
 --
 -- I test girano dentro una singola transazione che viene sempre ROLLBACK-ata,
 -- quindi non lasciano residui. Vengono seminati due utenti in auth.users e due
@@ -40,28 +46,21 @@ values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'owner'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'owner');
 
--- Serve un preset_version per la FK dei batch (usa quello di sistema del seed,
--- oppure creane uno di prova se il seed non e' stato caricato).
-insert into presets (id, owner_organization_id, key, name, category, is_system)
-values ('00000000-0000-0000-0000-0000000000a1', null, 'moda', 'Moda', 'fashion', true)
-on conflict (id) do nothing;
-
-insert into preset_versions (id, preset_id, version, fact_schema_json, content_schema_json,
-  validation_rules_json, inference_policy_json, header_synonyms_json, published_at)
-values ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000a1', 1,
-  '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, now())
-on conflict (preset_id, version) do nothing;
+-- I batch NON hanno più bisogno di un preset: dalla migrazione
+-- `20250101000010_config_model.sql` la colonna `preset_version_id` è nullable e
+-- senza chiave esterna. Qui c'era un `insert into presets (owner_organization_id,
+-- key, category, is_system)` — le colonne del PRIMO modello, che quella stessa
+-- migrazione elimina con `drop table ... cascade`. Il file era rotto da allora,
+-- e non si vedeva perché la CI lo eseguiva con `|| true`.
 
 -- Un batch appartenente a Org B.
-insert into batches (id, organization_id, preset_version_id, name)
+insert into batches (id, organization_id, name)
 values ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-  (select id from preset_versions where preset_id = '00000000-0000-0000-0000-0000000000a1' and version = 1),
   'Batch di Org B');
 
 -- Un batch appartenente a Org A (per il test di lettura positiva).
-insert into batches (id, organization_id, preset_version_id, name)
+insert into batches (id, organization_id, name)
 values ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-  (select id from preset_versions where preset_id = '00000000-0000-0000-0000-0000000000a1' and version = 1),
   'Batch di Org A');
 
 -- Un brand profile di Org A (per il test owner-manage).
@@ -194,6 +193,141 @@ begin
     raise exception 'FALLITO T7: user A ha modificato il brand profile di Org B (righe=%)', affected;
   end if;
   raise notice 'OK T7: user A non puo'' modificare il brand profile di Org B';
+end $$;
+
+
+-- =====================================================================
+-- Il modello di configurazione: settori, categorie, attributi, preset.
+--
+-- È la parte del prodotto nata DOPO questo file, e finora non era coperta da
+-- niente — proprio mentre diventava il posto dove vive il rischio multi-tenant:
+-- una libreria di sistema condivisa da tutti gli inquilini, più le estensioni
+-- di ciascuno.
+--
+-- Le regole da custodire, lette dalle policy e non indovinate:
+--   · le righe di sistema (owner nullo) le legge chiunque sia autenticato;
+--   · le righe di un'organizzazione le legge solo chi ne è membro;
+--   · le righe di sistema **non le modifica nessuno**, perché `update` e
+--     `delete` pretendono `owner_organization_id is not null`;
+--   · e nessuno può crearne di nuove di sistema, per lo stesso motivo su
+--     `insert`.
+-- =====================================================================
+
+reset role;
+reset request.jwt.claims;
+
+-- Un settore, una categoria di sistema e una categoria di Org B.
+insert into sectors (id, key, name)
+values ('55555555-5555-5555-5555-555555555555', 'prova', 'Settore di prova')
+on conflict (id) do nothing;
+
+insert into categories (id, owner_organization_id, sector_id, name)
+values ('66666666-6666-6666-6666-666666666666', null,
+        '55555555-5555-5555-5555-555555555555', 'Categoria di sistema');
+
+insert into categories (id, owner_organization_id, sector_id, name)
+values ('77777777-7777-7777-7777-777777777777', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        '55555555-5555-5555-5555-555555555555', 'Categoria di Org B');
+
+insert into presets (id, organization_id, sector_id, name)
+values ('88888888-8888-8888-8888-888888888888', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        '55555555-5555-5555-5555-555555555555', 'Preset di Org B');
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "11111111-1111-1111-1111-111111111111", "role": "authenticated"}';
+
+-- =====================================================================
+-- TEST 8: la libreria di sistema si legge, quella di un altro no
+-- =====================================================================
+do $$
+declare
+  sistema int;
+  altrui int;
+  settori int;
+begin
+  select count(*) into sistema from categories
+  where id = '66666666-6666-6666-6666-666666666666';
+  if sistema <> 1 then
+    raise exception 'FALLITO T8a: user A non vede la categoria di sistema (count=%)', sistema;
+  end if;
+
+  select count(*) into altrui from categories
+  where id = '77777777-7777-7777-7777-777777777777';
+  if altrui <> 0 then
+    raise exception 'FALLITO T8b: user A vede la categoria di Org B (count=%)', altrui;
+  end if;
+
+  -- Controllo positivo: i settori sono leggibili da tutti. Serve a distinguere
+  -- «RLS funziona» da «non si vede niente comunque»: senza, un database che
+  -- nega tutto passerebbe tutte le prove negative qui sopra.
+  select count(*) into settori from sectors;
+  if settori < 1 then
+    raise exception 'FALLITO T8c: nessun settore visibile: la prova non sta guardando niente';
+  end if;
+
+  raise notice 'OK T8: sistema visibile, roba altrui no, e qualcosa si vede davvero';
+end $$;
+
+-- =====================================================================
+-- TEST 9: la libreria di sistema è di sola lettura PER TUTTI
+-- =====================================================================
+do $$
+declare
+  toccate int;
+begin
+  update categories set name = 'hacked'
+  where id = '66666666-6666-6666-6666-666666666666';
+  get diagnostics toccate = row_count;
+  if toccate <> 0 then
+    raise exception 'FALLITO T9a: modificata la categoria di sistema (righe=%)', toccate;
+  end if;
+
+  delete from categories where id = '66666666-6666-6666-6666-666666666666';
+  get diagnostics toccate = row_count;
+  if toccate <> 0 then
+    raise exception 'FALLITO T9b: cancellata la categoria di sistema (righe=%)', toccate;
+  end if;
+
+  raise notice 'OK T9: la libreria di sistema non si modifica e non si cancella';
+end $$;
+
+-- =====================================================================
+-- TEST 10: nessuno può creare righe di sistema
+-- =====================================================================
+do $$
+begin
+  begin
+    insert into categories (owner_organization_id, sector_id, name)
+    values (null, '55555555-5555-5555-5555-555555555555', 'Finta di sistema');
+    raise exception 'FALLITO T10: creata una categoria di sistema da authenticated';
+  exception
+    when insufficient_privilege or check_violation then
+      raise notice 'OK T10: non si creano categorie di sistema';
+  end;
+end $$;
+
+-- =====================================================================
+-- TEST 11: i preset sono per organizzazione, e basta
+-- =====================================================================
+do $$
+declare
+  visti int;
+begin
+  select count(*) into visti from presets
+  where id = '88888888-8888-8888-8888-888888888888';
+  if visti <> 0 then
+    raise exception 'FALLITO T11a: user A vede il preset di Org B (count=%)', visti;
+  end if;
+
+  begin
+    insert into presets (organization_id, sector_id, name)
+    values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            '55555555-5555-5555-5555-555555555555', 'Preset infilato');
+    raise exception 'FALLITO T11b: user A ha creato un preset dentro Org B';
+  exception
+    when insufficient_privilege or check_violation then
+      raise notice 'OK T11: i preset di un''altra organizzazione non si vedono e non si creano';
+  end;
 end $$;
 
 -- ---------------------------------------------------------------------
