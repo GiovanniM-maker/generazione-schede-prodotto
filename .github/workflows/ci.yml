@@ -21,9 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Nessun `version:` qui: la versione la dice `packageManager` in
+      # package.json, ed è l'unico posto in cui deve stare. Dichiararla anche
+      # qui non era ridondanza innocua — `pnpm/action-setup` ha cominciato a
+      # rifiutarsi di scegliere fra le due, e la CI è rimasta rossa
+      # sull'installazione per un'intera giornata. Il guasto era di
+      # infrastruttura, non di codice: nessun test è mai stato eseguito, quindi
+      # non c'era niente da leggere nel rosso — che è il motivo per cui è
+      # passato inosservato.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
