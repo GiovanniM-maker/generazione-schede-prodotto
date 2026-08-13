@@ -1100,23 +1100,34 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       // un `PageShell` che possa chiederlo per lui, quindi lo chiede da sé.
       data-larghezza={PASSI_DA_GUARDARE.has(stepId) ? 'piena' : undefined}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <ProgressBar steps={activeSteps} activeIndex={activeIndex} totaleNoto={sourceMode !== null} />
-        </div>
-        {STEP_TOURS[stepId] && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTourOpen(true)}
-            aria-label="Rivedi la guida di questo passo"
-            className="shrink-0 text-ink-500"
-          >
-            <HelpCircle className="h-4 w-4" />
-            Guida
-          </Button>
-        )}
-      </div>
+      {/* La barra di avanzamento non cambia più larghezza fra un passo e
+          l'altro.
+          Il pulsante «Guida» c'è solo su alcuni passi, e stava ACCANTO alla
+          barra: dove c'era, la barra misurava 669 px; dove non c'era, 768.
+          Novantanove pixel di differenza su uno strumento che serve a misurare
+          l'avanzamento — la parte colorata si allungava e si accorciava per una
+          ragione che con l'avanzamento non c'entra niente.
+          Ora il pulsante sta nella riga di intestazione della barra, insieme al
+          nome del passo: quella riga è testo, e può cambiare quanto vuole. */}
+      <ProgressBar
+        steps={activeSteps}
+        activeIndex={activeIndex}
+        totaleNoto={sourceMode !== null}
+        azione={
+          STEP_TOURS[stepId] ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTourOpen(true)}
+              aria-label="Rivedi la guida di questo passo"
+              className="-my-1 shrink-0 text-ink-500"
+            >
+              <HelpCircle className="h-4 w-4" />
+              Guida
+            </Button>
+          ) : null
+        }
+      />
 
       {error && (
         <Avviso tono="errore">{error}</Avviso>
@@ -1281,20 +1292,26 @@ function ProgressBar({
   steps,
   activeIndex,
   totaleNoto,
+  azione,
 }: {
   steps: StepDef[];
   activeIndex: number;
   totaleNoto: boolean;
+  /** Un comando che sta con l'intestazione, non con la barra. */
+  azione?: React.ReactNode;
 }) {
   const pct = steps.length > 1 ? Math.round((Math.max(0, activeIndex) / (steps.length - 1)) * 100) : 0;
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-xs text-ink-500">
+      <div className="mb-2 flex min-h-[1.75rem] items-center justify-between gap-2 text-xs text-ink-500">
         <span className="font-medium text-ink-700">
           Passo {Math.max(1, activeIndex + 1)}
           {totaleNoto ? ` di ${steps.length}` : ''}
         </span>
-        <span>{steps[Math.max(0, activeIndex)]?.title}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate">{steps[Math.max(0, activeIndex)]?.title}</span>
+          {azione}
+        </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
         <div className="h-full rounded-full bg-brand-accent transition-all" style={{ width: `${pct}%` }} />

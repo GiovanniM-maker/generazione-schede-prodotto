@@ -133,8 +133,8 @@ inciampa: è `sr-only`, cioè ritagliato a 1×1 finché non riceve il fuoco, e
 qualunque controllo sulle dimensioni lo prende per un difetto. Ora lo saltano
 tutti, per la stessa ragione scritta nello stesso modo.
 
-**§6 — i minori.** Sette voci su dodici corrette, una non riprodotta, quattro
-lasciate con la loro misura.
+**§6 — i minori.** Nove voci su dodici corrette, due non riprodotte, una
+lasciata apposta.
 
 Corrette: le barre di comandi vanno a capo (6.1/6.2 — vedi sotto); i bersagli
 tattili sotto i 24 px non ci sono più, «Cosa significa?» e «Chiudi la guida»
@@ -150,13 +150,40 @@ uso è sbagliato in un modo che nessun test di interfaccia vede (6.12).
 **Non riprodotta:** il piede non ancorato (6.6). Su `/input` a 390 px la pagina
 è più alta dello schermo, quindi non c'è nessun vuoto sotto il piede.
 
-**Lasciate, con la misura:** 6.3 (il pulsante d'aiuto sui link legali), 6.4 (la
-barra di avanzamento che cambia larghezza fra i passi), 6.9 (i segnaposto
-tagliati nelle textarea) e 6.5 — il wizard largo 768 dentro un guscio da 1152.
-Il 6.5 in particolare **non lo correggo apposta**: allargarlo peggiora la
-leggibilità di un modulo, e centrarlo o stringere il guscio rimetterebbe il
-titolo a saltare di lato fra un passo e l'altro, che è esattamente il difetto
-chiuso col §3.1.
+**6.5 non lo correggo apposta** — il wizard largo 768 dentro un guscio da 1152:
+allargarlo peggiora la leggibilità di un modulo, e centrarlo o stringere il
+guscio rimetterebbe il titolo a saltare di lato fra un passo e l'altro, che è
+esattamente il difetto chiuso col §3.1.
+
+**6.4 — la barra di avanzamento. ✔ corretta.** Il pulsante «Guida» c'è solo su
+alcuni passi e stava **accanto** alla barra: dove c'era, la barra misurava
+669 px; dove non c'era, 768. Novantanove pixel di differenza su uno strumento
+che serve a misurare — la parte colorata si allungava e si accorciava per una
+ragione che con l'avanzamento non c'entra niente. Il pulsante è passato dentro
+la barra, nella riga del titolo del passo: quella riga è testo e può cambiare
+quanto vuole. Misurata dopo: **768 px anche col pulsante presente**.
+
+**6.9 — il segnaposto tagliato. ✔ corretta, ed erano due.** Riprodotta con
+precisione: con `rows={2}` il segnaposto vuole 76 px e ne riceve 56, cioè
+**20 px tagliati** a 390 e a 1152 (a 768 il riquadro è più largo e ci sta). È
+l'unica spiegazione che quella casella dà, e se ne leggeva la metà.
+
+Portato a tre righe. E cercando il campo ne è saltato fuori un secondo, uguale,
+nel dettaglio della categoria — con l'esempio già divergente: 84 caratteri
+contro 103. Ora l'esempio è **uno solo e più corto** (63 caratteri), perché a
+320 px la casella è larga 210 e con 84 caratteri restavano ancora 20 px
+nascosti: meglio accorciare l'esempio che alzare il campo dappertutto.
+Misurato a 320, 390, 768 e 1152: **zero nascosti** in tutti e quattro, su
+entrambi i campi.
+
+**6.3 — ✗ non riprodotta.** Il pulsante flottante «Serve aiuto?» non copre
+nessun collegamento legale, a nessuna delle larghezze indicate. Misurato a
+640, 700, 800, 1152 e 1415 px, con la pagina scorsa fino in fondo perché il
+piede arrivi davvero in basso: il pulsante occupa la fascia **440–480 px** e i
+link legali stanno a **347–399**. Si sovrappongono in orizzontale — sono
+entrambi ancorati a destra — ma fra il fondo dei link e la cima del pulsante
+restano fra 41 e 61 px. La spaziatura del piede, cresciuta col 6.7 per portare
+i link a 24 px di area di tocco, ha probabilmente chiuso il caso da sé.
 
 ### Correggendo il §6 ho trovato una regressione mia
 
@@ -926,7 +953,8 @@ limiti senza rimisurare sarebbe stato indovinare.
 Tutte e sei le voci della revisione estetica sono chiuse. Quello che resta è
 elencato qui, per non doverlo ricostruire a memoria.
 
-**Dal §6, quattro voci minori** — 6.3, 6.4, 6.9 aperte; la 6.5 rifiutata
+**Dal §6 non resta niente di aperto:** 6.4 e 6.9 corrette (e la 6.9 era doppia),
+la 6.3 non si riproduce — misurata a cinque larghezze — e la 6.5 è rifiutata
 deliberatamente, col motivo scritto sopra.
 
 **Nel processo, non nel prodotto:**

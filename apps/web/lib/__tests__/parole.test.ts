@@ -282,3 +282,80 @@ describe('le sovrapposizioni si impilano in un ordine solo', () => {
     expect(Number(quota![1]), 'il banner sta alla quota delle sovrapposizioni').toBeLessThan(30);
   });
 });
+
+describe('un esempio si legge per intero', () => {
+  // ---------------------------------------------------------------------------
+  // Il segnaposto del «come si riconosce dalle foto» è un esempio di cosa
+  // scrivere: è l'unica spiegazione che quella casella dà. Con `rows={2}` se ne
+  // vedeva la metà — misurato nel browser, 76 px di testo dentro 56 px di
+  // campo, cioè **20 px tagliati** a 390 e a 1152. Un esempio troncato a metà
+  // frase insegna peggio di nessun esempio.
+  //
+  // Lo stesso campo esiste in DUE posti — il dettaglio del preset e quello
+  // della categoria — e i due esempi avevano già cominciato a divergere: 84
+  // caratteri contro 103. È il modo in cui questi difetti si moltiplicano,
+  // quindi il test tiene insieme le due copie invece di guardarle una per una.
+  // ---------------------------------------------------------------------------
+
+  const FILE = [
+    'components/settings/preset-detail-client.tsx',
+    'components/settings/category-detail-client.tsx',
+  ];
+
+  /** Il segnaposto del campo «come si riconosce», ovunque sia scritto. */
+  function esempi(): { file: string; testo: string; righe: number }[] {
+    const out: { file: string; testo: string; righe: number }[] = [];
+    for (const f of FILE) {
+      const src = senzaCommenti(leggi(f));
+      for (const m of src.matchAll(
+        /rows=\{(\d)\}[\s\S]{0,400}?placeholder="(Es\.[^"]*(?:tavoletta|cacao)[^"]*)"/gi,
+      )) {
+        out.push({ file: f, righe: Number(m[1]), testo: m[2]! });
+      }
+    }
+    return out;
+  }
+
+  it('i due posti dicono lo stesso esempio', () => {
+    const trovati = esempi();
+    expect(trovati.length, 'l’esempio non si trova più: il test non guarda niente').toBe(2);
+    expect(new Set(trovati.map((e) => e.testo)).size, 'due esempi diversi per lo stesso campo').toBe(1);
+  });
+
+  it('e ci sta dentro il campo', () => {
+    // Tre righe, e un esempio corto abbastanza da starci anche a 320 px, dove
+    // la casella è larga 210. Misurato: con 84 caratteri restavano 20 px
+    // nascosti, con 63 nessuno.
+    for (const e of esempi()) {
+      expect(e.righe, `${e.file}: il campo ha ${e.righe} righe`).toBeGreaterThanOrEqual(3);
+      expect(
+        e.testo.length,
+        `${e.file}: l’esempio è lungo ${e.testo.length} caratteri e a 320 px non ci sta`,
+      ).toBeLessThanOrEqual(80);
+    }
+  });
+});
+
+describe('la barra di avanzamento misura solo l’avanzamento', () => {
+  // Il pulsante «Guida» c'è solo su alcuni passi, e stava ACCANTO alla barra:
+  // dove c'era, la barra misurava 669 px; dove non c'era, 768. Novantanove
+  // pixel di differenza su uno strumento che serve a misurare — la parte
+  // colorata si allungava e si accorciava per una ragione che con
+  // l'avanzamento non c'entra niente.
+  const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+
+  it('il comando della guida non le toglie larghezza', () => {
+    // Il pulsante entra dentro la barra, nella riga del titolo del passo, e
+    // non le sta accanto contendendole lo spazio.
+    expect(wizard).toMatch(/<ProgressBar[\s\S]{0,400}azione=\{/);
+    expect(wizard, 'il pulsante è tornato accanto alla barra').not.toMatch(
+      /<ProgressBar[^>]*\/>\s*\}?\s*<\/div>\s*\{STEP_TOURS\[stepId\] && \(/,
+    );
+  });
+
+  it('la barra resta larga quanto il suo contenitore', () => {
+    expect(leggi('components/batch/wizard.tsx')).toMatch(
+      /<div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">/,
+    );
+  });
+});
