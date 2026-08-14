@@ -2,7 +2,17 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { getServerEnv } from '@/lib/env.server';
 import { getServiceClient } from '@/lib/supabase/service';
-import { getStripe, packForPriceId } from '@/lib/stripe';
+import type { TypedClient } from '@app/database';
+import { getStripe, packForPriceId, CHIAVE_ABBONAMENTO } from '@/lib/stripe';
+import {
+  assicuraAbbonamento,
+  fatturaDaAccreditare,
+  idDi,
+  istante,
+  organizzazioneDi,
+  periodoDellaFattura,
+  statoAbbonamento,
+} from '@/lib/abbonamenti';
 import {
   logWrite,
   mustWrite,
@@ -75,7 +85,14 @@ export async function POST(request: Request) {
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (session.payment_status === 'paid') {
+
+      if (session.mode === 'subscription') {
+        // Qui NON si accreditano crediti. L'abbonamento nasce, i crediti li
+        // porta `invoice.paid` — che arriva comunque, anche al primo mese.
+        // Accreditare in tutti e due i posti vorrebbe dire regalare il primo
+        // ciclo a ogni nuovo abbonato.
+        await registraAbbonamentoDalCheckout(service, session);
+      } else if (session.payment_status === 'paid') {
         const orgId = session.metadata?.organization_id;
         let packKey = session.metadata?.pack_key ?? null;
 
@@ -120,6 +137,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // I crediti del mese arrivano qui, e solo qui.
+    if (event.type === 'invoice.paid') {
+      await accreditaCicloDaFattura(service, event.data.object as Stripe.Invoice, eventUuid);
+    }
+
+    // Cambi di stato: disdetta programmata, pagamento fallito, ripresa, fine.
+    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+      await aggiornaStatoAbbonamento(
+        service,
+        event.data.object as Stripe.Subscription,
+        event.type === 'customer.subscription.deleted',
+      );
+    }
+
     // Se la marcatura fallisce l'evento resta 'pending': rispondendo 200
     // Stripe non riproverebbe piu' e la riga resterebbe a mentire per sempre.
     // Chiedere il retry e' sicuro: `apply_credit_purchase` e' idempotente
@@ -144,4 +175,163 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+// ---------------------------------------------------------------------------
+// I tre pezzi dell'abbonamento.
+//
+// Stanno qui sotto e non dentro il `try` perché il corpo della rotta è già
+// lungo, ma la regola è la stessa: se una scrittura fallisce si solleva.
+// L'eccezione arriva al `catch` della rotta, che marca l'evento `failed` e
+// risponde 500 — cioè chiede a Stripe di riprovare. È l'unico modo onesto di
+// gestire un incasso che non si è tradotto in servizio.
+// ---------------------------------------------------------------------------
+
+/** Il checkout ha creato l'abbonamento: si registra, senza accreditare niente. */
+async function registraAbbonamentoDalCheckout(
+  service: TypedClient,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const orgId = await organizzazioneDi(service, {
+    metadata: session.metadata,
+    customerId: idDi(session.customer),
+  });
+  const subId = idDi(session.subscription);
+  if (!orgId || !subId) {
+    // Senza organizzazione o senza abbonamento non c'è niente da scrivere, e
+    // inventare una riga sarebbe peggio del silenzio. Resta la traccia.
+    console.error(`[stripe] checkout abbonamento senza org (${orgId}) o sub (${subId})`);
+    return;
+  }
+
+  const { data: listino } = await service
+    .from('billing_products')
+    .select('credits')
+    .eq('key', CHIAVE_ABBONAMENTO)
+    .maybeSingle();
+
+  const esito = await assicuraAbbonamento(service, {
+    organizationId: orgId,
+    stripeSubscriptionId: subId,
+    stato: 'active',
+    creditiMensili: listino?.credits ?? null,
+    disdettoAFineCiclo: false,
+    canceledAt: null,
+  });
+  if (!esito.ok) throw new Error(`subscriptions.upsert: ${esito.error}`);
+
+  await logWrite('app_events.insert', service.from('app_events').insert({
+    organization_id: orgId,
+    event_name: 'subscription_started',
+    metadata_json: { stripe_subscription_id: subId },
+  }));
+}
+
+/**
+ * La fattura pagata: si chiude il ciclo vecchio e si accredita quello nuovo.
+ *
+ * `roll_subscription_cycle` fa le tre cose in una transazione — aggiorna il
+ * periodo, fa scadere quello che restava, accredita i crediti del mese — e
+ * l'accredito è idempotente sull'evento, quindi una seconda consegna della
+ * stessa fattura non regala 150 crediti.
+ */
+async function accreditaCicloDaFattura(
+  service: TypedClient,
+  fattura: Stripe.Invoice,
+  eventUuid: string,
+): Promise<void> {
+  if (!fatturaDaAccreditare(fattura)) return;
+
+  const subId = idDi((fattura as unknown as { subscription?: unknown }).subscription);
+  if (!subId) return; // fattura non legata a un abbonamento: non ci riguarda
+
+  const orgId = await organizzazioneDi(service, {
+    metadata: fattura.metadata,
+    customerId: idDi(fattura.customer),
+  });
+  if (!orgId) {
+    throw new Error(`fattura ${fattura.id}: nessuna organizzazione per il cliente`);
+  }
+
+  const periodo = periodoDellaFattura(fattura);
+  if (!periodo.inizio || !periodo.fine) {
+    throw new Error(`fattura ${fattura.id}: righe senza periodo, non so quando scadono i crediti`);
+  }
+
+  const { data: listino } = await service
+    .from('billing_products')
+    .select('credits')
+    .eq('key', CHIAVE_ABBONAMENTO)
+    .maybeSingle();
+
+  // La riga può non esistere: `invoice.paid` può arrivare prima del checkout.
+  const esito = await assicuraAbbonamento(service, {
+    organizationId: orgId,
+    stripeSubscriptionId: subId,
+    stato: 'active',
+    inizioPeriodo: periodo.inizio,
+    finePeriodo: periodo.fine,
+    creditiMensili: listino?.credits ?? null,
+  });
+  if (!esito.ok) throw new Error(`subscriptions.upsert: ${esito.error}`);
+
+  await writeOrThrow('crediti.roll_subscription_cycle', service.rpc('roll_subscription_cycle', {
+    org: orgId,
+    stripe_event: eventUuid,
+    period_start: periodo.inizio,
+    period_end: periodo.fine,
+    credits: listino?.credits ?? null,
+  }));
+
+  await logWrite('app_events.insert', service.from('app_events').insert({
+    organization_id: orgId,
+    event_name: 'subscription_renewed',
+    metadata_json: {
+      stripe_invoice_id: fattura.id,
+      amount_paid: fattura.amount_paid,
+      currency: fattura.currency,
+      period_end: periodo.fine,
+    },
+  }));
+}
+
+/** Disdetta programmata, pagamento fallito, ripresa, fine. */
+async function aggiornaStatoAbbonamento(
+  service: TypedClient,
+  sub: Stripe.Subscription,
+  finito: boolean,
+): Promise<void> {
+  const orgId = await organizzazioneDi(service, {
+    metadata: sub.metadata,
+    customerId: idDi(sub.customer),
+  });
+  if (!orgId) {
+    console.error(`[stripe] abbonamento ${sub.id} senza organizzazione`);
+    return;
+  }
+
+  const s = sub as unknown as {
+    current_period_start?: number;
+    current_period_end?: number;
+    cancel_at_period_end?: boolean;
+    canceled_at?: number | null;
+  };
+
+  const esito = await assicuraAbbonamento(service, {
+    organizationId: orgId,
+    stripeSubscriptionId: sub.id,
+    stripePriceId: idDi(sub.items?.data?.[0]?.price),
+    stato: finito ? 'canceled' : statoAbbonamento(sub.status),
+    inizioPeriodo: istante(s.current_period_start),
+    finePeriodo: istante(s.current_period_end),
+    disdettoAFineCiclo: finito ? false : (s.cancel_at_period_end ?? false),
+    canceledAt: istante(s.canceled_at ?? null),
+  });
+  if (!esito.ok) throw new Error(`subscriptions.upsert: ${esito.error}`);
+
+  await logWrite('app_events.insert', service.from('app_events').insert({
+    organization_id: orgId,
+    event_name: finito ? 'subscription_ended' : 'subscription_updated',
+    metadata_json: { status: sub.status, cancel_at_period_end: s.cancel_at_period_end ?? false },
+  }));
 }

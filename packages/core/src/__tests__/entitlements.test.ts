@@ -37,6 +37,7 @@ function diritti(p: Partial<Diritti> = {}): Diritti {
     omaggioFinoAl: null,
     assistente: null,
     pacchetti: PACCHETTI,
+    offertaAbbonamento: null,
     adesso: ADESSO,
     ...p,
   };
@@ -99,6 +100,31 @@ describe('bastano i crediti?', () => {
     expect(e.ok).toBe(false);
     expect(e.frase).toContain('Nessun prodotto idoneo');
     expect(e.frase).not.toMatch(/mancan|pacchetto/i);
+  });
+
+  it('non suggerisce mai un abbonamento a chi voleva finire un batch', () => {
+    // L'abbonamento sta in un campo suo apposta. Se un giorno qualcuno lo
+    // rimettesse fra i pacchetti, davanti a un ammanco di 180 crediti il
+    // prodotto proporrebbe un canone mensile — cioè venderebbe una cosa per
+    // un'altra, nel momento in cui la persona ha fretta e legge poco.
+    const e = verificaCrediti(
+      diritti({
+        saldo: 320,
+        offertaAbbonamento: {
+          chiave: 'subscription',
+          nome: 'Abbonamento mensile',
+          crediti: 150,
+          prezzoCent: 9900,
+          valuta: 'EUR',
+        },
+      }),
+      440,
+    );
+    // Ne mancano 120. L'abbonamento da 150 li coprirebbe ed è più piccolo del
+    // pacchetto da 200: se finisse nell'elenco, verrebbe scelto lui.
+    expect(e.mancano).toBe(120);
+    expect(e.pacchetto?.chiave).toBe('pack_200');
+    expect(e.frase).not.toMatch(/abbonament/i);
   });
 
   it('un credito solo si dice al singolare', () => {

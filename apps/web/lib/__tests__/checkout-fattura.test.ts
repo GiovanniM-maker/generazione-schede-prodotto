@@ -54,6 +54,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/stripe', () => ({
   priceIdForPack: () => 'price_1',
+  CHIAVE_ABBONAMENTO: 'subscription',
   getStripe: () => ({
     customers: {
       create: async (args: Record<string, unknown>) => {

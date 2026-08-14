@@ -63,7 +63,16 @@ export interface Diritti {
   abbonamento: Abbonamento | null;
   omaggioFinoAl: string | null;
   assistente: StatoAssistente | null;
+  /**
+   * Solo i pacchetti, mai l'abbonamento.
+   *
+   * È una separazione che deve restare: `verificaCrediti` sceglie qui dentro
+   * cosa suggerire davanti a un ammanco, e suggerire un canone mensile a chi
+   * voleva finire un batch sarebbe vendere una cosa per un'altra.
+   */
   pacchetti: Pacchetto[];
+  /** L'abbonamento a listino, se è in vendita. */
+  offertaAbbonamento: Pacchetto | null;
   /** L'istante di riferimento, che arriva dal database e non dall'orologio del browser. */
   adesso: string;
 }
