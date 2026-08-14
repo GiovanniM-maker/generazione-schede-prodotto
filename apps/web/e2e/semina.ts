@@ -50,6 +50,24 @@ async function inserisci<T = Record<string, unknown>>(
   return (await risposta.json()) as T[];
 }
 
+
+/** Chiama una funzione SQL con la chiave di servizio. */
+async function chiama(funzione: string, argomenti: Record<string, unknown>): Promise<void> {
+  const { url, service } = config();
+  const risposta = await fetch(`${url}/rest/v1/rpc/${funzione}`, {
+    method: 'POST',
+    headers: {
+      apikey: service,
+      Authorization: `Bearer ${service}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(argomenti),
+  });
+  if (!risposta.ok) {
+    throw new Error(`semina rpc ${funzione}: ${risposta.status} ${await risposta.text()}`);
+  }
+}
+
 /** PATCH su PostgREST, con errore parlante se fallisce. */
 async function aggiorna(percorso: string, patch: Record<string, unknown>): Promise<void> {
   const { url, service } = config();
@@ -270,6 +288,16 @@ export async function seminaScenario(userId: string): Promise<ScenarioSeminato> 
   await inserisci('organization_members', [
     { organization_id: organizationId, user_id: userId, role: 'owner' },
   ]);
+
+  // I crediti di benvenuto, come li riceve chi si iscrive davvero.
+  //
+  // L'organizzazione qui si scrive a mano, senza passare da
+  // `create_organization_for_user`: rapido, e per anni innocuo. Da quando i
+  // crediti hanno una provenienza e una scadenza non lo è più — un'organizzazione
+  // seminata senza un solo credito non è lo stato di nessun cliente, e le pagine
+  // che parlano di crediti verrebbero provate nell'unico caso che non capita
+  // mai.
+  await chiama('grant_welcome_credits', { org: organizationId, amt: 10 });
 
   // Categorie e attributi dell'organizzazione (non di sistema): sono il
   // vocabolario del preset.

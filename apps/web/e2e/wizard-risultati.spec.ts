@@ -381,6 +381,39 @@ test.describe('fatturazione', () => {
     expect(testo).not.toMatch(/acquisto è simulato/i);
     expect(testo).not.toMatch(/senza addebito reale/i);
   });
+
+  test('il saldo dice da dove vengono i crediti e quando scadono', async ({ page }) => {
+    // Un utente appena creato ha i dieci crediti di prova, che scadono fra
+    // trenta giorni. Prima qui c'era un numero solo — «10 crediti» — e le due
+    // domande che uno si fa davvero (da dove vengono, quando se ne vanno) non
+    // avevano risposta da nessuna parte nel prodotto.
+    await page.goto('/app/billing', { waitUntil: 'networkidle' });
+    const testo = await page.locator('main').innerText();
+
+    expect(testo, 'il saldo non dice la provenienza dei crediti').toMatch(/Prova gratuita/i);
+    expect(testo, 'nessuna data di scadenza accanto ai crediti').toMatch(/scade il \d{1,2} \w+ \d{4}/i);
+    expect(testo, 'i crediti in scadenza non sono segnalati').toMatch(/crediti scadono entro 30 giorni/i);
+  });
+
+  test('lo stato dell’assistente è a schermo, e dice che è compreso', async ({ page }) => {
+    // La regola nuova è che l'assistente NON si paga due volte. Se il prodotto
+    // non lo dice, per il cliente la regola non esiste.
+    await page.goto('/app/billing', { waitUntil: 'networkidle' });
+    const testo = await page.locator('main').innerText();
+    expect(testo).toMatch(/L’assistente è compreso/i);
+    expect(testo).toMatch(/100 richieste/);
+  });
+
+  test('la cronologia non parla inglese', async ({ page }) => {
+    // I tipi di movimento sono chiavi tecniche (`welcome`, `subscription_grant`,
+    // `expiry`): finché qualcuno non le traduce, finiscono a schermo così.
+    await page.goto('/app/billing', { waitUntil: 'networkidle' });
+    const testo = await page.locator('main').innerText();
+    for (const chiave of ['welcome', 'purchase', 'subscription_grant', 'expiry', 'admin_adjustment']) {
+      expect(testo, `«${chiave}» è finito a schermo senza traduzione`).not.toContain(chiave);
+    }
+    expect(testo).toMatch(/Benvenuto/);
+  });
 });
 
 test.describe('wizard · non perde il lavoro', () => {

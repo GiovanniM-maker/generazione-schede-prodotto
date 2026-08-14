@@ -636,6 +636,84 @@ begin
   raise notice 'OK T13: l''omaggio è una data, e si prolunga senza cancellare quella prima';
 end $$;
 
+-- =====================================================================
+-- TEST 14: `entitlements` dice tutto, e nell'ordine giusto
+-- =====================================================================
+-- È la fonte unica su cui si disegna l'interfaccia: se sbaglia qui, sbaglia
+-- nell'intestazione, nella pagina della fatturazione e nel controllo prima di
+-- avviare un batch — tutti insieme e allo stesso modo, che è il modo peggiore.
+do $$
+declare
+  org uuid;
+  d jsonb;
+  scaduto uuid;
+  esaurito uuid;
+begin
+  insert into auth.users (id, email) values
+    ('55555555-0000-0000-0000-000000000001', 'diritti@example.com');
+  org := create_organization_for_user('55555555-0000-0000-0000-000000000001', 'Diritti', 'diritti');
+
+  -- Un pacchetto (scade fra un anno), un lotto già scaduto e uno esaurito.
+  perform apply_credit_purchase(org, 50, gen_random_uuid(), 'pack_50');
+  insert into credit_lots (organization_id, source, granted, expires_at)
+  values (org, 'manual', 99, now() - interval '1 day') returning id into scaduto;
+  insert into credit_ledger (organization_id, amount, entry_type, lot_id)
+  values (org, 99, 'admin_adjustment', scaduto);
+
+  -- Un lotto valido ma finito: non ha crediti da mostrare, e una riga «0» in
+  -- un elenco intitolato «i tuoi crediti» è solo un modo di far contare male.
+  insert into credit_lots (organization_id, source, granted, expires_at)
+  values (org, 'manual', 5, now() + interval '200 days') returning id into esaurito;
+  insert into credit_ledger (organization_id, amount, entry_type, lot_id) values
+    (org,  5, 'admin_adjustment', esaurito),
+    (org, -5, 'consumption', esaurito);
+
+  d := entitlements(org);
+
+  -- Il saldo esclude lo scaduto: 10 di prova + 50 comprati.
+  if (d->>'balance')::int <> 60 then
+    raise exception 'FALLITO T14: saldo = %, atteso 60 (lo scaduto non conta)', d->>'balance';
+  end if;
+
+  if jsonb_array_length(d->'lots') <> 2 then
+    raise exception 'FALLITO T14: lotti = %, attesi 2 (lo scaduto non si mostra)',
+      jsonb_array_length(d->'lots');
+  end if;
+
+  -- Nell'ordine in cui si consumano: prima la prova, che scade fra trenta
+  -- giorni, poi il pacchetto, che scade fra dodici mesi.
+  if d->'lots'->0->>'source' <> 'trial' or d->'lots'->1->>'source' <> 'pack' then
+    raise exception 'FALLITO T14: ordine dei lotti sbagliato: % poi %',
+      d->'lots'->0->>'source', d->'lots'->1->>'source';
+  end if;
+  if (d->'lots'->0->>'remaining')::int <> 10 then
+    raise exception 'FALLITO T14: nel lotto di prova risultano % crediti', d->'lots'->0->>'remaining';
+  end if;
+
+  -- L'assistente c'è sempre, anche senza abbonamento: la dotazione vale per
+  -- tutti, e senza questo pezzo l'interfaccia non saprebbe cosa dire.
+  --
+  -- `is null` da solo non basta: un `null` DENTRO il json non è NULL in SQL, e
+  -- il confronto successivo su una chiave assente vale NULL — cioè un `if` che
+  -- non entra e un test che passa proprio quando il pezzo è sparito.
+  if jsonb_typeof(d->'assistant') <> 'object'
+     or coalesce((d->'assistant'->>'allowance')::int, -1) <> 100 then
+    raise exception 'FALLITO T14: stato dell''assistente = %', d->'assistant';
+  end if;
+
+  if d->>'subscription' is not null then
+    raise exception 'FALLITO T14: risulta un abbonamento che non c''è';
+  end if;
+
+  -- `now` viene dal database, non dall'orologio di chi guarda: le scadenze si
+  -- confrontano con quello.
+  if d->>'now' is null then
+    raise exception 'FALLITO T14: manca l''istante di riferimento';
+  end if;
+
+  raise notice 'OK T14: i diritti in una risposta sola, senza gli scaduti e nell''ordine di consumo';
+end $$;
+
 rollback;
 
 do $$ begin raise notice 'TUTTI I TEST DEI CREDITI SUPERATI'; end $$;

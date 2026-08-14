@@ -359,3 +359,34 @@ describe('la barra di avanzamento misura solo l’avanzamento', () => {
     );
   });
 });
+
+describe('i crediti si dicono con le parole del prodotto', () => {
+  const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+
+  it('nessuna «pagina Abbonamento»: si chiama Fatturazione', () => {
+    // Il messaggio di crediti insufficienti mandava «alla pagina Abbonamento».
+    // Quella pagina non esiste: la voce di menu, il titolo e il percorso dicono
+    // tutti Fatturazione. Chi leggeva quella frase cercava una cosa che non c'è
+    // proprio nel momento in cui voleva pagarci.
+    const colpevoli = sorgenti
+      .filter((f) => /pagina Abbonamento/i.test(senzaCommenti(f.src)))
+      .map((f) => f.path);
+    expect(colpevoli).toEqual([]);
+  });
+
+  it('l’ultimo passo controlla i crediti prima di far premere', () => {
+    // La verifica arriva dal server dopo il clic solo come rete di sicurezza
+    // per la corsa fra due batch avviati insieme. Il caso normale — «servono
+    // 500 crediti e ne hai 320» — si vede prima, mentre si guardano le righe.
+    expect(wizard).toMatch(/<ControlloCrediti diritti=\{diritti\} \/>/);
+    expect(wizard, 'il pulsante di avvio non si spegne quando i crediti non bastano').toMatch(
+      /disabled=\{busy \|\| avvioBloccato\}/,
+    );
+  });
+
+  it('quando blocca, dice dove si comprano i crediti', () => {
+    // Un pulsante grigio senza spiegazione è quello che si voleva togliere:
+    // accanto alla ragione ci deve essere la via d'uscita.
+    expect(wizard).toMatch(/href="\/app\/billing"/);
+  });
+});
