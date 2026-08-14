@@ -668,6 +668,8 @@ export interface Database {
         Returns: number;
       };
       record_assistant_request: { Args: { org: string }; Returns: Json };
+      /** Fonte unica di «cosa può fare questa organizzazione». Sola lettura. */
+      entitlements: { Args: { org: string }; Returns: Json };
       queue_send: { Args: { msg: Json }; Returns: number };
       queue_read: { Args: { vt: number; qty: number }; Returns: Json };
       queue_delete: { Args: { msg_id: number }; Returns: boolean };

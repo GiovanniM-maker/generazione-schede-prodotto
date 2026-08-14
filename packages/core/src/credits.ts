@@ -11,6 +11,8 @@ export type CreditEntryType =
   | 'release'
   | 'consumption'
   | 'refund'
+  | 'expiry'
+  | 'subscription_grant'
   | 'admin_adjustment';
 
 export interface LedgerEntry {
@@ -22,6 +24,10 @@ export interface LedgerEntry {
 export const SIGN_CONVENTION: Record<CreditEntryType, 'positive' | 'negative' | 'any'> = {
   purchase: 'positive',
   welcome: 'positive',
+  // I crediti dell'abbonamento accreditano come un acquisto; la scadenza toglie
+  // quello che restava del lotto, quindi è sempre negativa.
+  subscription_grant: 'positive',
+  expiry: 'negative',
   release: 'positive',
   refund: 'positive',
   reservation: 'negative',

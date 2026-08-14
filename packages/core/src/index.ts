@@ -13,6 +13,7 @@ export * from './csvInjection.js';
 export * from './prompt.js';
 export * from './export.js';
 export * from './credits.js';
+export * from './entitlements.js';
 export * from './stateMachine.js';
 export * from './retry.js';
 export * from './schemas.js';

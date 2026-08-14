@@ -16,6 +16,7 @@ import {
   Download,
   ArrowLeft,
   ArrowRight,
+  Coins,
   LifeBuoy,
 } from 'lucide-react';
 import {
@@ -46,6 +47,7 @@ import {
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
+import { verificaCreditiBatch, type VerificaBatchResult } from '@/lib/actions/diritti';
 import {
   startVisualAnalysisAction,
   getVisualAnalysisProgressAction,
@@ -314,6 +316,16 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
    */
   const [passoInCaricamento, setPassoInCaricamento] = useState<number | null>(null);
 
+  /**
+   * Se i crediti bastano, chiesto prima di premere «Avvia generazione».
+   *
+   * `null` finché non si arriva all'ultimo passo: si chiede lì, non prima,
+   * perché fino a quel momento il numero di prodotti idonei cambia sotto i
+   * piedi — l'importazione, la mappatura e l'assegnazione delle categorie lo
+   * spostano tutti.
+   */
+  const [dirittiBatch, setDirittiBatch] = useState<VerificaBatchResult | null>(null);
+
   // Step 1
   const [name, setName] = useState(() => {
     // Precompilato: l'utente pigro può cliccare "Crea e continua" e basta.
@@ -333,6 +345,21 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   //
   // Aspetta anche che i preset siano CARICATI (`null` = ancora in arrivo):
   // aprire e richiudere il fumetto mezzo secondo dopo è peggio che aspettare.
+  // Arrivati all'ultimo passo, si chiede se i crediti bastano. Ogni volta: fra
+  // un tentativo e l'altro possono essere stati spesi altrove — un collega, un
+  // altro batch — e una risposta vecchia qui vale meno di nessuna risposta.
+  useEffect(() => {
+    if (stepId !== 11 || !batchId) return;
+    let vivo = true;
+    setDirittiBatch(null);
+    verificaCreditiBatch(batchId).then((r) => {
+      if (vivo) setDirittiBatch(r);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [stepId, batchId]);
+
   const passoAvviabile = stepId !== 1 || (presets !== null && presets.length > 0);
   useEffect(() => {
     setTourOpen(
@@ -1064,7 +1091,18 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         body: JSON.stringify({ notify: notifyByEmail }),
       });
       if (r.status === 402) {
-        setError('Crediti insufficienti per generare l’intero batch. Acquista crediti dalla pagina Abbonamento.');
+        // Il controllo prima di premere copre quasi tutti i casi. Resta la
+        // corsa: un collega che avvia un altro batch nei secondi in mezzo. La
+        // frase la si richiede al server invece di indovinarla, così dice lo
+        // stesso numero del riquadro qui sopra — e nomina la pagina giusta,
+        // che si chiama Fatturazione e non «Abbonamento».
+        const aggiornato = await verificaCreditiBatch(batchId);
+        setError(
+          aggiornato.ok && !aggiornato.verifica.ok
+            ? `${aggiornato.verifica.frase} Li trovi nella pagina Fatturazione.`
+            : 'I crediti non bastano più: qualcuno ne ha usati mentre stavi per avviare. Controlla il saldo nella pagina Fatturazione.',
+        );
+        setDirittiBatch(aggiornato);
         return;
       }
       if (!r.ok) {
@@ -1209,7 +1247,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         />
       )}
 
-      {stepId === 11 && <Step11 importSummary={importSummary} notifyByEmail={notifyByEmail} setNotifyByEmail={setNotifyByEmail} />}
+      {stepId === 11 && <Step11 importSummary={importSummary} diritti={dirittiBatch} notifyByEmail={notifyByEmail} setNotifyByEmail={setNotifyByEmail} />}
 
       {/* Navigazione — SEMPRE raggiungibile: su mobile resta agganciata in basso
           (con passi lunghi altrimenti bisogna scorrere tutta la pagina). */}
@@ -1260,6 +1298,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           onSources={submitSources}
           onSample={runSample}
           onStart={startGeneration}
+          // Il pulsante resta spento finché la risposta non arriva, e se dice
+          // di no. La ragione è scritta sopra, nel riquadro: un pulsante grigio
+          // senza spiegazione è la cosa che si voleva togliere.
+          avvioBloccato={dirittiBatch != null && (!dirittiBatch.ok || !dirittiBatch.verifica.ok)}
           onNext={nextStep}
         />
       </div>
@@ -1333,6 +1375,7 @@ function StepPrimaryAction({
   onSources,
   onSample,
   onStart,
+  avvioBloccato = false,
   onNext,
 }: {
   stepId: number;
@@ -1343,6 +1386,7 @@ function StepPrimaryAction({
   onSources: () => void;
   onSample: () => void;
   onStart: () => void;
+  avvioBloccato?: boolean;
   onNext: () => void;
 }) {
   const spinner = <Loader2 className="h-4 w-4 animate-spin" />;
@@ -1377,7 +1421,7 @@ function StepPrimaryAction({
   }
   if (stepId === 11) {
     return (
-      <Button onClick={onStart} disabled={busy}>
+      <Button onClick={onStart} disabled={busy || avvioBloccato}>
         {busy ? spinner : <><Sparkles className="h-4 w-4" /> Avvia generazione</>}
       </Button>
     );
@@ -2906,12 +2950,72 @@ function SampleCompleteness({ completeness }: { completeness: Completeness }) {
 // Step 11 — Conferma e avvio.
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Quanti crediti servono, quanti ce ne sono, e cosa fare se non bastano.
+ *
+ * Mostra e spiega: il modo comodo sarebbe spegnere il pulsante e basta, ma un
+ * pulsante grigio non dice quanti crediti mancano né dove si comprano, e chi lo
+ * incontra clicca tre volte prima di rinunciare.
+ */
+function ControlloCrediti({ diritti }: { diritti: VerificaBatchResult | null }) {
+  if (diritti === null) {
+    return (
+      <p className="flex items-center gap-2 text-ink-500">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Controllo i crediti…
+      </p>
+    );
+  }
+
+  // La verifica non è riuscita. Non si finge che vada bene — il pulsante resta
+  // spento — ma nemmeno si inventa un numero.
+  if (!diritti.ok) {
+    return (
+      <Avviso tono="errore">
+        Non sono riuscito a controllare i crediti ({diritti.error}). Ricarica la pagina: avviare
+        senza sapere se bastano vorrebbe dire fermarsi a metà catalogo.
+      </Avviso>
+    );
+  }
+
+  const { verifica, avvisoSoloImmagini } = diritti;
+
+  if (!verifica.ok) {
+    return (
+      <Avviso tono="attenzione">
+        <span className="block font-medium">{verifica.frase}</span>
+        {verifica.mancano > 0 && (
+          <Link
+            href="/app/billing"
+            className="mt-2 inline-flex items-center gap-1 font-medium text-brand-accent underline underline-offset-2"
+          >
+            Vai a Fatturazione <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        )}
+      </Avviso>
+    );
+  }
+
+  return (
+    <>
+      <p className="flex items-start gap-2 text-ink-700">
+        <Coins className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" aria-hidden="true" />
+        <span>{verifica.frase}</span>
+      </p>
+      {avvisoSoloImmagini && <Avviso tono="informazione">{avvisoSoloImmagini}</Avviso>}
+    </>
+  );
+}
+
 function Step11({
   importSummary,
+  diritti,
   notifyByEmail,
   setNotifyByEmail,
 }: {
   importSummary: ImportResultV2 | null;
+  diritti: VerificaBatchResult | null;
   notifyByEmail: boolean;
   setNotifyByEmail: (v: boolean) => void;
 }) {
@@ -2939,6 +3043,14 @@ function Step11({
             </div>
           )}
           <p>Verrà riservato 1 credito per ogni prodotto idoneo. La generazione avviene in background: puoi chiudere la pagina.</p>
+
+          {/* I crediti, prima di premere.
+
+              Prima questo riquadro non c'era e la risposta arrivava dal
+              server dopo il clic: un 402 con scritto «Crediti insufficienti»
+              e nient'altro — non quanti ne mancavano, non cosa comprare, e
+              un rimando a una pagina chiamata col nome sbagliato. */}
+          <ControlloCrediti diritti={diritti} />
           <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-ink-200 bg-ink-50 p-3">
             <input
               type="checkbox"

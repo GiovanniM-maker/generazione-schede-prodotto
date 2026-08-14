@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { Coins, Info, Beaker } from 'lucide-react';
+import { Info, Beaker } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
 import { getServerEnv } from '@/lib/env.server';
-import { getCreditBalance } from '@/lib/credits';
+import { leggiDiritti } from '@/lib/entitlements';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { formatDate } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,19 +13,10 @@ import { PurchaseButton } from '@/components/purchase-button';
 import { PageShell } from '@/components/page-shell';
 import { DatiFatturazioneForm } from '@/components/billing/dati-fatturazione-form';
 import { leggiDatiFatturazione } from '@/lib/actions/fatturazione';
-import { formattaPrezzo, prezzoPerCredito } from '@app/core';
+import { formattaPrezzo, prezzoPerCredito, NOME_MOVIMENTO } from '@app/core';
+import { QuadroCrediti } from '@/components/billing/quadro-crediti';
 
 export const dynamic = 'force-dynamic';
-
-const ENTRY_LABELS: Record<string, string> = {
-  purchase: 'Acquisto',
-  welcome: 'Benvenuto',
-  reservation: 'Prenotazione',
-  release: 'Rilascio',
-  consumption: 'Consumo',
-  refund: 'Rimborso',
-  admin_adjustment: 'Rettifica',
-};
 
 interface PackRow {
   key: string;
@@ -53,14 +44,8 @@ export default async function BillingPage({
   if (!org) redirect('/app/onboarding');
   const isOwner = org.role === 'owner';
 
-  const credits = await getCreditBalance(org.organizationId);
+  const diritti = await leggiDiritti(org.organizationId);
   const supabase = await createSupabaseServerClient();
-
-  const { data: packsData } = await supabase
-    .from('billing_products')
-    .select('key, name, credits, price_cents, currency')
-    .eq('active', true)
-    .order('credits', { ascending: true });
 
   const { data: ledgerData } = await supabase
     .from('credit_ledger')
@@ -69,7 +54,16 @@ export default async function BillingPage({
     .order('created_at', { ascending: false })
     .limit(20);
 
-  const packs = (packsData ?? []) as PackRow[];
+  // Il listino arriva insieme al resto: una fonte sola per «cosa si può
+  // comprare», la stessa che il wizard usa per dire quale pacchetto copre
+  // l'ammanco. Due letture separate prima o poi divergono.
+  const packs: PackRow[] = diritti.pacchetti.map((p) => ({
+    key: p.chiave,
+    name: p.nome,
+    credits: p.crediti,
+    price_cents: p.prezzoCent,
+    currency: p.valuta,
+  }));
   const ledger = (ledgerData ?? []) as LedgerRow[];
   const fatturazione = await leggiDatiFatturazione();
 
@@ -89,29 +83,18 @@ export default async function BillingPage({
         </Avviso>
       )}
 
-      {/* Saldo */}
-      <Card>
-        <CardContent className="flex items-center justify-between p-6">
-          <div>
-            <p className="text-sm text-ink-500">Saldo disponibile</p>
-            <p className="mt-1 text-3xl font-bold text-ink-900">
-              {credits}{' '}
-              <span className="text-base font-normal text-ink-500">
-                crediti
-              </span>
-            </p>
-          </div>
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
-            <Coins className="h-6 w-6" />
-          </span>
-        </CardContent>
-      </Card>
+      <QuadroCrediti diritti={diritti} />
 
       {/* Pacchetti */}
-      <div>
+      <div id="pacchetti">
         <h2 className="text-lg font-semibold text-ink-900">
           Pacchetti di crediti
         </h2>
+        {/* Quanto durano: era l'informazione che mancava, e adesso che i
+            crediti scadono davvero tacerla sarebbe una vendita al buio. */}
+        <p className="mt-1 text-sm text-ink-600">
+          I crediti acquistati valgono dodici mesi dall’acquisto.
+        </p>
         {/* Questo avviso vale SOLO quando la fatturazione è finta. Era scritto
             fisso: in produzione sarebbe rimasto a schermo nel punto in cui si
             incassa, dicendo che non si paga. `ENABLE_MOCK_BILLING` non può
@@ -210,7 +193,7 @@ export default async function BillingPage({
                       </TD>
                       <TD>
                         <Badge tone="gray">
-                          {ENTRY_LABELS[l.entry_type] ?? l.entry_type}
+                          {NOME_MOVIMENTO[l.entry_type] ?? l.entry_type}
                         </Badge>
                       </TD>
                       {/* L'importo è quello pagato allora, non il prezzo di
