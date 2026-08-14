@@ -50,6 +50,10 @@ export const serverEnvSchema = z
     STRIPE_PRICE_PACK_50: z.string().optional().default(''),
     STRIPE_PRICE_PACK_200: z.string().optional().default(''),
     STRIPE_PRICE_PACK_500: z.string().optional().default(''),
+    // Il prezzo ricorrente dell'abbonamento. Vuoto finché non viene creato su
+    // Stripe: senza, l'offerta non si mostra invece di mandare su un checkout
+    // che fallisce.
+    STRIPE_PRICE_SUBSCRIPTION: z.string().optional().default(''),
 
     WORKER_CONCURRENCY: numberFromString(3),
     WORKER_POLL_INTERVAL_MS: numberFromString(2000),

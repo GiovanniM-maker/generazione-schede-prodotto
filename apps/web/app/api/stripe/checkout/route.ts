@@ -3,7 +3,7 @@ import type Stripe from 'stripe';
 import { getServerEnv } from '@/lib/env.server';
 import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
-import { getStripe, priceIdForPack } from '@/lib/stripe';
+import { getStripe, priceIdForPack, CHIAVE_ABBONAMENTO } from '@/lib/stripe';
 import {
   logWrite,
   mustWrite,
@@ -101,14 +101,15 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as { packKey?: string };
   const packKey = body.packKey;
-  if (!packKey || !['pack_50', 'pack_200', 'pack_500'].includes(packKey)) {
-    return guastoNostro(`pacchetto fuori elenco: ${String(packKey)}`, 400);
+  if (!packKey || !['pack_50', 'pack_200', 'pack_500', CHIAVE_ABBONAMENTO].includes(packKey)) {
+    return guastoNostro(`voce di listino fuori elenco: ${String(packKey)}`, 400);
   }
+  const abbonamento = packKey === CHIAVE_ABBONAMENTO;
 
   const service = getServiceClient();
   const { data: product } = await service
     .from('billing_products')
-    .select('key, credits, name, price_cents, currency')
+    .select('key, credits, name, price_cents, currency, kind')
     .eq('key', packKey)
     .eq('active', true)
     .single();
@@ -118,6 +119,13 @@ export async function POST(request: Request) {
   // anche la porta di servizio.
   if (product.price_cents == null) {
     return guastoNostro(`pacchetto ${packKey} senza price_cents`, 409);
+  }
+
+  // Un abbonamento non si può simulare con un accredito una tantum: ha un
+  // ciclo, un rinnovo e una disdetta. Fingerlo qui vorrebbe dire provare
+  // qualcosa che non è il prodotto.
+  if (abbonamento && env.ENABLE_MOCK_BILLING) {
+    return guastoNostro('abbonamento richiesto con fatturazione simulata', 409);
   }
 
   // --- Mock billing: accredito diretto in modalità test (mai in produzione) ---
@@ -195,6 +203,13 @@ export async function POST(request: Request) {
       state: orgRow?.billing_province ?? undefined,
       country: orgRow?.billing_country ?? 'IT',
     },
+    // I campi italiani sul CLIENTE, non solo sulla singola fattura.
+    //
+    // Un acquisto una tantum ha una fattura sola e la si può decorare al
+    // volo; un abbonamento ne emette una al mese, e quelle nascono dentro
+    // Stripe senza passare da noi. Messi qui valgono per tutte — comprese le
+    // dodici del prossimo anno.
+    invoice_settings: { custom_fields: campiFattura(orgRow) ?? ([] as Stripe.CustomerCreateParams.InvoiceSettings.CustomField[]) },
     // Lo SDI non è un campo nativo di Stripe: viaggia nei metadata del cliente
     // e come campo in chiaro sulla fattura, che è dove serve leggerlo.
     metadata: {
@@ -232,29 +247,47 @@ export async function POST(request: Request) {
   // La partita IVA su Stripe è un oggetto a parte, non un campo del cliente.
   await sincronizzaPartitaIva(stripe, customerId, orgRow?.vat_number ?? null, anagrafica.address.country);
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
+  const comune: Omit<Stripe.Checkout.SessionCreateParams, 'mode'> = {
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${env.NEXT_PUBLIC_APP_URL}/app/billing?success=1`,
     cancel_url: `${env.NEXT_PUBLIC_APP_URL}/app/billing?canceled=1`,
     metadata: { organization_id: org.organizationId, pack_key: packKey },
-    // Senza questo Stripe incassa e basta: la fattura va chiesta, e i campi
-    // italiani vanno scritti sopra perché il commercialista li trovi.
-    invoice_creation: {
-      enabled: true,
-      invoice_data: {
-        custom_fields: campiFattura(orgRow),
-        metadata: { organization_id: org.organizationId, pack_key: packKey },
-      },
-    },
-  });
+  };
+
+  // L'abbonamento fattura da sé a ogni ciclo: `invoice_creation` non si può
+  // usare (Stripe lo rifiuta in modalità `subscription`) e i campi italiani
+  // vanno messi sull'abbonamento, così finiscono su OGNI fattura e non solo
+  // sulla prima. `subscription_data.metadata` è anche l'unico modo di far
+  // arrivare l'id dell'organizzazione sugli eventi di rinnovo, che nascono
+  // dentro Stripe e non portano niente di nostro.
+  const session = abbonamento
+    ? await stripe.checkout.sessions.create({
+        ...comune,
+        mode: 'subscription',
+        subscription_data: {
+          metadata: { organization_id: org.organizationId, pack_key: packKey },
+        },
+      })
+    : await stripe.checkout.sessions.create({
+        ...comune,
+        mode: 'payment',
+        // Senza questo Stripe incassa e basta: la fattura va chiesta, e i campi
+        // italiani vanno scritti sopra perché il commercialista li trovi.
+        invoice_creation: {
+          enabled: true,
+          invoice_data: {
+            custom_fields: campiFattura(orgRow),
+            metadata: { organization_id: org.organizationId, pack_key: packKey },
+          },
+        },
+      });
 
   await logWrite('app_events.insert', service.from('app_events').insert({
     organization_id: org.organizationId,
     user_id: user.id,
     event_name: 'checkout_started',
-    metadata_json: { packKey },
+    metadata_json: { packKey, abbonamento },
   }));
 
   return NextResponse.json({ url: session.url });

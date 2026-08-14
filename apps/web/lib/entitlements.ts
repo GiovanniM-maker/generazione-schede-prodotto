@@ -66,18 +66,25 @@ export const leggiDiritti = cache(async (organizationId: string): Promise<Diritt
     service.rpc('entitlements', { org: organizationId }),
     service
       .from('billing_products')
-      .select('key, name, credits, price_cents, currency')
+      .select('key, name, credits, price_cents, currency, kind')
       .eq('active', true)
       .order('credits', { ascending: true }),
   ]);
 
-  const pacchetti: Pacchetto[] = (listino ?? []).map((p) => ({
-    chiave: p.key,
-    nome: p.name,
-    crediti: p.credits,
-    prezzoCent: p.price_cents ?? null,
-    valuta: p.currency ?? 'EUR',
+  const voci = (listino ?? []).map((p) => ({
+    kind: p.kind,
+    voce: {
+      chiave: p.key,
+      nome: p.name,
+      crediti: p.credits,
+      prezzoCent: p.price_cents ?? null,
+      valuta: p.currency ?? 'EUR',
+    } satisfies Pacchetto,
   }));
+
+  const pacchetti: Pacchetto[] = voci.filter((v) => v.kind !== 'subscription').map((v) => v.voce);
+  const offertaAbbonamento =
+    voci.find((v) => v.kind === 'subscription')?.voce ?? null;
 
   if (error || !data) {
     return {
@@ -87,6 +94,7 @@ export const leggiDiritti = cache(async (organizationId: string): Promise<Diritt
       omaggioFinoAl: null,
       assistente: null,
       pacchetti,
+      offertaAbbonamento,
       adesso: new Date().toISOString(),
     };
   }
@@ -126,6 +134,7 @@ export const leggiDiritti = cache(async (organizationId: string): Promise<Diritt
     omaggioFinoAl: r.comp_until,
     assistente,
     pacchetti,
+    offertaAbbonamento,
     adesso: r.now ?? new Date().toISOString(),
   };
 });

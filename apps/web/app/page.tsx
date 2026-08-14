@@ -58,7 +58,7 @@ async function pacchettiInVendita() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('billing_products')
-    .select('key, credits, price_cents, currency')
+    .select('key, credits, price_cents, currency, kind')
     .eq('active', true)
     .not('price_cents', 'is', null)
     .order('credits', { ascending: true });
@@ -69,9 +69,10 @@ async function pacchettiInVendita() {
     // Almeno nei log deve restare scritto perché.
     console.error('[vetrina] listino non leggibile:', error.message);
   }
-  return (data ?? []).map((p) => {
+  const voci = (data ?? []).map((p) => {
     const d = DESCRIZIONI[p.key] ?? { name: p.key, hint: '' };
     return {
+      kind: p.kind,
       name: d.name,
       hint: d.hint,
       credits: p.credits,
@@ -80,6 +81,15 @@ async function pacchettiInVendita() {
         p.price_cents == null ? null : prezzoPerCredito(p.price_cents, p.credits, p.currency ?? 'EUR'),
     };
   });
+
+  // I pacchetti e l'abbonamento sono due cose, e la griglia ne disegna una.
+  // Senza questa separazione l'abbonamento comparirebbe come quarto pacchetto,
+  // con il nome della sua chiave tecnica al posto del nome — perché in
+  // `DESCRIZIONI` non c'è, e non deve esserci.
+  return {
+    packs: voci.filter((v) => v.kind !== 'subscription'),
+    abbonamento: voci.find((v) => v.kind === 'subscription') ?? null,
+  };
 }
 
 const faq = [
@@ -89,7 +99,7 @@ const faq = [
   },
   {
     q: 'Devo sottoscrivere un abbonamento?',
-    a: 'No. Acquisti pacchetti di crediti quando ti servono. Nessun abbonamento obbligatorio.',
+    a: 'No, e resta così. I pacchetti di crediti si comprano quando servono e valgono dodici mesi. L’abbonamento esiste ed è facoltativo: conviene solo a chi genera abbastanza schede ogni mese da usare tutti i crediti compresi, perché quelli scadono a fine ciclo e non si sommano. Si disdice quando vuoi, dal prodotto.',
   },
   {
     q: 'Che formati posso importare ed esportare?',
@@ -106,7 +116,7 @@ const faq = [
 ];
 
 export default async function LandingPage() {
-  const packs = await pacchettiInVendita();
+  const { packs, abbonamento } = await pacchettiInVendita();
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Header */}
@@ -343,6 +353,7 @@ export default async function LandingPage() {
                 </CardContent>
               </Card>
             ) : (
+            <>
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               {packs.map((p, i) => (
                 <Card
@@ -375,6 +386,19 @@ export default async function LandingPage() {
                 </Card>
               ))}
             </div>
+            {/* L'abbonamento c'è, e si dice — con il suo svantaggio accanto.
+                Tacerlo qui e mostrarlo solo dentro il prodotto vorrebbe dire
+                farlo scoprire a chi ha già deciso. */}
+            {abbonamento && (
+              <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-ink-600">
+                In alternativa c’è l’<strong className="font-medium text-ink-800">abbonamento</strong>:{' '}
+                {abbonamento.prezzo} al mese per {abbonamento.credits} crediti
+                {abbonamento.perCredito && <> ({abbonamento.perCredito} a scheda)</>}. I crediti del
+                mese scadono a fine ciclo e non si sommano, quindi conviene solo se ne usi
+                abbastanza. Si disdice quando vuoi.
+              </p>
+            )}
+            </>
             )}
           </div>
         </section>

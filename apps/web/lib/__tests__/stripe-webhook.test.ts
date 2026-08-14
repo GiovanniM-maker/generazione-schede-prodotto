@@ -27,11 +27,17 @@ interface StatoFinto {
   mock?: boolean;
   /** Quanto ha davvero incassato Stripe (puo' differire dal listino). */
   amountTotal?: number | null;
+  /** Un evento diverso da `checkout.session.completed` in modalita' pagamento. */
+  evento?: { id: string; type: string; data: { object: Record<string, unknown> } };
+  /** L'organizzazione trovata a partire dal cliente Stripe (null = nessuna). */
+  orgDalCliente?: string | null;
+  erroreUpsertAbbonamento?: string;
 }
 
 let stato: StatoFinto = {};
 let rpcChiamate: Array<{ fn: string; args: Record<string, unknown> }> = [];
 let aggiornamenti: Array<Record<string, unknown>> = [];
+let abbonamentiScritti: Array<Record<string, unknown>> = [];
 
 vi.mock('@/lib/env.server', () => ({
   getServerEnv: () => ({
@@ -45,6 +51,7 @@ vi.mock('@/lib/stripe', () => ({
     webhooks: {
       constructEvent: () => {
         if (stato.firmaNonValida) throw new Error('firma non corrispondente');
+        if (stato.evento) return stato.evento;
         return {
           id: 'evt_1',
           type: 'checkout.session.completed',
@@ -63,6 +70,7 @@ vi.mock('@/lib/stripe', () => ({
     checkout: { sessions: { listLineItems: async () => ({ data: [] }) } },
   }),
   packForPriceId: () => null,
+  CHIAVE_ABBONAMENTO: 'subscription',
 }));
 
 vi.mock('@/lib/supabase/service', () => ({
@@ -113,16 +121,33 @@ vi.mock('@/lib/supabase/service', () => ({
             patch = p;
             return catena;
           },
+          upsert(riga: Record<string, unknown>) {
+            abbonamentiScritti.push(riga);
+            return Promise.resolve({
+              data: null,
+              error: stato.erroreUpsertAbbonamento
+                ? { message: stato.erroreUpsertAbbonamento }
+                : null,
+            });
+          },
           select() {
             return catena;
           },
           eq() {
             return catena;
           },
-          maybeSingle: async () =>
-            stato.eventoEsistente != null
+          maybeSingle: async () => {
+            if (tabella === 'organizations') {
+              const id = stato.orgDalCliente === undefined ? 'org-1' : stato.orgDalCliente;
+              return { data: id ? { id } : null, error: null };
+            }
+            if (tabella === 'billing_products') {
+              return { data: { credits: 150 }, error: null };
+            }
+            return stato.eventoEsistente != null
               ? { data: { id: 'uuid-evento', status: stato.eventoEsistente }, error: null }
-              : { data: null, error: null },
+              : { data: null, error: null };
+          },
           single: async () =>
             tabella === 'billing_products'
               ? { data: { credits: 50, price_cents: 2900, currency: 'EUR' }, error: null }
@@ -150,6 +175,7 @@ beforeEach(() => {
   stato = {};
   rpcChiamate = [];
   aggiornamenti = [];
+  abbonamentiScritti = [];
 });
 
 describe('webhook Stripe', () => {
@@ -255,6 +281,240 @@ describe('webhook Stripe', () => {
     stato.mock = true;
     const res = await POST(richiesta());
     expect(await res.json()).toMatchObject({ mock: true });
+    expect(rpcChiamate).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// L'abbonamento.
+//
+// Tre modi di sbagliare, tutti diversi da quelli dei pacchetti:
+//
+//   - accreditare i crediti sia al checkout sia alla fattura → primo mese
+//     doppio, per ogni nuovo abbonato;
+//   - accreditare su una fattura che non è un ciclo (un conguaglio di due
+//     euro) → 150 crediti regalati;
+//   - pretendere che gli eventi arrivino in ordine → `invoice.paid` prima del
+//     checkout trova nessun abbonamento, e l'abbonato paga e resta a zero.
+//
+// Stripe non garantisce l'ordine di consegna. Il terzo non è un caso di
+// scuola: è quello che succede quando la rete fa il suo mestiere.
+// ---------------------------------------------------------------------------
+
+/** Una fattura pagata, con le righe che portano il periodo. */
+function fattura(campi: Record<string, unknown> = {}) {
+  return {
+    id: 'in_1',
+    type: 'invoice',
+    customer: 'cus_1',
+    subscription: 'sub_1',
+    billing_reason: 'subscription_cycle',
+    amount_paid: 9900,
+    currency: 'eur',
+    metadata: {},
+    lines: {
+      data: [
+        { period: { start: 1_760_000_000, end: 1_762_678_400 } },
+      ],
+    },
+    ...campi,
+  };
+}
+
+describe('abbonamento', () => {
+  it('il checkout registra l’abbonamento e NON accredita crediti', () => {
+    // I crediti li porta `invoice.paid`, che arriva comunque anche al primo
+    // mese. Accreditare qui vorrebbe dire regalare il primo ciclo a tutti.
+    stato.evento = {
+      id: 'evt_sub',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_2',
+          mode: 'subscription',
+          customer: 'cus_1',
+          subscription: 'sub_1',
+          metadata: { organization_id: 'org-1' },
+        },
+      },
+    };
+    return POST(richiesta()).then(async (res) => {
+      expect(res.status).toBe(200);
+      expect(rpcChiamate).toEqual([]);
+      expect(abbonamentiScritti).toHaveLength(1);
+      expect(abbonamentiScritti[0]).toMatchObject({
+        organization_id: 'org-1',
+        stripe_subscription_id: 'sub_1',
+        status: 'active',
+        monthly_credits: 150,
+      });
+    });
+  });
+
+  it('la fattura pagata fa girare il ciclo, con il periodo delle righe', async () => {
+    stato.evento = { id: 'evt_inv', type: 'invoice.paid', data: { object: fattura() } };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(200);
+    expect(rpcChiamate).toHaveLength(1);
+    expect(rpcChiamate[0]!.fn).toBe('roll_subscription_cycle');
+    expect(rpcChiamate[0]!.args).toMatchObject({
+      org: 'org-1',
+      stripe_event: 'uuid-evento',
+      credits: 150,
+      period_start: new Date(1_760_000_000 * 1000).toISOString(),
+      period_end: new Date(1_762_678_400 * 1000).toISOString(),
+    });
+  });
+
+  it('la fattura arriva prima del checkout: l’abbonamento si crea lo stesso', async () => {
+    // Stripe non garantisce l'ordine. Se la riga la creasse solo il checkout,
+    // `roll_subscription_cycle` solleverebbe e l'abbonato resterebbe a zero.
+    stato.evento = {
+      id: 'evt_inv2',
+      type: 'invoice.paid',
+      data: { object: fattura({ billing_reason: 'subscription_create' }) },
+    };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(200);
+    expect(abbonamentiScritti).toHaveLength(1);
+    expect(rpcChiamate[0]!.fn).toBe('roll_subscription_cycle');
+  });
+
+  it('un conguaglio non vale 150 crediti', async () => {
+    stato.evento = {
+      id: 'evt_inv3',
+      type: 'invoice.paid',
+      data: { object: fattura({ billing_reason: 'subscription_update' }) },
+    };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(200);
+    expect(rpcChiamate).toEqual([]);
+    expect(abbonamentiScritti).toEqual([]);
+  });
+
+  it('una fattura senza periodo non accredita: si chiede il retry', async () => {
+    // Senza periodo non si sa quando scadono i crediti, e metterli senza
+    // scadenza vorrebbe dire regalare per sempre quello che dura un mese.
+    stato.evento = {
+      id: 'evt_inv4',
+      type: 'invoice.paid',
+      data: { object: fattura({ lines: { data: [] } }) },
+    };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(500);
+    expect(rpcChiamate).toEqual([]);
+  });
+
+  it('una fattura di un cliente sconosciuto chiede il retry invece di tacere', async () => {
+    stato.orgDalCliente = null;
+    stato.evento = { id: 'evt_inv5', type: 'invoice.paid', data: { object: fattura() } };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(500);
+    expect(rpcChiamate).toEqual([]);
+  });
+
+  it('la disdetta programmata si registra senza spegnere niente', async () => {
+    // `cancel_at_period_end` non toglie i diritti: l'abbonamento resta attivo
+    // fino a fine ciclo, ed è quello per cui il cliente ha pagato.
+    stato.evento = {
+      id: 'evt_sub_upd',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_1',
+          customer: 'cus_1',
+          status: 'active',
+          cancel_at_period_end: true,
+          current_period_start: 1_760_000_000,
+          current_period_end: 1_762_678_400,
+          metadata: {},
+          items: { data: [{ price: { id: 'price_sub' } }] },
+        },
+      },
+    };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(200);
+    expect(abbonamentiScritti[0]).toMatchObject({
+      status: 'active',
+      cancel_at_period_end: true,
+      stripe_price_id: 'price_sub',
+    });
+    expect(rpcChiamate).toEqual([]);
+  });
+
+  it('la fine dell’abbonamento si registra come tale', async () => {
+    stato.evento = {
+      id: 'evt_sub_del',
+      type: 'customer.subscription.deleted',
+      data: {
+        object: { id: 'sub_1', customer: 'cus_1', status: 'canceled', metadata: {}, items: { data: [] } },
+      },
+    };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(200);
+    expect(abbonamentiScritti[0]).toMatchObject({
+      status: 'canceled',
+      cancel_at_period_end: false,
+    });
+  });
+
+  it('uno stato che Stripe conosce e noi no non diventa «attivo»', async () => {
+    // `incomplete_expired` e `paused` non hanno una casella nostra. Farli
+    // ricadere su «attivo» vorrebbe dire regalare il servizio a chi non paga.
+    stato.evento = {
+      id: 'evt_sub_pause',
+      type: 'customer.subscription.updated',
+      data: {
+        object: { id: 'sub_1', customer: 'cus_1', status: 'paused', metadata: {}, items: { data: [] } },
+      },
+    };
+    await POST(richiesta());
+    expect(abbonamentiScritti[0]!.status).toBe('unpaid');
+  });
+
+  it('uno stato che Stripe inventerà domani non diventa «attivo»', async () => {
+    // Stripe aggiunge stati nel tempo. Il valore predefinito deve essere quello
+    // che NON regala il servizio: se non lo riconosciamo, non dà diritti.
+    stato.evento = {
+      id: 'evt_sub_futuro',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_1',
+          customer: 'cus_1',
+          status: 'qualcosa_che_non_esiste_ancora',
+          metadata: {},
+          items: { data: [] },
+        },
+      },
+    };
+    await POST(richiesta());
+    expect(abbonamentiScritti[0]!.status).toBe('incomplete');
+  });
+
+  it('«incomplete_expired» vale come «incomplete», non come attivo', async () => {
+    stato.evento = {
+      id: 'evt_sub_exp',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_1',
+          customer: 'cus_1',
+          status: 'incomplete_expired',
+          metadata: {},
+          items: { data: [] },
+        },
+      },
+    };
+    await POST(richiesta());
+    expect(abbonamentiScritti[0]!.status).toBe('incomplete');
+  });
+
+  it('se la riga dell’abbonamento non si scrive, si chiede il retry', async () => {
+    stato.erroreUpsertAbbonamento = 'colonna inesistente';
+    stato.evento = { id: 'evt_inv6', type: 'invoice.paid', data: { object: fattura() } };
+    const res = await POST(richiesta());
+    expect(res.status).toBe(500);
     expect(rpcChiamate).toEqual([]);
   });
 });

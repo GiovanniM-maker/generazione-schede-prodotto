@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } from './sessione';
-import { seminaScenario, type ScenarioSeminato } from './semina';
+import { seminaAbbonamento, seminaScenario, type ScenarioSeminato } from './semina';
 
 // ---------------------------------------------------------------------------
 // La soglia dello sforo è UN pixel, non zero.
@@ -402,6 +402,35 @@ test.describe('fatturazione', () => {
     const testo = await page.locator('main').innerText();
     expect(testo).toMatch(/L’assistente è compreso/i);
     expect(testo).toMatch(/100 richieste/);
+  });
+
+  test('l’abbonamento si offre, e chi ce l’ha lo può disdire da qui', async ({ page }) => {
+    // Due stati dello stesso riquadro. Il secondo è quello che conta: un
+    // canone che si sottoscrive in due clic e si disdice scrivendo un'email
+    // non è un abbonamento.
+    await page.goto('/app/billing', { waitUntil: 'networkidle' });
+    let testo = await page.locator('main').innerText();
+
+    // L'offerta c'è solo se il listino la tiene attiva: se non c'è, non si
+    // pretende — ma non si finge nemmeno di aver provato.
+    const offerto = /Abbonamento mensile/i.test(testo);
+    test.skip(!offerto, 'abbonamento non attivo a listino su questo database');
+
+    expect(testo, 'non si dice che i crediti del mese non si sommano').toMatch(
+      /scadono a fine ciclo e non si sommano/i,
+    );
+    expect(testo, 'non si dice che si può disdire').toMatch(/si disdice quando vuoi/i);
+
+    await seminaAbbonamento(scenario.organizationId);
+    await page.reload({ waitUntil: 'networkidle' });
+    testo = await page.locator('main').innerText();
+
+    expect(testo).toMatch(/Abbonamento attivo/i);
+    expect(testo, 'la disdetta programmata non si vede').toMatch(/resta attivo fino al/i);
+    await expect(
+      page.getByRole('button', { name: /gestisci l’abbonamento/i }),
+      'nessun comando per disdire',
+    ).toBeVisible();
   });
 
   test('la cronologia non parla inglese', async ({ page }) => {

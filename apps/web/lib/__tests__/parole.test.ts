@@ -390,3 +390,62 @@ describe('i crediti si dicono con le parole del prodotto', () => {
     expect(wizard).toMatch(/href="\/app\/billing"/);
   });
 });
+
+describe('un abbonamento si disdice da dentro', () => {
+  // Un canone che si sottoscrive in due clic e si disdice scrivendo un'email
+  // non è un abbonamento: è una trappola. E in Europa non è nemmeno una
+  // questione di garbo.
+  const abbonamento = senzaCommenti(leggi('components/billing/abbonamento.tsx'));
+  const comando = senzaCommenti(leggi('components/billing/gestisci-abbonamento.tsx'));
+
+  it('chi è abbonato ha il comando per gestirlo', () => {
+    expect(comando).toMatch(/Gestisci l’abbonamento/);
+    expect(comando).toMatch(/'\/api\/stripe\/portal'/);
+    // E il comando è DISEGNATO, non solo definito. Cercare la funzione e non
+    // il suo uso è il modo classico di avere un test verde su un pulsante che
+    // nessuno vede: la prima versione di questa prova restava verde
+    // cancellando la riga qui sotto.
+    expect(abbonamento, 'il comando è definito ma non disegnato').toMatch(
+      /\{isOwner && <GestisciAbbonamento \/>\}/,
+    );
+  });
+
+  it('il portale esiste davvero', () => {
+    expect(existsSync(join(RADICE, 'app/api/stripe/portal/route.ts'))).toBe(true);
+  });
+
+  it('si dice prima di pagare che si può disdire', () => {
+    // Va scritto accanto al prezzo, non nei termini: chi legge i termini prima
+    // di abbonarsi è una persona su cento.
+    expect(abbonamento).toMatch(/Si disdice quando vuoi/);
+  });
+
+  it('si dice anche che i crediti del mese non si sommano', () => {
+    // È la differenza vera fra il canone e il pacchetto, ed è quella che fa
+    // arrabbiare se si scopre dopo.
+    expect(abbonamento).toMatch(/scadono a fine ciclo e non si sommano/);
+  });
+});
+
+describe('la vetrina dice dell’abbonamento quello che il prodotto fa', () => {
+  const landing = senzaCommenti(leggi('app/page.tsx'));
+
+  it('l’abbonamento non finisce nella griglia dei pacchetti', () => {
+    // La griglia legge `DESCRIZIONI[chiave]`, dove l'abbonamento non c'è e non
+    // deve esserci: senza la separazione comparirebbe come quarto pacchetto,
+    // col nome della sua chiave tecnica al posto del nome.
+    expect(landing).toMatch(/packs: voci\.filter\(\(v\) => v\.kind !== 'subscription'\)/);
+  });
+
+  it('la risposta sull’abbonamento non dice che non esiste', () => {
+    // Diceva «No. Acquisti pacchetti di crediti quando ti servono. Nessun
+    // abbonamento obbligatorio.» Vero sull'obbligo, falso sull'esistenza —
+    // e chi legge ricava la seconda cosa.
+    const risposta = landing.match(/q: 'Devo sottoscrivere un abbonamento\?',\s*\n\s*a: '([^']*)'/);
+    expect(risposta, 'la domanda sull’abbonamento è sparita dalle FAQ').not.toBeNull();
+    const testo = risposta![1]!;
+    expect(testo).toMatch(/facoltativ/i);
+    expect(testo, 'non si dice che i crediti del mese non si sommano').toMatch(/non si sommano/i);
+    expect(testo, 'non si dice come si esce').toMatch(/disdice/i);
+  });
+});

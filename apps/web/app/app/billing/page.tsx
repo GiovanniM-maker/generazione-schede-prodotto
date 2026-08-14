@@ -15,6 +15,7 @@ import { DatiFatturazioneForm } from '@/components/billing/dati-fatturazione-for
 import { leggiDatiFatturazione } from '@/lib/actions/fatturazione';
 import { formattaPrezzo, prezzoPerCredito, NOME_MOVIMENTO } from '@app/core';
 import { QuadroCrediti } from '@/components/billing/quadro-crediti';
+import { Abbonamento } from '@/components/billing/abbonamento';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,8 @@ export default async function BillingPage({
       )}
 
       <QuadroCrediti diritti={diritti} />
+
+      <Abbonamento diritti={diritti} isOwner={isOwner} />
 
       {/* Pacchetti */}
       <div id="pacchetti">

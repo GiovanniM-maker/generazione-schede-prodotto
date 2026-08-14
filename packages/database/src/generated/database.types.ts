@@ -317,6 +317,8 @@ export interface Database {
         name: string;
         stripe_price_id: string | null;
         credits: number;
+        /** pack = una volta sola, vale dodici mesi. subscription = canone mensile. */
+        kind: 'pack' | 'subscription';
         /** Prezzo IVA esclusa in centesimi. null = pacchetto non acquistabile. */
         price_cents: number | null;
         currency: string;

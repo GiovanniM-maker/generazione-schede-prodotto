@@ -278,6 +278,28 @@ export async function seminaOrganizzazioneNuda(userId: string): Promise<string> 
   return org!.id;
 }
 
+/**
+ * Un abbonamento attivo, con la disdetta già programmata.
+ *
+ * Serve a guardare il riquadro nello stato che conta: quello in cui il cliente
+ * ha pagato e vuole smettere. Non passa da Stripe — qui si semina lo stato che
+ * il webhook scriverebbe.
+ */
+export async function seminaAbbonamento(organizationId: string): Promise<void> {
+  const ora = Date.now();
+  await inserisci('subscriptions', [
+    {
+      organization_id: organizationId,
+      stripe_subscription_id: `sub_qa_${Math.random().toString(36).slice(2, 10)}`,
+      status: 'active',
+      monthly_credits: 150,
+      current_period_start: new Date(ora - 86_400_000).toISOString(),
+      current_period_end: new Date(ora + 29 * 86_400_000).toISOString(),
+      cancel_at_period_end: true,
+    },
+  ]);
+}
+
 export async function seminaScenario(userId: string): Promise<ScenarioSeminato> {
   const marca = Math.random().toString(36).slice(2, 8);
 
