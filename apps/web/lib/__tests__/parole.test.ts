@@ -396,10 +396,11 @@ describe('un abbonamento si disdice da dentro', () => {
   // non è un abbonamento: è una trappola. E in Europa non è nemmeno una
   // questione di garbo.
   const abbonamento = senzaCommenti(leggi('components/billing/abbonamento.tsx'));
+  const comando = senzaCommenti(leggi('components/billing/gestisci-abbonamento.tsx'));
 
   it('chi è abbonato ha il comando per gestirlo', () => {
-    expect(abbonamento).toMatch(/Gestisci l’abbonamento/);
-    expect(abbonamento).toMatch(/'\/api\/stripe\/portal'/);
+    expect(comando).toMatch(/Gestisci l’abbonamento/);
+    expect(comando).toMatch(/'\/api\/stripe\/portal'/);
     // E il comando è DISEGNATO, non solo definito. Cercare la funzione e non
     // il suo uso è il modo classico di avere un test verde su un pulsante che
     // nessuno vede: la prima versione di questa prova restava verde

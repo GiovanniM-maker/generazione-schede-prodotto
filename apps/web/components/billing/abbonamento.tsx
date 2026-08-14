@@ -1,12 +1,9 @@
-'use client';
-
-import { useState } from 'react';
-import { Loader2, Repeat } from 'lucide-react';
+import { Repeat } from 'lucide-react';
 import { dataBreve, formattaPrezzo, prezzoPerCredito, type Diritti } from '@app/core';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avviso } from '@/components/ui/avviso';
 import { PurchaseButton } from '@/components/purchase-button';
+import { GestisciAbbonamento } from '@/components/billing/gestisci-abbonamento';
 
 // ---------------------------------------------------------------------------
 // L'abbonamento, e il modo di uscirne.
@@ -19,40 +16,12 @@ import { PurchaseButton } from '@/components/purchase-button';
 // Cosa NON c'è, di proposito: nessun conto alla rovescia, nessun «risparmi il
 // 34%», nessuna colonna «consigliato». Il confronto col pacchetto lo fa il
 // prezzo per scheda, che è già scritto su tutti e due.
+//
+// Componente SERVER. L'unico pezzo interattivo — il pulsante che apre il
+// pannello di Stripe — sta in un file suo: marcando client questo, webpack
+// proverebbe a mettere nel pacchetto del browser `node:crypto`, che arriva dal
+// barrel di `@app/core`, e la build si fermerebbe.
 // ---------------------------------------------------------------------------
-
-/** Apre il pannello di Stripe: disdetta, carta, dati, fatture. */
-function GestisciAbbonamento() {
-  const [attesa, setAttesa] = useState(false);
-  const [errore, setErrore] = useState<string | null>(null);
-
-  async function apri() {
-    setAttesa(true);
-    setErrore(null);
-    try {
-      const r = await fetch('/api/stripe/portal', { method: 'POST' });
-      const body = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!r.ok || !body.url) throw new Error(body.error ?? 'Non riesco ad aprire la gestione.');
-      window.location.href = body.url;
-    } catch (e) {
-      setErrore(e instanceof Error ? e.message : 'Errore');
-      setAttesa(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2">
-      <Button variant="outline" onClick={apri} disabled={attesa}>
-        {attesa ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Gestisci l’abbonamento'}
-      </Button>
-      {errore && (
-        <p className="text-xs text-red-600" role="alert">
-          {errore}
-        </p>
-      )}
-    </div>
-  );
-}
 
 export function Abbonamento({ diritti, isOwner }: { diritti: Diritti; isOwner: boolean }) {
   const attivo = diritti.abbonamento;
