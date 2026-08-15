@@ -89,7 +89,7 @@ export async function assicuraAbbonamento(
   riga.plan_key = CHIAVE_ABBONAMENTO;
 
   const { error } = await service
-    .from('subscriptions')
+    .from('org_subscriptions')
     .upsert(riga, { onConflict: 'organization_id' });
   return error ? { ok: false, error: error.message } : { ok: true };
 }
