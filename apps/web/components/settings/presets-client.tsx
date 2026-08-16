@@ -263,7 +263,14 @@ export function PresetsClient({
         onClose={() => setCreateOpen(false)}
         title="Nuovo preset"
       >
-        <div className="space-y-4">
+        <form
+          id="nuovo-preset"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!pending) void handleCreate();
+          }}
+        >
           <div>
             <Label htmlFor="preset-sector">Settore</Label>
             <Select
@@ -295,12 +302,12 @@ export function PresetsClient({
             >
               Annulla
             </Button>
-            <Button size="sm" onClick={handleCreate} disabled={pending}>
+            <Button type="submit" size="sm" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Crea
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       {/* Rinomina */}

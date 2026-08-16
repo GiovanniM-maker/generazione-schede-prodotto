@@ -69,7 +69,13 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
             </div>
 
             {editingId === d.id ? (
-              <div className="flex flex-wrap items-center gap-2 pl-7">
+              <form
+                className="flex flex-wrap items-center gap-2 pl-7"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!pending && editValue.trim()) void resolve(d.id, 'correct', editValue.trim());
+                }}
+              >
                 <Input
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
@@ -77,14 +83,14 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
                   className="max-w-xs"
                   autoFocus
                 />
-                <Button size="sm" disabled={pending || !editValue.trim()} onClick={() => resolve(d.id, 'correct', editValue.trim())}>
+                <Button type="submit" size="sm" disabled={pending || !editValue.trim()}>
                   {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   Salva correzione
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={pending}>
                   Annulla
                 </Button>
-              </div>
+              </form>
             ) : (
               <div className="flex flex-wrap gap-2 pl-7">
                 <Button size="sm" disabled={pending} onClick={() => resolve(d.id, 'confirm')}>

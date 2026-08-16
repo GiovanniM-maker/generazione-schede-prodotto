@@ -86,7 +86,17 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
             I dati di fatturazione li imposta il proprietario dell’organizzazione.
           </p>
         ) : (
-          <div className="space-y-4">
+          // Dieci campi: è il modulo più lungo del prodotto, ed era l'unico
+          // posto dove dopo aver scritto la partita IVA bisognava andare col
+          // mouse a cercare «Salva». Adesso Invio salva, e il gestore di
+          // password riconosce l'indirizzo di fatturazione come tale.
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!pending) salva();
+            }}
+          >
             <div>
               <Label htmlFor="fat-nome">Ragione sociale o nome e cognome</Label>
               <Input
@@ -221,7 +231,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
             )}
 
             <div className="flex items-center gap-3">
-              <Button onClick={salva} disabled={pending}>
+              <Button type="submit" disabled={pending}>
                 {pending && <Loader2 className="h-4 w-4 animate-spin" />}
                 Salva dati fattura
               </Button>
@@ -231,7 +241,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 {salvato && !pending ? 'Salvato.' : ''}
               </span>
             </div>
-          </div>
+          </form>
         )}
       </Card>
     </div>

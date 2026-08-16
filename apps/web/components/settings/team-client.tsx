@@ -99,7 +99,13 @@ export function TeamClient({
       {isOwner && (
         <Card className="p-5">
           <h3 className="text-base font-semibold text-ink-900">Invita un membro</h3>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <form
+            className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!pending && email.trim()) void invite();
+            }}
+          >
             <div className="flex-1">
               <Label htmlFor="inv-email">Email</Label>
               <Input
@@ -117,11 +123,11 @@ export function TeamClient({
                 <option value="owner">Proprietario</option>
               </Select>
             </div>
-            <Button onClick={invite} disabled={pending || !email.trim()}>
+            <Button type="submit" disabled={pending || !email.trim()}>
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               Invita
             </Button>
-          </div>
+          </form>
           {newLink && (
             <Avviso tono="riuscito" senzaIcona className="mt-3">
               <div className="flex items-center gap-2">

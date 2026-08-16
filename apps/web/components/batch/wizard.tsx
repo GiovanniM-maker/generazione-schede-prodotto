@@ -1173,6 +1173,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 1 && (
         <Step1
+          onInvio={submitStep1}
+          pronto={name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0 && !busy}
           name={name}
           setName={setName}
           description={description}
@@ -1294,7 +1296,6 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
             5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
             10: sampleDone,
           }}
-          onStep1={submitStep1}
           onSources={submitSources}
           onSample={runSample}
           onStart={startGeneration}
@@ -1371,7 +1372,6 @@ function StepPrimaryAction({
   busy,
   canProceed,
   step3Label = 'Continua',
-  onStep1,
   onSources,
   onSample,
   onStart,
@@ -1382,7 +1382,6 @@ function StepPrimaryAction({
   busy: boolean;
   canProceed: Record<number, boolean>;
   step3Label?: string;
-  onStep1: () => void;
   onSources: () => void;
   onSample: () => void;
   onStart: () => void;
@@ -1393,7 +1392,7 @@ function StepPrimaryAction({
 
   if (stepId === 1) {
     return (
-      <Button onClick={onStep1} disabled={busy || !canProceed[1]}>
+      <Button type="submit" form="passo-batch" disabled={busy || !canProceed[1]}>
         {busy ? spinner : <>Crea e continua <ArrowRight className="h-4 w-4" /></>}
       </Button>
     );
@@ -1446,6 +1445,8 @@ function Step1({
   presets,
   selectedPresetId,
   setSelectedPresetId,
+  onInvio,
+  pronto,
 }: {
   name: string;
   setName: (v: string) => void;
@@ -1454,10 +1455,22 @@ function Step1({
   presets: PublishedPresetSummary[] | null;
   selectedPresetId: string | null;
   setSelectedPresetId: (v: string) => void;
+  onInvio: () => void;
+  pronto: boolean;
 }) {
   const selected = presets?.find((p) => p.id === selectedPresetId) ?? null;
   return (
-    <div className="space-y-6">
+    // Il nome del batch si scrive e si preme Invio, come in qualunque modulo.
+    // «Crea e continua» sta nella barra in fondo, fuori da questo sottoalbero:
+    // `form="passo-batch"` lo collega lo stesso.
+    <form
+      id="passo-batch"
+      className="space-y-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (pronto) onInvio();
+      }}
+    >
       <div data-tour="batch-name">
         <Label htmlFor="batch-name">Nome del batch</Label>
         <Input id="batch-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Collezione autunno 2026" />
@@ -1534,7 +1547,7 @@ function Step1({
           </Link>
         </div>
       )}
-    </div>
+    </form>
   );
 }
 

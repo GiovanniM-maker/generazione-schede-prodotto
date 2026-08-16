@@ -403,7 +403,14 @@ export function AttributesClient({
         title="Nuovo attributo"
         className="max-w-xl"
       >
-        <div className="space-y-4">
+        <form
+          id="nuovo-attributo"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!pending) void handleCreate();
+          }}
+        >
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="attr-sector">Settore</Label>
@@ -539,12 +546,12 @@ export function AttributesClient({
             >
               Annulla
             </Button>
-            <Button size="sm" onClick={handleCreate} disabled={pending}>
+            <Button type="submit" size="sm" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Crea
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       <Modal
