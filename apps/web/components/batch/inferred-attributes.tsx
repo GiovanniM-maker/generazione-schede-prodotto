@@ -10,6 +10,7 @@ import {
   type InferredProductGroup,
 } from '@/lib/actions/visual';
 import { Button } from '@/components/ui/button';
+import { Avviso } from '@/components/ui/avviso';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -136,10 +137,8 @@ export function InferredAttributesSection({
           )}
         </div>
 
-        {message && (
-          <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">{message}</p>
-        )}
-        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {message && <Avviso tono="informazione">{message}</Avviso>}
+        {error && <Avviso tono="errore">{error}</Avviso>}
 
         {products.length === 0 ? (
           <p className="text-sm text-ink-500">
@@ -158,7 +157,7 @@ export function InferredAttributesSection({
                   {p.attributes.map((a) => (
                     <li
                       key={a.id}
-                      className="flex flex-col gap-2 rounded-md bg-ink-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-2 rounded-lg bg-ink-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <span className="flex flex-wrap items-center gap-2 text-sm text-ink-700">
                         <span className="font-medium text-ink-900">{a.attributeName}:</span>

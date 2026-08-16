@@ -925,7 +925,7 @@ function AddCategoryModal({
             filtered.map((c) => (
               <label
                 key={c.id}
-                className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-ink-50"
+                className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-ink-50"
               >
                 <input
                   type="checkbox"

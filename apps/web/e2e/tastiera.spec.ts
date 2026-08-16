@@ -39,8 +39,14 @@ test.describe('si scrive e si preme Invio', () => {
       await page.waitForTimeout(250);
     }
 
-    const nome = page.locator('#batch-name, input[id*="name" i]').first();
-    if ((await nome.count()) === 0) test.skip();
+    // I preset arrivano da una chiamata di rete e il passo non è completo
+    // finché non ce n'è uno scelto. Una persona aspetta di vederli; il test
+    // deve fare lo stesso, altrimenti misura la rete e non la tastiera.
+    await expect(page.getByRole('button', { name: /Preset/i }).first()).toBeVisible({
+      timeout: 20000,
+    });
+
+    const nome = page.locator('#batch-name');
     await nome.fill('Batch da tastiera');
     await nome.press('Enter');
 

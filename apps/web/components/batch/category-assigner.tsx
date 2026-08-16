@@ -139,7 +139,7 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
                 {products.map((p) => (
                   <div
                     key={p.id}
-                    className="grid grid-cols-1 items-center gap-2 rounded-md border border-ink-100 p-2 sm:grid-cols-[1fr_1.2fr]"
+                    className="grid grid-cols-1 items-center gap-2 rounded-lg border border-ink-100 p-2 sm:grid-cols-[1fr_1.2fr]"
                   >
                     <div className="min-w-0">
                       <span className="font-mono text-xs text-ink-600">{p.sku ?? '—'}</span>

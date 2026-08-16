@@ -1221,7 +1221,7 @@ function SelettoreVista({
           aria-checked={vista === chiave}
           onClick={() => onChange(chiave)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
+            'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
             vista === chiave
               ? 'bg-brand-soft text-brand-accent'
               : 'text-ink-500 hover:text-ink-800',
@@ -1414,7 +1414,7 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
             {LANGS.map((l) => (
               <label
                 key={l.code}
-                className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-ink-700 hover:bg-ink-50"
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm text-ink-700 hover:bg-ink-50"
               >
                 <input
                   type="checkbox"
@@ -1667,7 +1667,7 @@ function ProductAttributesPanel({
                         value={fbValue}
                         onChange={(e) => setFbValue(e.target.value)}
                         placeholder="Come dovrebbe leggerlo meglio? (es. «guarda sul retro, non sul fronte»)"
-                        className="h-8 flex-1 rounded-md border border-violet-200 bg-violet-50/40 px-2 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
+                        className="h-8 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
                         autoFocus
                       />
                       <Button size="sm" onClick={() => sendFeedback(a.attributeId)} disabled={fbBusy || !fbValue.trim()}>
@@ -1766,7 +1766,7 @@ function FieldFeedback({ value, onChange }: { value: string; onChange: (v: strin
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="💬 Feedback su questo campo (facoltativo): cosa non va?"
-      className="mt-1 w-full rounded-md border border-violet-100 bg-violet-50/40 px-2 py-1 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
+      className="mt-1 w-full rounded-lg border border-violet-100 bg-violet-50/40 px-2 py-1 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
     />
   );
 }

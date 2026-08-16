@@ -125,8 +125,23 @@ describe('i riquadri di riscontro parlano', () => {
     return out;
   }
 
-  const TAVOLOZZA = /\bbg-(red|amber|emerald)-50(\/\d+)?\b/;
-  const BORDO = /\bborder-(red|amber|emerald)-(200|300)\b/;
+  // Il blu è entrato dopo: la regola guardava solo rosso, ambra e verde, e due
+  // riquadri informativi scritti a mano in blu sono passati sotto — su un
+  // prodotto il cui avviso informativo è caldo (`bg-ink-50`), erano l'unica
+  // cosa fredda a schermo.
+  const TAVOLOZZA = /\bbg-(red|amber|emerald|blue)-50(\/\d+)?\b/;
+  const BORDO = /\bborder-(red|amber|emerald|blue)-(200|300)\b/;
+
+  it('nessun colore freddo per un avviso: la tavolozza del prodotto è calda', () => {
+    // `bg-blue-50` con dentro del testo blu è un riquadro informativo scritto
+    // a mano. Ne esiste uno solo, `<Avviso tono="informazione">`, ed è
+    // `bg-ink-50` — caldo come il fondo.
+    const freddi = sorgenti
+      .filter((f) => !f.path.endsWith('ui/badge.tsx'))
+      .filter((f) => /bg-blue-50/.test(f.src))
+      .map((f) => f.path);
+    expect(freddi, 'usa <Avviso tono="informazione">: è caldo come tutto il resto').toEqual([]);
+  });
 
   it('nessun riquadro di riscontro resta scritto a mano', () => {
     const colpevoli = sorgenti

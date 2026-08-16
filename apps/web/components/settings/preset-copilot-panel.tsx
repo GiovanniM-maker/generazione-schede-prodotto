@@ -297,8 +297,8 @@ export function PresetCopilotPanel({
                       key={j}
                       className={
                         a.existing
-                          ? 'rounded-md border border-ink-200 bg-ink-50 px-2.5 py-1.5'
-                          : 'rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5'
+                          ? 'rounded-lg border border-ink-200 bg-ink-50 px-2.5 py-1.5'
+                          : 'rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5'
                       }
                     >
                       <div className="flex items-center gap-1.5 text-xs">

@@ -1985,8 +1985,8 @@ function Step5({
                       onClick={() => onChangeDelimiter(opt.d)}
                       className={
                         skuDelimiter === opt.d
-                          ? 'rounded-md border border-brand-accent bg-brand-accent px-2.5 py-1 text-xs font-medium text-white'
-                          : 'rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs text-ink-700 hover:border-ink-400'
+                          ? 'rounded-lg border border-brand-accent bg-brand-accent px-2.5 py-1 text-xs font-medium text-white'
+                          : 'rounded-lg border border-ink-300 bg-white px-2.5 py-1 text-xs text-ink-700 hover:border-ink-400'
                       }
                     >
                       {opt.label}
