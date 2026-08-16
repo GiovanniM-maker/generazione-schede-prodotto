@@ -287,7 +287,7 @@ export async function seminaOrganizzazioneNuda(userId: string): Promise<string> 
  */
 export async function seminaAbbonamento(organizationId: string): Promise<void> {
   const ora = Date.now();
-  await inserisci('subscriptions', [
+  await inserisci('org_subscriptions', [
     {
       organization_id: organizationId,
       stripe_subscription_id: `sub_qa_${Math.random().toString(36).slice(2, 10)}`,

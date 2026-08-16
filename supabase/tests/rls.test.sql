@@ -74,7 +74,7 @@ insert into credit_lots (id, organization_id, source, granted, expires_at) value
   ('a1a1a1a1-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'pack', 50, now() + interval '90 days'),
   ('b1b1b1b1-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'pack', 50, now() + interval '90 days');
 
-insert into subscriptions (organization_id, stripe_subscription_id, status, current_period_start, current_period_end) values
+insert into org_subscriptions (organization_id, stripe_subscription_id, status, current_period_start, current_period_end) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'sub_a', 'active', now() - interval '1 day', now() + interval '29 days'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'sub_b', 'active', now() - interval '1 day', now() + interval '29 days');
 
@@ -361,8 +361,8 @@ begin
   if miei <> 1 then raise exception 'FALLITO T12: user A non vede i propri lotti (%)', miei; end if;
   if altrui <> 0 then raise exception 'FALLITO T12: user A vede % lotti di Org B', altrui; end if;
 
-  select count(*) into miei from subscriptions where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  select count(*) into altrui from subscriptions where organization_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  select count(*) into miei from org_subscriptions where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  select count(*) into altrui from org_subscriptions where organization_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
   if miei <> 1 then raise exception 'FALLITO T12: user A non vede il proprio abbonamento (%)', miei; end if;
   if altrui <> 0 then raise exception 'FALLITO T12: user A vede l''abbonamento di Org B'; end if;
 
@@ -395,7 +395,7 @@ begin
   get diagnostics toccate = row_count;
   if toccate <> 0 then raise exception 'FALLITO T13: modificate % righe di credit_lots', toccate; end if;
 
-  update subscriptions set status = 'active', current_period_end = now() + interval '10 years'
+  update org_subscriptions set status = 'active', current_period_end = now() + interval '10 years'
   where organization_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   get diagnostics toccate = row_count;
   if toccate <> 0 then raise exception 'FALLITO T13: prolungato l''abbonamento da authenticated'; end if;

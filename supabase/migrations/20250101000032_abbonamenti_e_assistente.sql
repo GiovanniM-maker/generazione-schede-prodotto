@@ -47,8 +47,18 @@
 -- =====================================================================
 -- Abbonamenti
 -- =====================================================================
+--
+-- `org_subscriptions`, non `subscriptions`. Il nome corto è il primo che viene
+-- in mente a chiunque, ed è per questo che è pericoloso: il progetto Supabase
+-- di produzione ne ha già una — di un'applicazione precedente, con `user_id` e
+-- `plan` — e `create table if not exists` l'avrebbe trovata e saltata. La
+-- migrazione poi si fermava tre righe più in là, sulla policy, con
+-- «column organization_id does not exist»: un rilascio bloccato a metà.
+--
+-- Il prefisso non è burocrazia. Dice di chi è la tabella, e su un database che
+-- non abbiamo creato noi è l'unica cosa che impedisce di rubare un nome.
 
-create table if not exists subscriptions (
+create table if not exists org_subscriptions (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null unique references organizations(id) on delete cascade,
   stripe_subscription_id text unique,
@@ -64,18 +74,18 @@ create table if not exists subscriptions (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists subscriptions_status_idx on subscriptions(status);
+create index if not exists org_subscriptions_status_idx on org_subscriptions(status);
 
-drop trigger if exists set_updated_at on subscriptions;
-create trigger set_updated_at before update on subscriptions
+drop trigger if exists set_updated_at on org_subscriptions;
+create trigger set_updated_at before update on org_subscriptions
   for each row execute function set_updated_at();
 
-alter table subscriptions enable row level security;
+alter table org_subscriptions enable row level security;
 
 -- Lettura ai membri: «da quando a quando ho pagato» non è un segreto.
 -- Scrittura solo da `service_role`, cioè solo dal webhook Stripe.
-drop policy if exists subscriptions_select on subscriptions;
-create policy subscriptions_select on subscriptions
+drop policy if exists org_subscriptions_select on org_subscriptions;
+create policy org_subscriptions_select on org_subscriptions
   for select to authenticated using (is_organization_member(organization_id));
 
 -- =====================================================================
@@ -142,7 +152,7 @@ as $$
     coalesce(s.current_period_start, date_trunc('month', at_time)),
     coalesce(s.current_period_end, date_trunc('month', at_time) + interval '1 month')
   from (select 1) as sempre
-  left join subscriptions s
+  left join org_subscriptions s
     on s.organization_id = org
    and s.status in ('trialing', 'active', 'past_due')
    and s.current_period_start <= at_time
@@ -300,7 +310,7 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtext(org::text));
 
-  update subscriptions set
+  update org_subscriptions set
     current_period_start = period_start,
     current_period_end = period_end,
     status = case when status in ('incomplete', 'past_due', 'unpaid') then 'active' else status end

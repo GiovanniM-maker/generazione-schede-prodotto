@@ -430,7 +430,7 @@ declare
 begin
   org := create_organization_for_user('11111111-0000-0000-0000-000000000003', 'Tre', 'tre');
 
-  insert into subscriptions (organization_id, stripe_subscription_id, status, monthly_credits,
+  insert into org_subscriptions (organization_id, stripe_subscription_id, status, monthly_credits,
                              current_period_start, current_period_end)
   values (org, 'sub_test', 'active', 150, now() - interval '30 days', now() + interval '1 hour');
 
@@ -539,7 +539,7 @@ begin
   end if;
 
   -- ---- C: abbonata, e un mese le servono 160 -------------------------
-  insert into subscriptions (organization_id, stripe_subscription_id, status, monthly_credits,
+  insert into org_subscriptions (organization_id, stripe_subscription_id, status, monthly_credits,
                              current_period_start, current_period_end)
   values (c, 'sub_sim_c', 'active', 150, now() - interval '1 day', now() + interval '29 days');
 

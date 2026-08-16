@@ -358,7 +358,7 @@ export interface Database {
         metadata_json: Json;
         created_at: string;
       }>;
-      subscriptions: T<
+      org_subscriptions: T<
         {
           id: string;
           organization_id: string;

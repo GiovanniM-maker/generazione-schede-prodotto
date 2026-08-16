@@ -66,7 +66,7 @@ as $$
         'current_period_end', s.current_period_end,
         'cancel_at_period_end', s.cancel_at_period_end
       )
-      from subscriptions s where s.organization_id = org
+      from org_subscriptions s where s.organization_id = org
     ),
     'comp_until', (select o.comp_until from organizations o where o.id = org),
     'assistant', (
