@@ -54,6 +54,18 @@ test.describe('import da PDF', () => {
     utenteId = utente.id;
     await accedi(context, utente);
     await seminaScenario(utente.id);
+    // La guida a fumetti del wizard è un velo `fixed inset-0` e intercetta i
+    // clic a ogni passo. Chiuderla a mano una volta non basta — ne compare una
+    // nuova al passo dopo — e questo test parla dell'import, non di come si
+    // scacciano i fumetti. Si dichiara già vista, com'è per chi il wizard
+    // l'ha già aperto una volta.
+    await context.addInitScript(() => {
+      try {
+        for (let i = 1; i <= 11; i++) localStorage.setItem(`tour.wizard.${i}.v1`, '1');
+      } catch {
+        /* se lo storage non funziona, restano i fumetti */
+      }
+    });
   });
 
   test.afterEach(async () => {
@@ -62,20 +74,17 @@ test.describe('import da PDF', () => {
   });
 
   test('una scheda tecnica diventa un prodotto con i suoi fatti', async ({ page }) => {
+    // Sono undici passi di wizard, la creazione del batch, la lettura del PDF
+    // e la scrittura del prodotto: il minuto predefinito è appena sufficiente,
+    // e appena sufficiente vuol dire rosso su una macchina lenta per una
+    // ragione che col prodotto non c'entra.
+    test.setTimeout(120_000);
     await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
 
-    // La guida a fumetti copre i campi: si chiude prima.
-    for (let i = 0; i < 3; i++) {
-      const velo = page.locator('[role="dialog"][aria-label^="Guida"]');
-      if ((await velo.count()) === 0) break;
-      await velo.first().click({ position: { x: 5, y: 5 }, force: true }).catch(() => undefined);
-      await page.waitForTimeout(250);
-    }
-
-    // Passo 1: i preset arrivano dalla rete, e il passo non è completo finché
-    // non ce n'è uno scelto.
+    // Passo 1: i preset arrivano dalla rete e il primo si sceglie da sé, ma
+    // finché non sono arrivati il passo non è completo. Una persona aspetta di
+    // vederli; il test deve fare lo stesso, o misura la rete.
     await expect(page.getByRole('button', { name: /Preset/i }).first()).toBeVisible({ timeout: 20000 });
-    await page.getByRole('button', { name: /Preset/i }).first().click();
     await page.locator('#batch-name').fill('Import da PDF');
     await page.getByRole('button', { name: /crea e continua/i }).click();
     await expect(page).toHaveURL(/batch=/, { timeout: 20000 });
