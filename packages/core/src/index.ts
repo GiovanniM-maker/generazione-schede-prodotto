@@ -30,6 +30,7 @@ export * from './sku-raggruppamento.js';
 export * from './varianti.js';
 export * from './robots.js';
 export * from './sku-risoluzione.js';
+export * from './ricerca.js';
 export * from './ip-guard.js';
 export * from './chunk.js';
 export * from './category-vocabulary.js';
