@@ -256,7 +256,24 @@ export function CategoriesClient({
         onClose={() => setCreateOpen(false)}
         title="Nuova categoria"
       >
-        <div className="space-y-4">
+        <form
+          id="nuova-categoria"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            // Niente `&& name.trim()`: qui il pulsante «Crea» è acceso anche a
+            // nome vuoto, apposta, perché è `handleCreate` a dire «il nome è
+            // obbligatorio». Con la guardia in più, premere «Crea» senza nome
+            // non faceva più succedere niente — cioè esattamente il difetto
+            // che quella modale aveva ed è stato corretto: un comando che
+            // sembra non aver ricevuto il clic, e uno che ripreme.
+            //
+            // La guardia va tenuta solo dove il pulsante è spento nello stesso
+            // caso (invito a un collega, dati azienda, correzione di un
+            // dubbio): lì rispecchia il pulsante invece di contraddirlo.
+            if (!pending) void handleCreate();
+          }}
+        >
           <div>
             <Label htmlFor="cat-sector">Settore</Label>
             <Select
@@ -297,12 +314,12 @@ export function CategoriesClient({
             >
               Annulla
             </Button>
-            <Button size="sm" onClick={handleCreate} disabled={pending}>
+            <Button type="submit" size="sm" disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Crea
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       <Modal

@@ -32,6 +32,7 @@ import {
 } from '@/lib/actions/catalog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -907,11 +908,12 @@ function AddCategoryModal({
   return (
     <Modal open={open} onClose={onClose} title="Aggiungi categorie">
       <div className="space-y-3">
-        <input
+        {/* Era un `<input>` scritto a mano: stesso bordo, ma altezza e anello
+            di fuoco diversi da ogni altro campo del prodotto. */}
+        <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cerca categoria…"
-          className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
           aria-label="Cerca categoria"
         />
         <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-ink-200 p-1">
@@ -923,7 +925,7 @@ function AddCategoryModal({
             filtered.map((c) => (
               <label
                 key={c.id}
-                className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-ink-50"
+                className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-ink-50"
               >
                 <input
                   type="checkbox"

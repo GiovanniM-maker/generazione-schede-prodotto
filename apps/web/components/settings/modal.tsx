@@ -161,7 +161,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="-m-1 rounded-md p-2 text-ink-500 hover:bg-ink-100 hover:text-ink-600"
+            className="-m-1 rounded-lg p-2 text-ink-500 hover:bg-ink-100 hover:text-ink-600"
             aria-label="Chiudi"
           >
             <X className="h-4 w-4" />

@@ -40,10 +40,20 @@ export interface ButtonProps
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', ...props }, ref) => {
+  // `type="button"` predefinito, e non è un dettaglio.
+  //
+  // In HTML un `<button>` dentro un `<form>` senza `type` vale `submit`. Finché
+  // nell'applicazione non c'era un solo form la cosa non si notava; ora che i
+  // moduli sono form veri, «Annulla» accanto a «Salva» invierebbe il modulo
+  // invece di chiuderlo — e lo farebbe in silenzio, perché a schermo i due
+  // pulsanti sono identici.
+  //
+  // Chi vuole inviare lo dice: `type="submit"`.
+  ({ className, variant = 'primary', size = 'md', type = 'button', ...props }, ref) => {
     return (
       <button
         ref={ref}
+        type={type}
         className={cn(
           // `whitespace-nowrap`: l'etichetta di un comando non va a capo.
           //

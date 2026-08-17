@@ -9,6 +9,7 @@ import {
   chunk,
   computeQuality,
   extractProductFromHtml,
+  extractProductFromPdfText,
   extractSkuFromFilename,
   isSupportedImage,
   logWrite,
@@ -33,6 +34,7 @@ import { getSessionUser, getUserOrg } from '@/lib/auth';
 import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
 import { safeFetch } from '@/lib/safe-fetch';
+import { estraiTestoDaPdf } from '@/lib/pdf';
 import { writeOrTrace } from '@app/pipeline';
 
 // ---------------------------------------------------------------------------
@@ -1992,6 +1994,214 @@ function slugFromUrl(rawUrl: string, index: number): string {
   return `url-${index + 1}`;
 }
 
+// ---------------------------------------------------------------------------
+// Il contesto comune agli import "un documento = un prodotto" (URL e PDF).
+//
+// Prima stava tutto dentro importFromUrls. Quando è arrivato l'import da PDF
+// la scelta era copiare centosessanta righe o estrarle: copiate, avrebbero
+// smesso di somigliarsi alla prima correzione fatta da una parte sola.
+// ---------------------------------------------------------------------------
+
+interface ContestoImport {
+  presetVersionId: string | null;
+  attrById: Map<string, PresetAttributeOption>;
+  categoryIdByName: Map<string, string>;
+  /** Uno SKU libero nel batch: aggiunge -2, -3… finché non collide più. */
+  skuUnico(base: string): string;
+  /** Trova o crea l'attributo fattuale con questo nome, nel settore del preset. */
+  risolviAttributoFattuale(name: string): Promise<PresetAttributeOption | null>;
+}
+
+async function creaContestoImport(
+  service: ReturnType<typeof getServiceClient>,
+  orgId: string,
+  batchId: string,
+): Promise<ContestoImport> {
+  const { data: batch } = await service
+    .from('batches')
+    .select('preset_version_id')
+    .eq('id', batchId)
+    .maybeSingle();
+  const presetVersionId = batch?.preset_version_id ?? null;
+  const presetAttrs = presetVersionId ? await loadPresetAttributes(service, presetVersionId) : [];
+  const attrById = new Map(presetAttrs.map((a) => [a.id, a]));
+
+  const scope = await loadPresetCategoryScope(service, orgId, presetVersionId);
+  const sectorId = scope.sectorId;
+  const categoryIdByName = new Map(
+    scope.entries.map((c) => [normalizeCategoryName(c.name), c.id] as const),
+  );
+
+  // SKU già presenti nel batch: evita collisioni con l'unicità (batch, external_id).
+  const takenSkus = new Set<string>();
+  {
+    const { data: existing } = await service.from('products').select('sku').eq('batch_id', batchId);
+    for (const p of existing ?? []) if (p.sku) takenSkus.add(p.sku);
+  }
+
+  const factCache = new Map<string, PresetAttributeOption | null>();
+
+  return {
+    presetVersionId,
+    attrById,
+    categoryIdByName,
+    skuUnico(base: string): string {
+      let sku = base.slice(0, 64);
+      if (takenSkus.has(sku)) {
+        let n = 2;
+        while (takenSkus.has(`${sku}-${n}`)) n++;
+        sku = `${sku}-${n}`;
+      }
+      takenSkus.add(sku);
+      return sku;
+    },
+    async risolviAttributoFattuale(name: string): Promise<PresetAttributeOption | null> {
+      const clean = name.trim().slice(0, 120);
+      if (!clean || !sectorId) return null;
+      const cacheKey = clean.toLowerCase();
+      if (factCache.has(cacheKey)) return factCache.get(cacheKey) ?? null;
+      const { data: existing } = await service
+        .from('attributes')
+        .select('id, key, name')
+        .eq('sector_id', sectorId)
+        .eq('status', 'active')
+        .eq('name', clean)
+        .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
+        .limit(1)
+        .maybeSingle();
+      let attr = existing ?? null;
+      if (!attr) {
+        const { data: created } = await service
+          .from('attributes')
+          .insert({
+            sector_id: sectorId,
+            owner_organization_id: orgId,
+            name: clean,
+            attribute_kind: 'factual',
+            data_type: 'text',
+            default_extraction_instruction: `Estrai "${clean}" dalle fonti: solo il dato dichiarato, non stimare.`,
+            default_generation_instruction: `Usa "${clean}" nel testo solo se presente tra i fatti verificati.`,
+            is_system: false,
+            status: 'active',
+            version: 1,
+          })
+          .select('id, key, name')
+          .single();
+        attr = created ?? null;
+      }
+      const opt: PresetAttributeOption | null = attr
+        ? { id: attr.id, key: attr.key ?? null, name: attr.name, dataType: 'text', isRequired: false }
+        : null;
+      if (opt && !attrById.has(opt.id)) attrById.set(opt.id, opt);
+      factCache.set(cacheKey, opt);
+      return opt;
+    },
+  };
+}
+
+/**
+ * Crea il prodotto e i suoi fatti a partire da coppie etichetta → valore.
+ * `facts` sono i FATTI dichiarati dalla fonte: qui non si inventa niente, si
+ * risolve ogni etichetta in un attributo e si scrive il valore com'è.
+ */
+async function creaProdottoDaiFatti(
+  service: ReturnType<typeof getServiceClient>,
+  args: {
+    orgId: string;
+    batchId: string;
+    ctx: ContestoImport;
+    sku: string;
+    name: string;
+    facts: Record<string, string>;
+    /** Cosa è stato ricevuto in ingresso: l'URL, il nome del file PDF… */
+    rawInput: Record<string, string>;
+    /** Finisce in product_attribute_values.source_type: 'url', 'pdf', … */
+    sourceType: string;
+    hasImages: boolean;
+  },
+): Promise<{ ok: true; productId: string; eligible: boolean } | { ok: false; error: string }> {
+  const { orgId, batchId, ctx, sku, name, facts, sourceType } = args;
+
+  const canonical: Record<string, string> = { sku };
+  const pavRows: Array<{ attribute_id: string; value: string }> = [];
+  const category: string | null = facts['Categoria'] ?? null;
+
+  for (const [etichetta, valore] of Object.entries(facts)) {
+    const v = (valore ?? '').trim();
+    if (!v || etichetta.toLowerCase() === 'categoria') continue;
+    const attr = await ctx.risolviAttributoFattuale(etichetta);
+    if (!attr) continue;
+    const ck = canonicalKey(attr);
+    if (canonical[ck] !== undefined) continue;
+    canonical[ck] = v;
+    pavRows.push({ attribute_id: attr.id, value: v });
+  }
+
+  const built: BuiltProduct = {
+    externalId: sku,
+    parentExternalId: null,
+    name,
+    productType: null,
+    category,
+    sku,
+    rawInput: args.rawInput,
+    canonicalAttributes: canonical,
+    facts: [],
+  };
+  const quality = computeQuality(built, { hasImages: args.hasImages });
+  const additionalFacts = pavRows.filter((p) => {
+    const a = ctx.attrById.get(p.attribute_id);
+    return !a || !a.key || !NON_ADDITIONAL_FIELDS.has(a.key);
+  }).length;
+  const eligible = Boolean(sku) && additionalFacts >= 2;
+
+  const categoryId = category ? (ctx.categoryIdByName.get(normalizeCategoryName(category)) ?? null) : null;
+
+  const { data: productRow, error: pErr } = await service
+    .from('products')
+    .insert({
+      organization_id: orgId,
+      batch_id: batchId,
+      sku,
+      name,
+      category,
+      category_id: categoryId,
+      preset_version_id: ctx.presetVersionId,
+      external_id: sku,
+      raw_input_json: args.rawInput as unknown as Json,
+      canonical_attributes_json: canonical as unknown as Json,
+      data_quality_score: quality.score,
+      verification_status: eligible ? 'eligible' : 'excluded',
+    })
+    .select('id')
+    .single();
+  if (pErr || !productRow) {
+    return { ok: false, error: `Creazione prodotto fallita: ${pErr?.message ?? 'sconosciuto'}` };
+  }
+
+  if (pavRows.length > 0) {
+    // I fatti sono la ragione per cui il prodotto e' generabile: se non
+    // arrivano, il prodotto risulta importato ma non ha niente da dire.
+    await writeOrTrace(
+      service,
+      `product_attribute_values.insert(${sourceType})`,
+      service.from('product_attribute_values').insert(
+        pavRows.map((r) => ({
+          organization_id: orgId,
+          product_id: productRow.id,
+          attribute_id: r.attribute_id,
+          value_json: r.value as unknown as Json,
+          status: 'provided',
+          source_type: sourceType,
+        })),
+      ),
+      { organizationId: orgId, batchId, refId: productRow.id },
+    );
+  }
+
+  return { ok: true, productId: productRow.id, eligible };
+}
+
 export async function importFromUrls(input: {
   batchId: string;
   urls: string[];
@@ -2010,72 +2220,7 @@ export async function importFromUrls(input: {
   )].slice(0, MAX_URLS_PER_IMPORT);
   if (urls.length === 0) return fail('Incolla almeno un URL valido (http/https).');
 
-  // Contesto preset: settore, categorie dell'org, attributi.
-  const { data: batch } = await service
-    .from('batches')
-    .select('preset_version_id')
-    .eq('id', input.batchId)
-    .maybeSingle();
-  const presetVersionId = batch?.preset_version_id ?? null;
-  const presetAttrs = presetVersionId ? await loadPresetAttributes(service, presetVersionId) : [];
-  const attrById = new Map(presetAttrs.map((a) => [a.id, a]));
-
-  const urlCategoryScope = await loadPresetCategoryScope(service, orgId, presetVersionId);
-  const sectorId = urlCategoryScope.sectorId;
-  const categoryIdByName = new Map(
-    urlCategoryScope.entries.map((c) => [normalizeCategoryName(c.name), c.id] as const),
-  );
-
-  // SKU già presenti nel batch: evita collisioni con l'unicità (batch, external_id).
-  const takenSkus = new Set<string>();
-  {
-    const { data: existing } = await service.from('products').select('sku').eq('batch_id', input.batchId);
-    for (const p of existing ?? []) if (p.sku) takenSkus.add(p.sku);
-  }
-
-  // Cache find-or-create attributo fattuale per nome (nel settore del preset).
-  const factCache = new Map<string, PresetAttributeOption | null>();
-  async function resolveFactAttribute(name: string): Promise<PresetAttributeOption | null> {
-    const clean = name.trim().slice(0, 120);
-    if (!clean || !sectorId) return null;
-    const cacheKey = clean.toLowerCase();
-    if (factCache.has(cacheKey)) return factCache.get(cacheKey) ?? null;
-    const { data: existing } = await service
-      .from('attributes')
-      .select('id, key, name')
-      .eq('sector_id', sectorId)
-      .eq('status', 'active')
-      .eq('name', clean)
-      .or(`owner_organization_id.is.null,owner_organization_id.eq.${orgId}`)
-      .limit(1)
-      .maybeSingle();
-    let attr = existing ?? null;
-    if (!attr) {
-      const { data: created } = await service
-        .from('attributes')
-        .insert({
-          sector_id: sectorId,
-          owner_organization_id: orgId,
-          name: clean,
-          attribute_kind: 'factual',
-          data_type: 'text',
-          default_extraction_instruction: `Estrai "${clean}" dalle fonti: solo il dato dichiarato, non stimare.`,
-          default_generation_instruction: `Usa "${clean}" nel testo solo se presente tra i fatti verificati.`,
-          is_system: false,
-          status: 'active',
-          version: 1,
-        })
-        .select('id, key, name')
-        .single();
-      attr = created ?? null;
-    }
-    const opt: PresetAttributeOption | null = attr
-      ? { id: attr.id, key: attr.key ?? null, name: attr.name, dataType: 'text', isRequired: false }
-      : null;
-    if (opt && !attrById.has(opt.id)) attrById.set(opt.id, opt);
-    factCache.set(cacheKey, opt);
-    return opt;
-  }
+  const ctx = await creaContestoImport(service, orgId, input.batchId);
 
   // Fase 1: fetch + estrazione in parallelo.
   const extracted = await mapPool(urls, URL_FETCH_CONCURRENCY, async (url) => {
@@ -2103,104 +2248,31 @@ export async function importFromUrls(input: {
     }
     const { url, data } = item;
 
-    // SKU univoco nel batch.
-    let sku = (data.sku ? sanitizeFilename(data.sku).replace(/\.[a-z0-9]+$/i, '') : '').trim() || slugFromUrl(url, i);
-    sku = sku.slice(0, 64);
-    if (takenSkus.has(sku)) {
-      let n = 2;
-      while (takenSkus.has(`${sku}-${n}`)) n++;
-      sku = `${sku}-${n}`;
-    }
-    takenSkus.add(sku);
+    const base = (data.sku ? sanitizeFilename(data.sku).replace(/\.[a-z0-9]+$/i, '') : '').trim() || slugFromUrl(url, i);
+    const sku = ctx.skuUnico(base);
 
-    // Attributi/fatti → PAV + canonical.
-    const canonical: Record<string, string> = { sku };
-    const pavRows: Array<{ attribute_id: string; value: string }> = [];
     const facts: Record<string, string> = { ...data.attributes };
     if (data.brand) facts['Brand'] = data.brand;
     if (data.price) facts['Prezzo'] = data.price;
-    const category: string | null = facts['Categoria'] ?? null;
 
-    for (const [name, value] of Object.entries(facts)) {
-      const v = (value ?? '').trim();
-      if (!v || name.toLowerCase() === 'categoria') continue;
-      const attr = await resolveFactAttribute(name);
-      if (!attr) continue;
-      const ck = canonicalKey(attr);
-      if (canonical[ck] !== undefined) continue;
-      canonical[ck] = v;
-      pavRows.push({ attribute_id: attr.id, value: v });
-    }
-
-    const name = data.name ?? sku;
-    const built: BuiltProduct = {
-      externalId: sku,
-      parentExternalId: null,
-      name,
-      productType: null,
-      category,
+    const creato = await creaProdottoDaiFatti(service, {
+      orgId,
+      batchId: input.batchId,
+      ctx,
       sku,
+      name: data.name ?? sku,
+      facts,
       rawInput: { url },
-      canonicalAttributes: canonical,
-      facts: [],
-    };
-    const quality = computeQuality(built, { hasImages: data.imageUrls.length > 0 });
-    const additionalFacts = pavRows.filter((p) => {
-      const a = attrById.get(p.attribute_id);
-      return !a || !a.key || !NON_ADDITIONAL_FIELDS.has(a.key);
-    }).length;
-    const eligible = Boolean(sku) && additionalFacts >= 2;
-
-    let categoryId: string | null = null;
-    if (category) {
-      const matched = categoryIdByName.get(normalizeCategoryName(category));
-      if (matched) categoryId = matched;
-    }
-
-    const { data: productRow, error: pErr } = await service
-      .from('products')
-      .insert({
-        organization_id: orgId,
-        batch_id: input.batchId,
-        sku,
-        name,
-        category,
-        category_id: categoryId,
-        preset_version_id: presetVersionId,
-        external_id: sku,
-        raw_input_json: { url } as unknown as Json,
-        canonical_attributes_json: canonical as unknown as Json,
-        data_quality_score: quality.score,
-        verification_status: eligible ? 'eligible' : 'excluded',
-      })
-      .select('id')
-      .single();
-    if (pErr || !productRow) {
-      failures.push({ url, reason: `Creazione prodotto fallita: ${pErr?.message ?? 'sconosciuto'}` });
+      sourceType: 'url',
+      hasImages: data.imageUrls.length > 0,
+    });
+    if (!creato.ok) {
+      failures.push({ url, reason: creato.error });
       continue;
     }
+    const productRow = { id: creato.productId };
     imported++;
-    if (eligible) valid++;
-
-    if (pavRows.length > 0) {
-      // I fatti sono la ragione per cui il prodotto e' generabile: se non
-      // arrivano, il prodotto risulta importato ma non ha niente da dire.
-      await writeOrTrace(
-        service,
-        'product_attribute_values.insert(url)',
-        service.from('product_attribute_values').insert(
-        pavRows.map((r) => ({
-          organization_id: orgId,
-          product_id: productRow.id,
-          attribute_id: r.attribute_id,
-          value_json: r.value as unknown as Json,
-          status: 'provided',
-          source_type: 'url',
-        })),
-        ),
-        { organizationId: orgId, batchId: input.batchId, refId: productRow.id },
-      );
-    }
+    if (creato.eligible) valid++;
 
     // Immagini: scarica (SSRF-safe) → storage → source_files/source_items → link.
     for (const imgUrl of data.imageUrls.slice(0, URL_IMAGES_PER_PRODUCT)) {
@@ -2294,6 +2366,199 @@ export async function importFromUrls(input: {
   }
 
   return ok({ imported, failed: failures.length, imagesAttached, failures: failures.slice(0, 20) });
+}
+
+// ---------------------------------------------------------------------------
+// IMPORT DA PDF (schede tecniche: un documento = un prodotto).
+//
+// Il PDF viene letto come TESTO (apps/web/lib/pdf.ts), e dal testo si prendono
+// solo le coppie etichetta → valore dichiarate nel documento
+// (extractProductFromPdfText, in @app/core). La prosa del fornitore non entra:
+// la scheda la riscrive l'AI dai fatti, come per tutte le altre fonti.
+//
+// Il file resta allegato al prodotto (source_files / source_items /
+// product_source_links), così chi verifica un dato può aprire il documento da
+// cui è stato letto. Il mime è `application/pdf`, quindi la pipeline visiva —
+// che filtra per `image/*` — lo ignora: nessuna foto finta da analizzare.
+// ---------------------------------------------------------------------------
+
+const PDF_SOURCE = 'pdf_upload';
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
+const MAX_PDF_PER_UPLOAD = 50;
+
+export interface PdfImportResult {
+  imported: number;
+  failed: number;
+  /** Importati ma con meno di due fatti: la scheda non si può ancora generare. */
+  senzaFatti: number;
+  failures: Array<{ file: string; reason: string }>;
+}
+
+export async function importFromPdfs(formData: FormData): Promise<ActionResult<PdfImportResult>> {
+  const user = await getSessionUser();
+  if (!user) return fail('Non autenticato');
+  const batchId = String(formData.get('batchId') ?? '');
+  const orgId = await assertBatchAccess(batchId);
+  if (!orgId) return fail('Batch non accessibile');
+
+  const files = formData.getAll('files').filter((f): f is File => f instanceof File);
+  if (files.length === 0) return fail('Nessun PDF caricato.');
+  if (files.length > MAX_PDF_PER_UPLOAD) {
+    return fail(`Troppi PDF in un solo caricamento (massimo ${MAX_PDF_PER_UPLOAD}). Caricali a blocchi.`);
+  }
+
+  const service = getServiceClient();
+  const ctx = await creaContestoImport(service, orgId, batchId);
+  const bucket = STORAGE_BUCKETS.sourceFiles;
+
+  const failures: Array<{ file: string; reason: string }> = [];
+  let imported = 0;
+  let valid = 0;
+  let batchSourceId: string | null = null;
+
+  for (const file of files) {
+    if (extname(file.name).toLowerCase() !== '.pdf') {
+      failures.push({ file: file.name, reason: 'Non è un PDF.' });
+      continue;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      failures.push({ file: file.name, reason: `Troppo grande (massimo ${MAX_PDF_BYTES / (1024 * 1024)} MB).` });
+      continue;
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    // Si legge PRIMA di salvare: un file illeggibile non ha motivo di occupare
+    // spazio su storage per sempre. È la stessa regola dello spreadsheet.
+    const testo = await estraiTestoDaPdf(new Uint8Array(buffer));
+    if (!testo.ok) {
+      failures.push({ file: file.name, reason: testo.error });
+      continue;
+    }
+    if (testo.testo.trim().length === 0) {
+      failures.push({
+        file: file.name,
+        reason: 'Il PDF non contiene testo: è una scansione. Serve un PDF con testo selezionabile.',
+      });
+      continue;
+    }
+
+    const dati = extractProductFromPdfText(testo.testo, {
+      titoloProbabile: testo.titoloProbabile,
+      filename: file.name,
+    });
+    if (!dati.name && !dati.sku) {
+      failures.push({ file: file.name, reason: 'Nessun nome né codice articolo riconosciuto nel documento.' });
+      continue;
+    }
+
+    const base = (dati.sku ? sanitizeFilename(dati.sku).replace(/\.[a-z0-9]+$/i, '') : '').trim();
+    const sku = ctx.skuUnico(base || sanitizeFilename(file.name).replace(/\.pdf$/i, ''));
+
+    // Le stesse etichette dell'import da URL: «Brand» e «Prezzo». Scriverne
+    // altre creerebbe attributi gemelli, e lo stesso dato finirebbe in due
+    // campi diversi a seconda di come è entrato.
+    const facts: Record<string, string> = { ...dati.attributes };
+    if (dati.brand) facts['Brand'] = dati.brand;
+    if (dati.price) facts['Prezzo'] = dati.price;
+
+    const creato = await creaProdottoDaiFatti(service, {
+      orgId,
+      batchId,
+      ctx,
+      sku,
+      name: dati.name ?? sku,
+      facts,
+      rawInput: { pdf: file.name },
+      sourceType: 'pdf',
+      hasImages: false,
+    });
+    if (!creato.ok) {
+      failures.push({ file: file.name, reason: creato.error });
+      continue;
+    }
+    imported++;
+    if (creato.eligible) valid++;
+
+    // Il documento resta allegato: è la prova di ogni fatto letto.
+    const salvato = await persistSourceFile(service, orgId, batchId, bucket, file, buffer, '.pdf');
+    if ('error' in salvato) continue;
+    if (!batchSourceId) batchSourceId = await getOrCreateBatchSource(service, orgId, batchId, PDF_SOURCE);
+    if (!batchSourceId) continue;
+    const { data: si } = await service
+      .from('source_items')
+      .insert({
+        organization_id: orgId,
+        batch_source_id: batchSourceId,
+        source_file_id: salvato.id,
+        filename: file.name,
+        mime_type: 'application/pdf',
+        size_bytes: buffer.byteLength,
+        detected_sku: sku,
+        status: 'valid',
+        metadata_json: {
+          pagine: testo.pagine,
+          troncato: testo.troncato,
+          righeRiconosciute: dati.righeRiconosciute,
+          righeTotali: dati.righeTotali,
+          origineNome: dati.source,
+        } as unknown as Json,
+      })
+      .select('id')
+      .single();
+    if (!si) continue;
+    await writeOrTrace(
+      service,
+      'product_source_links.insert(pdf)',
+      service.from('product_source_links').insert({
+        organization_id: orgId,
+        product_id: creato.productId,
+        source_item_id: si.id,
+        link_type: 'pdf_source',
+      }),
+      { organizationId: orgId, batchId, refId: creato.productId },
+    );
+  }
+
+  if (batchSourceId) {
+    await writeOrTrace(
+      service,
+      'batch_sources.update(pronta)',
+      service.from('batch_sources').update({ status: 'ready' }).eq('id', batchSourceId),
+      { organizationId: orgId, batchId, refId: batchSourceId },
+    );
+  }
+
+  if (imported > 0) {
+    const avanzato = await mustWrite(
+      'batches.update',
+      service
+        .from('batches')
+        .update({
+          status: 'input_review',
+          source_type: 'pdf',
+          total_products: imported,
+          valid_products: valid,
+          invalid_products: imported - valid,
+        })
+        .eq('id', batchId),
+    );
+    if (!avanzato.ok) return fail(`Stato del batch non aggiornato: ${avanzato.error}`);
+    await logWrite(
+      'app_events.insert',
+      service.from('app_events').insert({
+        organization_id: orgId,
+        user_id: user.id,
+        event_name: 'pdf_import_confirmed',
+        batch_id: batchId,
+        metadata_json: { imported, valid, failed: failures.length } as unknown as Json,
+      }),
+    );
+  }
+
+  return {
+    ok: true,
+    data: { imported, failed: failures.length, senzaFatti: imported - valid, failures: failures.slice(0, 20) },
+  };
 }
 
 // ---------------------------------------------------------------------------

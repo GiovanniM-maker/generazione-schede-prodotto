@@ -439,7 +439,21 @@ export function OnboardingStepper({
 
         {/* ---------------- Step 1: Azienda ---------------- */}
         {step === 1 && (
-          <div className="space-y-4">
+          // Un modulo vero, non una fila di campi.
+          //
+          // `onSubmit` porta Invio da tastiera; su telefono cambia anche il
+          // tasto della tastiera, che smette di dire «a capo» e dice «vai»; e
+          // il gestore di password riconosce il modulo. Il pulsante però sta
+          // nella barra in fondo, fuori da qui: `form="passo-azienda"` lo
+          // collega lo stesso — è a questo che serve quell'attributo.
+          <form
+            id="passo-azienda"
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!loading && name.trim()) void submitCompany();
+            }}
+          >
             <div>
               <h2 className="text-xl font-semibold text-ink-900">
                 Configuriamo il sistema
@@ -517,7 +531,7 @@ export function OnboardingStepper({
                 </Select>
               </div>
             </div>
-          </div>
+          </form>
         )}
 
         {/* ---------------- Step 2: Settore ---------------- */}
@@ -991,7 +1005,7 @@ export function OnboardingStepper({
             )}
 
             {step === 1 && (
-              <Button onClick={submitCompany} disabled={loading || !name.trim()}>
+              <Button type="submit" form="passo-azienda" disabled={loading || !name.trim()}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Continua
                 <ArrowRight className="h-4 w-4" />

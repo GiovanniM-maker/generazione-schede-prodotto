@@ -42,7 +42,7 @@ export interface ProductAttributeView {
   name: string;
   value: string;
   /** Da dove arriva il dato. */
-  source: 'foto' | 'excel' | 'manuale' | 'derivato' | 'altro';
+  source: 'foto' | 'excel' | 'pdf' | 'url' | 'manuale' | 'derivato' | 'altro';
   /** Stato del valore (usato/da confermare/…). */
   status: string;
   /** true = fatto usabile in generazione; false = da confermare. */
@@ -81,6 +81,11 @@ export async function getProductAttributesAction(
 
   function sourceLabel(s: string | null, status: string): ProductAttributeView['source'] {
     if (s === 'image') return 'foto';
+    // PDF e URL finivano in «altro», cioè in «non lo sappiamo»: e invece si sa,
+    // ed è la differenza fra un dato dichiarato da un documento e uno letto da
+    // una fotografia. Chi verifica una scheda ha diritto di vedere quale.
+    if (s === 'pdf') return 'pdf';
+    if (s === 'url') return 'url';
     if (s === 'manual') return 'manuale';
     if (s === 'derived' || status === 'derived') return 'derivato';
     if (s === 'file' || s === 'spreadsheet' || status === 'extracted_from_file' || status === 'provided')

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { Info, Beaker } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { requireUser, getUserOrg } from '@/lib/auth';
 import { getServerEnv } from '@/lib/env.server';
 import { leggiDiritti } from '@/lib/entitlements';
@@ -104,12 +104,14 @@ export default async function BillingPage({
             nemmeno essere true in produzione (lo impedisce lo schema di env),
             quindi era una frase falsa per costruzione. */}
         {mockBilling && (
-          <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-            <Beaker className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
+          <div className="mt-2">
+            {/* Era un riquadro blu scritto a mano. Il prodotto ha uno stile per
+                gli avvisi informativi, ed è caldo come tutto il resto: il blu
+                era l'unica cosa fredda su un fondo crema. */}
+            <Avviso tono="informazione">
               In ambiente demo l’acquisto è simulato: i crediti vengono accreditati
               senza addebito reale.
-            </span>
+            </Avviso>
           </div>
         )}
         {/* Un pulsante che il server rifiuterebbe non va offerto: si dice

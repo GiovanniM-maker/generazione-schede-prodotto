@@ -11,6 +11,7 @@ import {
   Sparkles,
   UploadCloud,
   FileSpreadsheet,
+  FileText,
   HelpCircle,
   Image as ImageIcon,
   Download,
@@ -36,6 +37,7 @@ import {
   getBatchProductsV2,
   getBatchCategoryOptions,
   importFromUrls,
+  importFromPdfs,
   type PublishedPresetSummary,
   type PresetExplorer,
   type UploadSpreadsheetResult,
@@ -118,7 +120,7 @@ interface SampleCopy {
   metaDescription?: string;
 }
 
-type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url';
+type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url' | 'pdf';
 
 interface StepDef {
   id: number;
@@ -406,6 +408,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -622,9 +625,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     setPassoInCaricamento(9);
     const finito = () => setPassoInCaricamento((p) => (p === 9 ? null : p));
 
-    // Import da URL: i prodotti sono già stati creati da importFromUrls.
-    // NON rieseguire confirmImportV2 (cancellerebbe i prodotti importati).
-    if (sourceMode === 'url') {
+    // Import da URL o da PDF: i prodotti sono già stati creati dalla loro
+    // action. NON rieseguire confirmImportV2 (cancellerebbe gli importati).
+    if (sourceMode === 'url' || sourceMode === 'pdf') {
       setProducts(null);
       void (async () => {
         try {
@@ -725,7 +728,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         if (d.presetId) setSelectedPresetId(d.presetId);
         setPresetVersionId(d.presetVersionId);
         if (d.sourceType === 'mixed') setSourceMode('both');
-        else if (d.sourceType === 'spreadsheet' || d.sourceType === 'images') setSourceMode(d.sourceType);
+        else if (d.sourceType === 'spreadsheet' || d.sourceType === 'images' || d.sourceType === 'pdf')
+          setSourceMode(d.sourceType);
         if (d.spreadsheet) {
           setSpreadsheetResult({
             kind: 'spreadsheet',
@@ -824,9 +828,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       setError('Seleziona una fonte');
       return;
     }
-    // Import da URL: flusso dedicato (crea i prodotti subito, salta la mappatura).
+    // URL e PDF: flusso dedicato (creano i prodotti subito, saltano la
+    // mappatura — non c'è un foglio di cui scegliere le colonne).
     if (sourceMode === 'url') {
       await importUrls();
+      return;
+    }
+    if (sourceMode === 'pdf') {
+      await importPdfs();
       return;
     }
     const sourceTypes: WizardSourceType[] =
@@ -887,6 +896,52 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       imageOnly: 0,
       // L'import da URL fallisce per pagina, non per riga: i motivi li mostra
       // già il suo elenco di `failures`.
+      scartate: [],
+      factsInsertErrors: 0,
+      senzaNome: 0,
+      categoriesMatched: 0,
+      unmatchedCategories: [],
+    });
+    goTo(9);
+  }
+
+  async function importPdfs() {
+    if (!batchId) return;
+    if (pdfFiles.length === 0) {
+      setError('Scegli almeno una scheda tecnica in PDF.');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('batchId', batchId);
+    for (const f of pdfFiles) fd.append('files', f);
+    setBusy(true);
+    setError(null);
+    let res;
+    try {
+      res = await importFromPdfs(fd);
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    if (res.data.imported === 0) {
+      setError(
+        `Nessun prodotto importato. ${res.data.failures[0]?.reason ?? 'Controlla che i PDF siano schede tecniche con testo selezionabile.'}`,
+      );
+      return;
+    }
+    setImportSummary({
+      imported: res.data.imported,
+      valid: res.data.imported - res.data.senzaFatti,
+      invalid: res.data.senzaFatti,
+      imageOnly: 0,
+      // L'import da PDF fallisce per documento, non per riga: i motivi stanno
+      // già nel suo elenco di `failures`.
       scartate: [],
       factsInsertErrors: 0,
       senzaNome: 0,
@@ -1173,6 +1228,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 1 && (
         <Step1
+          onInvio={submitStep1}
+          pronto={name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0 && !busy}
           name={name}
           setName={setName}
           description={description}
@@ -1185,7 +1242,19 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 2 && <Step2 explorer={explorer} expandedCat={expandedCat} setExpandedCat={setExpandedCat} expandedAttr={expandedAttr} setExpandedAttr={setExpandedAttr} />}
 
-      {stepId === 3 && <Step3 sourceMode={sourceMode} setSourceMode={setSourceMode} urlText={urlText} setUrlText={setUrlText} onImportUrls={importUrls} busy={busy} />}
+      {stepId === 3 && (
+        <Step3
+          sourceMode={sourceMode}
+          setSourceMode={setSourceMode}
+          urlText={urlText}
+          setUrlText={setUrlText}
+          onImportUrls={importUrls}
+          pdfFiles={pdfFiles}
+          setPdfFiles={setPdfFiles}
+          onImportPdfs={importPdfs}
+          busy={busy}
+        />
+      )}
 
       {stepId === 4 && batchId && <Step4 batchId={batchId} hasSpreadsheet={hasSpreadsheet} hasImages={hasImages} imageNamingGuide={imageNamingGuide} />}
 
@@ -1287,14 +1356,16 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           // Il passo che carica blocca «Continua»: senza, si attraversavano
           // mappatura e verifica senza vederle.
           busy={busy || analyzingImages || passoInCaricamento === stepId}
-          step3Label={sourceMode === 'url' ? 'Importa da URL' : 'Continua'}
+          step3Label={sourceMode === 'url' ? 'Importa da URL' : sourceMode === 'pdf' ? 'Importa i PDF' : 'Continua'}
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
-            3: !!sourceMode && (sourceMode !== 'url' || urlText.trim().length > 0),
+            3:
+              !!sourceMode &&
+              (sourceMode !== 'url' || urlText.trim().length > 0) &&
+              (sourceMode !== 'pdf' || pdfFiles.length > 0),
             5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
             10: sampleDone,
           }}
-          onStep1={submitStep1}
           onSources={submitSources}
           onSample={runSample}
           onStart={startGeneration}
@@ -1371,7 +1442,6 @@ function StepPrimaryAction({
   busy,
   canProceed,
   step3Label = 'Continua',
-  onStep1,
   onSources,
   onSample,
   onStart,
@@ -1382,7 +1452,6 @@ function StepPrimaryAction({
   busy: boolean;
   canProceed: Record<number, boolean>;
   step3Label?: string;
-  onStep1: () => void;
   onSources: () => void;
   onSample: () => void;
   onStart: () => void;
@@ -1393,7 +1462,7 @@ function StepPrimaryAction({
 
   if (stepId === 1) {
     return (
-      <Button onClick={onStep1} disabled={busy || !canProceed[1]}>
+      <Button type="submit" form="passo-batch" disabled={busy || !canProceed[1]}>
         {busy ? spinner : <>Crea e continua <ArrowRight className="h-4 w-4" /></>}
       </Button>
     );
@@ -1446,6 +1515,8 @@ function Step1({
   presets,
   selectedPresetId,
   setSelectedPresetId,
+  onInvio,
+  pronto,
 }: {
   name: string;
   setName: (v: string) => void;
@@ -1454,10 +1525,22 @@ function Step1({
   presets: PublishedPresetSummary[] | null;
   selectedPresetId: string | null;
   setSelectedPresetId: (v: string) => void;
+  onInvio: () => void;
+  pronto: boolean;
 }) {
   const selected = presets?.find((p) => p.id === selectedPresetId) ?? null;
   return (
-    <div className="space-y-6">
+    // Il nome del batch si scrive e si preme Invio, come in qualunque modulo.
+    // «Crea e continua» sta nella barra in fondo, fuori da questo sottoalbero:
+    // `form="passo-batch"` lo collega lo stesso.
+    <form
+      id="passo-batch"
+      className="space-y-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (pronto) onInvio();
+      }}
+    >
       <div data-tour="batch-name">
         <Label htmlFor="batch-name">Nome del batch</Label>
         <Input id="batch-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Collezione autunno 2026" />
@@ -1534,7 +1617,7 @@ function Step1({
           </Link>
         </div>
       )}
-    </div>
+    </form>
   );
 }
 
@@ -1644,7 +1727,7 @@ const SOURCE_CARDS: SourceCard[] = [
   // accanto all'altra. Una sola, e la sceglie il codice in base a `disabled`:
   // così non si può più scriverne una terza per sbaglio.
   { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true },
-  { mode: null, title: 'PDF', description: 'Estrazione da schede tecniche in PDF.', disabled: true },
+  { mode: 'pdf', title: 'PDF', description: 'Carichi le schede tecniche in PDF, una per prodotto: leggiamo le coppie «etichetta: valore» dichiarate nel documento.', note: 'Novità' },
 ];
 
 function Step3({
@@ -1653,6 +1736,9 @@ function Step3({
   urlText,
   setUrlText,
   onImportUrls,
+  pdfFiles,
+  setPdfFiles,
+  onImportPdfs,
   busy,
 }: {
   sourceMode: SourceMode | null;
@@ -1660,6 +1746,9 @@ function Step3({
   urlText: string;
   setUrlText: (v: string) => void;
   onImportUrls: () => void;
+  pdfFiles: File[];
+  setPdfFiles: (f: File[]) => void;
+  onImportPdfs: () => void;
   busy: boolean;
 }) {
   const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
@@ -1731,6 +1820,59 @@ function Step3({
               <Button onClick={onImportUrls} disabled={busy || urlCount === 0} data-tour="url-import">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {busy ? 'Importo…' : 'Importa e continua'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {sourceMode === 'pdf' && (
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <div>
+              <Label>Schede tecniche in PDF (una per prodotto)</Label>
+              <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white p-6 text-center hover:bg-ink-50">
+                <FileText className="h-6 w-6 text-ink-400" />
+                <span className="text-sm text-ink-600">
+                  {pdfFiles.length > 0
+                    ? `${pdfFiles.length} ${pdfFiles.length === 1 ? 'PDF scelto' : 'PDF scelti'} — clicca per cambiare`
+                    : 'Seleziona uno o più file .pdf'}
+                </span>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  className="hidden"
+                  disabled={busy}
+                  onChange={(e) => setPdfFiles(Array.from(e.target.files ?? []))}
+                  data-testid="pdf-input"
+                />
+              </label>
+              {pdfFiles.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-ink-500">
+                  {pdfFiles.slice(0, 8).map((f) => (
+                    <li key={f.name} className="truncate font-mono">
+                      {f.name}
+                    </li>
+                  ))}
+                  {pdfFiles.length > 8 && <li>e altri {pdfFiles.length - 8}…</li>}
+                </ul>
+              )}
+              <p className="mt-2 text-xs text-ink-500">
+                Massimo 50 per volta, 15 MB l’uno. Leggiamo le coppie «etichetta: valore» del
+                documento — marca, codice, materiale, dimensioni — e il codice articolo diventa lo
+                SKU.
+              </p>
+            </div>
+            <Avviso tono="attenzione" className="text-xs">
+              Serve un PDF con testo selezionabile: da una scansione o da una fotografia non si
+              legge niente, e ve lo diciamo invece di importare una scheda vuota. La descrizione
+              del fornitore non viene copiata: l’AI riscrive la scheda dai fatti.
+            </Avviso>
+            <div className="flex justify-end">
+              <Button onClick={onImportPdfs} disabled={busy || pdfFiles.length === 0} data-tour="pdf-import">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {busy ? 'Leggo i PDF…' : 'Importa e continua'}
               </Button>
             </div>
           </CardContent>
@@ -1972,8 +2114,8 @@ function Step5({
                       onClick={() => onChangeDelimiter(opt.d)}
                       className={
                         skuDelimiter === opt.d
-                          ? 'rounded-md border border-brand-accent bg-brand-accent px-2.5 py-1 text-xs font-medium text-white'
-                          : 'rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs text-ink-700 hover:border-ink-400'
+                          ? 'rounded-lg border border-brand-accent bg-brand-accent px-2.5 py-1 text-xs font-medium text-white'
+                          : 'rounded-lg border border-ink-300 bg-white px-2.5 py-1 text-xs text-ink-700 hover:border-ink-400'
                       }
                     >
                       {opt.label}
