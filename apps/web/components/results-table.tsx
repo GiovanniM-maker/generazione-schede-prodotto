@@ -1445,6 +1445,8 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
 const SOURCE_TONE: Record<ProductAttributeView['source'], 'green' | 'blue' | 'gray' | 'violet'> = {
   foto: 'blue',
   excel: 'green',
+  pdf: 'green',
+  url: 'green',
   manuale: 'violet',
   derivato: 'gray',
   altro: 'gray',
