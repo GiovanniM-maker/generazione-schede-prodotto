@@ -27,6 +27,7 @@ export * from './translation.js';
 export * from './url-extract.js';
 export * from './pdf-extract.js';
 export * from './sku-raggruppamento.js';
+export * from './varianti.js';
 export * from './ip-guard.js';
 export * from './chunk.js';
 export * from './category-vocabulary.js';

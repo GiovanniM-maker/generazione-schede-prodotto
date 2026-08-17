@@ -56,6 +56,28 @@ export async function buildBatchExport(
         .select('product_id, attribute_id, value_json, status')
         .in('product_id', productIds)
     : { data: [] as Array<{ product_id: string; attribute_id: string; value_json: unknown; status: string }> };
+  // Le varianti del prodotto: nell'export diventano una riga ciascuna, con i
+  // campi del prodotto ripetuti. È il formato che gli importer di Shopify,
+  // WooCommerce e PrestaShop si aspettano — padre e figli sulle stesse colonne,
+  // legati dal codice padre — ed è anche il solo modo in cui il cliente
+  // ritrova i codici che vende davvero.
+  const { data: variantRows } = productIds.length
+    ? await service
+        .from('product_variants')
+        .select('product_id, sku, external_id, variant_attributes_json')
+        .in('product_id', productIds)
+    : { data: [] as Array<{ product_id: string; sku: string | null; external_id: string | null; variant_attributes_json: unknown }> };
+  const variantiPerProdotto = new Map<string, Array<{ sku: string; attributi: Record<string, string> }>>();
+  for (const v of variantRows ?? []) {
+    if (!v.sku) continue;
+    const elenco = variantiPerProdotto.get(v.product_id) ?? [];
+    elenco.push({
+      sku: v.sku,
+      attributi: (v.variant_attributes_json ?? {}) as Record<string, string>,
+    });
+    variantiPerProdotto.set(v.product_id, elenco);
+  }
+
   const pavAttrIds = [...new Set((pavRows ?? []).map((r) => r.attribute_id))];
   const { data: attrRows } = pavAttrIds.length
     ? await service.from('attributes').select('id, name').in('id', pavAttrIds)
@@ -166,7 +188,25 @@ export async function buildBatchExport(
         (t.faq ?? []).map((f) => `D: ${f.question} R: ${f.answer}`).join(' | '),
       );
     }
-    rows.push(baseRow);
+    const varianti = variantiPerProdotto.get(product.id) ?? [];
+    if (varianti.length === 0) {
+      rows.push(baseRow);
+    } else {
+      // Il testo è del prodotto e si ripete uguale su ogni riga: è generato una
+      // volta sola, ed è tutto il punto del raggruppamento. Cambiano lo SKU e
+      // gli attributi che distinguono la variante.
+      hasParents = true;
+      for (const v of varianti) {
+        rows.push({
+          ...baseRow,
+          sku: v.sku,
+          codice_padre: product.external_id ?? '',
+          ...Object.fromEntries(
+            Object.entries(v.attributi).map(([k, val]) => [k, neutralizeCell(String(val ?? ''))]),
+          ),
+        });
+      }
+    }
 
     // Versione normalizzata (testo editato preferito) per i mapper piattaforma.
     items.push({
@@ -181,6 +221,12 @@ export async function buildBatchExport(
       brand: canonical['brand'] ?? '',
       category: product.category ?? canonical['category'] ?? '',
     });
+    // Per i tracciati e-commerce ogni variante è una riga acquistabile: il
+    // prodotto senza i suoi codici non si può mettere in vendita.
+    for (const v of varianti) {
+      items.push({ ...items[items.length - 1]!, sku: v.sku });
+    }
+    if (varianti.length > 0) items.splice(items.length - varianti.length - 1, 1);
   }
 
   // Export verso una piattaforma e-commerce (Shopify/Woo/Presta): CSV con le

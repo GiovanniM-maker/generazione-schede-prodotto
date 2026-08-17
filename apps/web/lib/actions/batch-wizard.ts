@@ -21,12 +21,14 @@ import {
   suggestImageType,
   suggestNameHeader,
   suggestSkuHeader,
+  unisciVarianti,
   validateRowSku,
   type BuiltProduct,
   type CategoryRow,
   type ParseResult,
   type SkuDelimiter,
   type SourceAnalysis,
+  type VarianteUnita,
 } from '@app/core';
 import { STORAGE_BUCKETS } from '@app/config';
 import type { Json } from '@app/database';
@@ -1607,6 +1609,98 @@ export async function confirmImportV2(input: {
     }
   }
 
+  // --- Le varianti smettono di essere prodotti -----------------------------
+  //
+  // Fin qui ogni riga del file è un prodotto. Ma otto righe che dichiarano lo
+  // stesso codice padre sono UN articolo in otto colori: come otto prodotti
+  // costano otto crediti e producono otto descrizioni quasi identiche, che
+  // sulle pagine del cliente sono contenuto duplicato.
+  //
+  // Il modello a due livelli c'era già nello schema — `product_variants`,
+  // `parent_external_id` — e non lo usava nessuno: la colonna veniva scritta e
+  // letta solo dall'export, come colonna. Qui diventa una struttura.
+  //
+  // Del prodotto restano SOLO i fatti veri per tutte le sue varianti. Quelli su
+  // cui le varianti differiscono sono, per definizione, ciò che le distingue, e
+  // scendono alla variante: se salissero, la scheda direbbe «rosso» anche del
+  // blu, e nessun controllo a valle se ne accorgerebbe.
+  const varianti: Array<{ skuProdotto: string; righe: VarianteUnita[] }> = [];
+  {
+    const perSku = new Map<string, PendingProduct>();
+    for (const p of pending) perSku.set(p.sku, p);
+
+    const uniti = unisciVarianti(
+      pending.map((p) => ({
+        sku: p.sku,
+        externalId: String(p.insert.external_id ?? p.sku),
+        parentExternalId: (p.insert.parent_external_id as string | null) ?? null,
+        name: String(p.insert.name ?? p.sku),
+        category: (p.insert.category as string | null) ?? null,
+        canonicalAttributes: (p.insert.canonical_attributes_json ?? {}) as Record<string, string>,
+      })),
+    );
+
+    const nuovo: PendingProduct[] = [];
+    for (const u of uniti) {
+      const righe = u.skuOriginali.map((s) => perSku.get(s)).filter((p): p is PendingProduct => !!p);
+      if (righe.length === 0) continue;
+      if (u.varianti.length === 0) {
+        nuovo.push(righe[0]!);
+        continue;
+      }
+
+      const rappresentante = perSku.get(u.sku) ?? righe[0]!;
+      const righeVarianti = righe.filter((r) => r.sku !== u.sku);
+      const rigaPadre = perSku.get(u.sku) ?? null;
+
+      // Stessa regola dei fatti canonici, applicata ai fatti veri e propri:
+      // un attributo sale al prodotto solo se TUTTE le varianti lo portano con
+      // lo stesso identico valore. Più quelli dichiarati sulla riga del padre,
+      // che sono del prodotto perché ce li ha messi il cliente.
+      const conteggio = new Map<string, { n: number; row: { attribute_id: string; value: string } }>();
+      for (const r of righeVarianti) {
+        for (const pav of r.pavRows) {
+          const k = `${pav.attribute_id} ${pav.value}`;
+          const v = conteggio.get(k);
+          if (v) v.n++;
+          else conteggio.set(k, { n: 1, row: pav });
+        }
+      }
+      const pavComuni = [...conteggio.values()]
+        .filter((v) => v.n === righeVarianti.length)
+        .map((v) => v.row);
+      const giaPresenti = new Set(pavComuni.map((p) => p.attribute_id));
+      for (const pav of rigaPadre?.pavRows ?? []) {
+        if (!giaPresenti.has(pav.attribute_id)) pavComuni.push(pav);
+      }
+
+      nuovo.push({
+        ...rappresentante,
+        sku: u.sku,
+        eligible: righe.some((r) => r.eligible),
+        imageOnly: righe.every((r) => r.imageOnly),
+        insert: {
+          ...rappresentante.insert,
+          sku: u.sku,
+          external_id: u.externalId,
+          name: u.name,
+          category: u.category,
+          parent_external_id: null,
+          canonical_attributes_json: u.canonicalAttributes as unknown as Json,
+        },
+        pavRows: pavComuni,
+        // Le foto di tutte le varianti restano al prodotto: assegnarle alla
+        // singola variante richiede che la fonte dichiari a quale colore
+        // appartengono, e nessuna delle fonti attuali lo dichiara.
+        imgIds: [...new Set(righe.flatMap((r) => r.imgIds))],
+      });
+      varianti.push({ skuProdotto: u.sku, righe: u.varianti });
+    }
+
+    pending.length = 0;
+    pending.push(...nuovo);
+  }
+
   // --- Scrittura a blocchi -------------------------------------------------
   {
     const idBySku = new Map<string, string>();
@@ -1651,6 +1745,30 @@ export async function confirmImportV2(input: {
       }
     }
     invalid += pending.length - inserted.length;
+
+    // Le varianti. Senza questa scrittura il raggruppamento sarebbe solo un
+    // risparmio: il catalogo saprebbe di avere un prodotto e avrebbe perso i
+    // codici delle sue otto colorazioni, che sono ciò che il cliente vende.
+    const righeVarianti = varianti.flatMap((v) => {
+      const productId = idBySku.get(v.skuProdotto);
+      if (!productId) return [];
+      return v.righe.map((r) => ({
+        product_id: productId,
+        external_id: r.externalId,
+        sku: r.sku,
+        color: r.attributiVariante['color'] ?? r.attributiVariante['colore'] ?? null,
+        size: r.attributiVariante['size'] ?? r.attributiVariante['taglia'] ?? null,
+        variant_attributes_json: r.attributiVariante as unknown as Json,
+      }));
+    });
+    for (const slice of chunk(righeVarianti, THIN_CHUNK)) {
+      await writeOrTrace(
+        service,
+        'product_variants.insert(import)',
+        service.from('product_variants').insert(slice),
+        { organizationId: orgId, batchId: input.batchId },
+      );
+    }
 
     // I FATTI sono il cuore della generazione: se l'insert fallisce il prodotto
     // resta senza dati ("informazioni non sufficienti"). Logghiamo l'errore
