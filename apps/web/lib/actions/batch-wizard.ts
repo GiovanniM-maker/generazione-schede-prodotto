@@ -55,7 +55,7 @@ import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
 import { safeFetch } from '@/lib/safe-fetch';
 import { estraiTestoDaPdf } from '@/lib/pdf';
-import { getFornitoreRicerca } from '@/lib/ricerca-brave';
+import { getFornitoreRicerca, ricercaConfigurata } from '@/lib/ricerca-brave';
 import { eseguiScaglione, type Materializza } from '@/lib/coda-sku';
 import { scaricaImmaginiDaPagina } from '@/lib/immagini-da-web';
 import { writeOrTrace } from '@app/pipeline';
@@ -3061,6 +3061,10 @@ function aBlocchi<T>(elementi: T[], n: number): T[][] {
   return out;
 }
 
+const RICERCA_NON_CONFIGURATA =
+  'La ricerca online non è configurata, quindi non c’è modo di cercare questi codici. ' +
+  'Nessun codice è stato messo in coda: nulla è stato archiviato come inesistente.';
+
 /**
  * Mette in coda la lista. Non cerca niente: torna subito.
  *
@@ -3081,6 +3085,9 @@ export async function avviaListaSku(input: {
   if (!user) return fail('Non autenticato');
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
+
+  // Prima di tutto: si può cercare? Se no, la lavorazione non comincia.
+  if (!ricercaConfigurata()) return fail(RICERCA_NON_CONFIGURATA);
 
   const righe = righeDellaLista(input);
   if (righe.length === 0) return fail('Nessun codice da importare.');
@@ -3155,6 +3162,9 @@ export async function proseguiListaSku(input: {
   if (!user) return fail('Non autenticato');
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
+  // Anche qui, e non solo all'avvio: una coda già in piedi può essere ripresa
+  // il giorno dopo, e nel frattempo la configurazione può essere cambiata.
+  if (!ricercaConfigurata()) return fail(RICERCA_NON_CONFIGURATA);
 
   const service = getServiceClient();
   const ctx = await creaContestoImport(service, orgId, input.batchId);

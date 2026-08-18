@@ -38,7 +38,15 @@ vi.mock('@/lib/ownership', () => ({
     db.rows('batches').some((b) => b.id === batchId && b.organization_id === ORG) ? ORG : null,
 }));
 
-const { uploadBatchFiles } = await import('../actions/batch-wizard.js');
+vi.mock('@/lib/ricerca-brave', () => ({
+  ricercaConfigurata: () => ricerca.configurata,
+  getFornitoreRicerca: () => ({ nome: 'finta', cerca: async () => [] }),
+}));
+const ricerca = { configurata: false };
+
+const { uploadBatchFiles, avviaListaSku, proseguiListaSku } = await import(
+  '../actions/batch-wizard.js'
+);
 
 function seed() {
   db = new FakeDb({ schema: SCHEMA_APP });
@@ -183,5 +191,67 @@ describe('i risultati dicono cosa è stato consegnato', () => {
     expect(pagina).toMatch(/\{consegnata\}/);
     // E le istruzioni non sono sparite: sono scese accanto alla tabella.
     expect(pagina).toMatch(/Rivedi, modifica e approva/);
+  });
+});
+
+describe('la ricerca online non configurata', () => {
+  // Senza chiave il fornitore finto non trova niente, e ogni codice sarebbe
+  // finito nel registro come «non trovato». Che è una RISPOSTA, non un guasto:
+  // viene scritta, la cache la riusa per giorni, e quando la chiave arriva
+  // quegli stessi codici continuano a risultare inesistenti senza che nessuno
+  // abbia mai cercato niente. Il danno non è il messaggio: è il registro.
+  beforeEach(() => {
+    ricerca.configurata = false;
+  });
+
+  it('non mette in coda niente, e dice che il problema è la configurazione', async () => {
+    const res = await avviaListaSku({
+      batchId: BATCH,
+      testo: 'SED-AUR-01\nSED-AUR-02',
+      raggruppa: false,
+      domini: [],
+    });
+    expect(res.ok).toBe(false);
+    expect(messaggio(res)).toMatch(/non è configurata/i);
+    // Il messaggio NON deve mandare a cercare il problema nei codici.
+    expect(messaggio(res)).not.toMatch(/nessuna pagina trovata/i);
+    // E soprattutto: nel registro non è stato scritto niente.
+    expect(db.rows('sku_resolutions')).toHaveLength(0);
+  });
+
+  it('non riprende nemmeno una coda già esistente', async () => {
+    // La configurazione può essere cambiata fra un giro e l'altro: una coda
+    // messa in piedi ieri non deve poter girare a vuoto oggi.
+    db.seed('sku_resolutions', [
+      {
+        id: 'r1',
+        organization_id: ORG,
+        batch_id: BATCH,
+        codice_originale: 'SED-AUR-01',
+        marca_originale: null,
+        sku_membri: ['SED-AUR-01'],
+        ambito: [],
+        esito: 'in-coda',
+        tentativi: 0,
+      },
+    ]);
+    const res = await proseguiListaSku({ batchId: BATCH });
+    expect(res.ok).toBe(false);
+    expect(messaggio(res)).toMatch(/non è configurata/i);
+    expect(db.byId('sku_resolutions', 'r1').esito).toBe('in-coda');
+  });
+
+  it('con la chiave configurata la coda parte', async () => {
+    // Senza questa, le due prove qui sopra passerebbero anche se l'avvio fosse
+    // rotto per sempre.
+    ricerca.configurata = true;
+    const res = await avviaListaSku({
+      batchId: BATCH,
+      testo: 'SED-AUR-01\nSED-AUR-02',
+      raggruppa: false,
+      domini: [],
+    });
+    expect(res.ok).toBe(true);
+    expect(db.rows('sku_resolutions')).toHaveLength(2);
   });
 });

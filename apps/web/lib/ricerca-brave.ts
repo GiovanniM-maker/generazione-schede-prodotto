@@ -143,6 +143,21 @@ export function getFornitoreRicerca(): FornitoreRicerca {
   return fornitore;
 }
 
+/**
+ * `true` se la ricerca online è configurata davvero.
+ *
+ * Serve a chi sta per METTERE IN CODA una lavorazione, e non è una comodità.
+ * Senza chiave il fornitore finto non trova niente e ogni codice finisce nel
+ * registro come «non trovato» — che è una risposta, non un guasto: viene
+ * scritta, riusata dalla cache per giorni, e quando la chiave arriva quegli
+ * stessi codici continuano a risultare inesistenti senza che nessuno abbia
+ * cercato niente. Una lavorazione che non si può fare va rifiutata prima, non
+ * eseguita male.
+ */
+export function ricercaConfigurata(): boolean {
+  return getServerEnv().BRAVE_SEARCH_API_KEY.trim().length > 0;
+}
+
 /** Solo per i test: rimette il fornitore allo stato iniziale. */
 export function azzeraFornitoreRicerca(): void {
   fornitore = null;
