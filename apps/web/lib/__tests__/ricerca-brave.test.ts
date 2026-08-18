@@ -58,7 +58,7 @@ describe('RicercaBrave — la chiamata', () => {
     fetchFinto.mockResolvedValue(rispostaFinta(200, RISPOSTA_BUONA));
     await new RicercaBrave('k', SUBITO).cerca(RICHIESTA);
     const q = new URL(String(fetchFinto.mock.calls[0]![0])).searchParams.get('q');
-    expect(q).toBe('"SED-AUR-01" Ferrini');
+    expect(q).toBe('("SED-AUR-01" OR "SEDAUR01") Ferrini');
   });
 
   it('non chiama affatto se non c’è un codice da cercare', async () => {
