@@ -58,7 +58,37 @@ describe('RicercaBrave — la chiamata', () => {
     fetchFinto.mockResolvedValue(rispostaFinta(200, RISPOSTA_BUONA));
     await new RicercaBrave('k', SUBITO).cerca(RICHIESTA);
     const q = new URL(String(fetchFinto.mock.calls[0]![0])).searchParams.get('q');
-    expect(q).toBe('("SED-AUR-01" OR "SEDAUR01") Ferrini');
+    expect(q).toBe('"SED-AUR-01" Ferrini');
+  });
+
+  it('se la prima scrittura del codice non trova niente, prova le altre', async () => {
+    // È il caso di «E1 M50 120101»: con gli spazi il motore restituisce un
+    // televisore, senza spazi la borsa del produttore. Fermarsi alla prima
+    // forma vuol dire dichiarare inesistente un prodotto che esiste.
+    fetchFinto
+      .mockResolvedValueOnce(rispostaFinta(200, { web: { results: [] } }))
+      .mockResolvedValueOnce(rispostaFinta(200, { web: { results: [] } }))
+      .mockResolvedValueOnce(rispostaFinta(200, RISPOSTA_BUONA));
+
+    const r = await new RicercaBrave('k', SUBITO).cerca({ ...RICHIESTA, codice: 'E1 M50 120101' });
+
+    expect(r.length).toBeGreaterThan(0);
+    const chieste = fetchFinto.mock.calls.map((c) =>
+      new URL(String(c[0])).searchParams.get('q'),
+    );
+    expect(chieste).toEqual([
+      '"E1 M50 120101" Ferrini',
+      '"E1-M50-120101" Ferrini',
+      '"E1M50120101" Ferrini',
+    ]);
+  });
+
+  it('appena una scrittura risponde, le altre non si pagano', async () => {
+    // Il caso normale è che risponda la prima: le chiamate in più si fanno solo
+    // quando l'alternativa è non trovare il prodotto.
+    fetchFinto.mockResolvedValue(rispostaFinta(200, RISPOSTA_BUONA));
+    await new RicercaBrave('k', SUBITO).cerca({ ...RICHIESTA, codice: 'E1 M50 120101' });
+    expect(fetchFinto).toHaveBeenCalledTimes(1);
   });
 
   it('non chiama affatto se non c’è un codice da cercare', async () => {

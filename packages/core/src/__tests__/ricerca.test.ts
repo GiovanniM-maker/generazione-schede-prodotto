@@ -3,7 +3,7 @@ import {
   LIMITE_RISULTATI_MASSIMO,
   MAX_DOMINI_PER_QUERY,
   RicercaFinta,
-  costruisciQuery,
+  costruisciQueries,
   dominioDi,
   leggiRisultatiBrave,
 } from '../ricerca.js';
@@ -19,57 +19,60 @@ import {
 
 const BASE = { codice: 'SED-AUR-01', marca: null, domini: [], limite: 10 };
 
-describe('costruisciQuery', () => {
+/** La prima domanda: quella con il codice come l'ha scritto il cliente. */
+const prima = (r: Parameters<typeof costruisciQueries>[0]) => costruisciQueries(r)[0] ?? '';
+
+describe('costruisciQueries — la singola domanda', () => {
   it('mette il codice fra virgolette', () => {
     // Senza, i motori spezzano «SED-AUR-01» sui trattini e restituiscono
     // qualunque pagina che contenga una delle parti: mezzo catalogo.
     // Le forme sono due perché il codice ha dei separatori: chi lo pubblica sul
     // web spesso lo scrive attaccato.
-    expect(costruisciQuery(BASE)).toBe('("SED-AUR-01" OR "SEDAUR01")');
+    expect(prima(BASE)).toBe('"SED-AUR-01"');
   });
 
   it('aggiunge la marca, ma senza virgolette', () => {
     // La marca è un nome commerciale scritto in dieci modi: vincolarla alla
     // lettera fa perdere pagine buone.
-    expect(costruisciQuery({ ...BASE, marca: 'Ferrini' })).toBe('("SED-AUR-01" OR "SEDAUR01") Ferrini');
+    expect(prima({ ...BASE, marca: 'Ferrini' })).toBe('"SED-AUR-01" Ferrini');
   });
 
   it('limita a un dominio con site:', () => {
-    expect(costruisciQuery({ ...BASE, domini: ['ferrini.it'] })).toBe('("SED-AUR-01" OR "SEDAUR01") site:ferrini.it');
+    expect(prima({ ...BASE, domini: ['ferrini.it'] })).toBe('"SED-AUR-01" site:ferrini.it');
   });
 
   it('con più domini li mette in alternativa', () => {
-    expect(costruisciQuery({ ...BASE, domini: ['ferrini.it', 'grossista.it'] })).toBe(
-      '("SED-AUR-01" OR "SEDAUR01") (site:ferrini.it OR site:grossista.it)',
+    expect(prima({ ...BASE, domini: ['ferrini.it', 'grossista.it'] })).toBe(
+      '"SED-AUR-01" (site:ferrini.it OR site:grossista.it)',
     );
   });
 
   it('ripulisce i domini scritti come li scrive una persona', () => {
-    expect(costruisciQuery({ ...BASE, domini: ['https://www.Ferrini.it/prodotti'] })).toBe(
-      '("SED-AUR-01" OR "SEDAUR01") site:ferrini.it',
+    expect(prima({ ...BASE, domini: ['https://www.Ferrini.it/prodotti'] })).toBe(
+      '"SED-AUR-01" site:ferrini.it',
     );
   });
 
   it('non ripete lo stesso dominio scritto in due modi', () => {
-    expect(costruisciQuery({ ...BASE, domini: ['ferrini.it', 'www.ferrini.it', 'https://ferrini.it'] })).toBe(
-      '("SED-AUR-01" OR "SEDAUR01") site:ferrini.it',
+    expect(prima({ ...BASE, domini: ['ferrini.it', 'www.ferrini.it', 'https://ferrini.it'] })).toBe(
+      '"SED-AUR-01" site:ferrini.it',
     );
   });
 
   it('oltre un certo numero di domini smette di aggiungerne', () => {
     const molti = Array.from({ length: 12 }, (_, i) => `sito${i}.it`);
-    const q = costruisciQuery({ ...BASE, domini: molti });
+    const q = prima({ ...BASE, domini: molti });
     expect(q.match(/site:/g)).toHaveLength(MAX_DOMINI_PER_QUERY);
   });
 
   it('le virgolette dentro il codice non spezzano la query', () => {
-    expect(costruisciQuery({ ...BASE, codice: 'AB"12' })).toBe('"AB12"');
+    expect(prima({ ...BASE, codice: 'AB"12' })).toBe('"AB12"');
   });
 
   it('senza codice non c’è query da fare', () => {
     // Cercare la sola marca restituirebbe il catalogo del produttore, e ogni
     // sua pagina somiglierebbe a un candidato.
-    expect(costruisciQuery({ ...BASE, codice: '   ', marca: 'Ferrini' })).toBe('');
+    expect(costruisciQueries({ ...BASE, codice: '   ', marca: 'Ferrini' })).toEqual([]);
   });
 });
 
@@ -190,42 +193,50 @@ describe('il codice scritto in più modi', () => {
   // produttore di una borsa Coccinelle, scritto con gli spazi nell'anagrafica
   // del cliente. Cercato così com'è, fra virgolette, il motore restituisce un
   // televisore Vizio M50-E1. La stessa borsa cercata come «E1M50120101» esce
-  // dal sito del produttore. Due spazi, e un catalogo intero dichiarato
-  // inesistente.
-  it('un codice con separatori si chiede anche senza', () => {
-    const q = costruisciQuery({ codice: 'E1 M50 120101', marca: null, domini: [], limite: 10 });
-    expect(q).toContain('"E1M50120101"');
-    expect(q).toContain('"E1 M50 120101"');
-    expect(q).toContain(' OR ');
+  // dal sito del produttore. Due spazi, e un catalogo dichiarato inesistente.
+  it('un codice con separatori si chiede in tutte le sue scritture', () => {
+    expect(costruisciQueries({ codice: 'E1 M50 120101', marca: null, domini: [], limite: 10 })).toEqual([
+      '"E1 M50 120101"',
+      '"E1-M50-120101"',
+      '"E1M50120101"',
+    ]);
   });
 
-  it('le alternative stanno insieme, e la marca resta fuori', () => {
-    // Senza parentesi, «OR» si mangerebbe anche la marca: il motore leggerebbe
-    // «questa forma OPPURE quest'altra OPPURE Coccinelle», e basterebbe una
-    // pagina che nomina la marca per entrare fra i candidati.
-    const q = costruisciQuery({ codice: 'E1 M50 120101', marca: 'Coccinelle', domini: [], limite: 10 });
-    expect(q).toBe('("E1 M50 120101" OR "E1-M50-120101" OR "E1M50120101") Coccinelle');
+  it('sono domande separate, non una sola con gli OR', () => {
+    // Una query sola tipo `("A" OR "B")` è una scommessa su una sintassi che il
+    // motore non documenta: se la prende alla lettera il risultato non è un
+    // errore, è zero risultati — cioè un prodotto dichiarato inesistente.
+    for (const q of costruisciQueries({ codice: 'E1 M50 120101', marca: null, domini: [], limite: 10 })) {
+      expect(q).not.toContain(' OR ');
+    }
+  });
+
+  it('la marca e l’ambito valgono per ogni forma, non solo per la prima', () => {
+    const qs = costruisciQueries({
+      codice: 'E1 M50 120101',
+      marca: 'Coccinelle',
+      domini: ['coccinelle.com'],
+      limite: 10,
+    });
+    expect(qs).toHaveLength(3);
+    for (const q of qs) {
+      expect(q).toContain('Coccinelle');
+      expect(q.endsWith('site:coccinelle.com')).toBe(true);
+    }
   });
 
   it('un codice senza separatori resta una domanda sola', () => {
-    // Chiedere costa: se non c'è niente da riscrivere, la query non si allarga.
-    expect(costruisciQuery({ codice: '107148', marca: null, domini: [], limite: 10 })).toBe('"107148"');
+    // Chiedere costa: se non c'è niente da riscrivere, non si moltiplica.
+    expect(costruisciQueries({ codice: '107148', marca: null, domini: [], limite: 10 })).toEqual([
+      '"107148"',
+    ]);
   });
 
   it('la stessa forma scritta in due modi non si chiede due volte', () => {
     // Il motore ignora maiuscole e minuscole.
-    const q = costruisciQuery({ codice: 'sed-aur-01', marca: null, domini: [], limite: 10 });
-    expect(q).toBe('("sed-aur-01" OR "SEDAUR01")');
-  });
-
-  it('l’ambito continua a valere su tutte le forme', () => {
-    const q = costruisciQuery({
-      codice: 'E1 M50 120101',
-      marca: null,
-      domini: ['coccinelle.com'],
-      limite: 10,
-    });
-    expect(q.endsWith('site:coccinelle.com')).toBe(true);
-    expect(q.startsWith('(')).toBe(true);
+    expect(costruisciQueries({ codice: 'sed-aur-01', marca: null, domini: [], limite: 10 })).toEqual([
+      '"sed-aur-01"',
+      '"SEDAUR01"',
+    ]);
   });
 });

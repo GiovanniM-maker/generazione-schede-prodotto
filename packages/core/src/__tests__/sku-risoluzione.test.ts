@@ -9,6 +9,7 @@ import {
   valuta,
   type CandidatoPagina,
   type LivelloDominio,
+  motivoSenzaCandidati,
 } from '../sku-risoluzione.js';
 
 // ---------------------------------------------------------------------------
@@ -287,5 +288,41 @@ describe('confidenzaCampo', () => {
   it('regge valori fuori scala senza restituire assurdità', () => {
     expect(confidenzaCampo(2, 1)).toBe(1);
     expect(confidenzaCampo(-1, 1)).toBe(0);
+  });
+});
+
+describe('perché non è rimasto nessun candidato', () => {
+  // «Nessun candidato trovato per questo codice» copriva tre situazioni molto
+  // diverse, e due su tre erano una bugia. Quella che conta di più: le pagine
+  // c'erano, il motore le aveva proposte, ma non si sono lasciate leggere — è
+  // la normalità sui siti di moda, che rispondono 403 a chi non sembra un
+  // browser. Detto come «non trovato», manda il cliente a cercare il problema
+  // nei suoi codici, che sono giusti.
+  it('il motore che non propone niente si dice così', () => {
+    const m = motivoSenzaCandidati({ proposti: 0, esclusiDaRobots: 0, nonLeggibili: 0 });
+    expect(m).toMatch(/non ha proposto/i);
+  });
+
+  it('pagine trovate ma illeggibili NON sono un codice inesistente', () => {
+    const m = motivoSenzaCandidati({ proposti: 6, esclusiDaRobots: 0, nonLeggibili: 4 });
+    expect(m).toMatch(/6 pagine trovate/);
+    expect(m).toMatch(/4 non raggiungibili/);
+    // La frase deve dire che il codice può esserci: è il contrario di
+    // «non trovato», ed è l'informazione che cambia cosa fa il cliente.
+    expect(m).toMatch(/codice potrebbe esserci/i);
+  });
+
+  it('robots.txt si distingue dall’irraggiungibile', () => {
+    // Sono due rimedi diversi: uno è un divieto che va rispettato, l'altro è un
+    // sito che ci sbarra la porta e per cui si può indicare un fornitore.
+    const m = motivoSenzaCandidati({ proposti: 3, esclusiDaRobots: 3, nonLeggibili: 0 });
+    expect(m).toMatch(/robots\.txt/);
+    expect(m).not.toMatch(/raggiungibil/);
+  });
+
+  it('singolare e plurale, perché la frase la legge una persona', () => {
+    const m = motivoSenzaCandidati({ proposti: 1, esclusiDaRobots: 0, nonLeggibili: 1 });
+    expect(m).toMatch(/1 pagina trovata/);
+    expect(m).toMatch(/1 non raggiungibile/);
   });
 });

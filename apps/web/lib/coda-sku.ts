@@ -225,6 +225,8 @@ async function lavoraRiga(
         },
         estratto: null,
         escluseDaRobots: [],
+        nonLeggibili: [],
+        propostiDalMotore: 0,
         ricercaFallita: false,
       };
       daCache = true;
