@@ -10,6 +10,12 @@ import {
   computeQuality,
   extractProductFromHtml,
   extractProductFromPdfText,
+  analizzaListaIncollata,
+  normalizzaSku,
+  proponiRaggruppamento,
+  raggruppa,
+  anteprimaCosti,
+  confidenzaCampo,
   extractSkuFromFilename,
   isSupportedImage,
   logWrite,
@@ -37,6 +43,8 @@ import { getServiceClient } from '@/lib/supabase/service';
 import { assertBatchAccess } from '@/lib/ownership';
 import { safeFetch } from '@/lib/safe-fetch';
 import { estraiTestoDaPdf } from '@/lib/pdf';
+import { getFornitoreRicerca } from '@/lib/ricerca-brave';
+import { risolviSku } from '@/lib/risolvi-sku';
 import { writeOrTrace } from '@app/pipeline';
 
 // ---------------------------------------------------------------------------
@@ -2677,6 +2685,289 @@ export async function importFromPdfs(formData: FormData): Promise<ActionResult<P
     ok: true,
     data: { imported, failed: failures.length, senzaFatti: imported - valid, failures: failures.slice(0, 20) },
   };
+}
+
+// ---------------------------------------------------------------------------
+// FONTE «LISTA SKU»: dal codice al prodotto.
+//
+// Lo SKU è un codice pubblico assegnato dal produttore: identifica l'articolo
+// anche fuori dal gestionale del cliente, quindi è direttamente la chiave di
+// ricerca. Si cerca quello, non una descrizione.
+//
+// Si risolve a livello di PRODOTTO, non di variante: otto codici colore dello
+// stesso modello puntano alla stessa pagina, e risolverli otto volte vorrebbe
+// dire pagare otto ricerche per leggere otto volte le stesse cose — con in più
+// il rischio che due di quelle otto si aggancino a pagine diverse e il prodotto
+// finisca con fatti in contraddizione con sé stesso.
+//
+// Niente qui decide da solo: identità incerta vuol dire coda di conferma, e i
+// campi non si scrivono finché non è risolta.
+// ---------------------------------------------------------------------------
+
+const SKU_LIST_SOURCE = 'sku_list';
+
+export interface AnteprimaListaSku {
+  skuCaricati: number;
+  prodotti: number;
+  varianti: number;
+  /** La regola proposta, se ce n'è una che regge. */
+  regola: string | null;
+  forza: number;
+  motivi: string[];
+  creditiConRaggruppamento: number;
+  creditiSenzaRaggruppamento: number;
+  /** Quante ricerche verranno fatte: una per prodotto. */
+  risoluzioni: number;
+}
+
+/**
+ * Cosa succederebbe con questa lista, prima di spendere.
+ *
+ * È qui che il cliente vede il vantaggio del raggruppamento in cifre, e va
+ * mostrato qui e non spiegato altrove: è l'unico momento in cui il numero
+ * cambia una sua decisione.
+ */
+export async function anteprimaListaSku(input: {
+  batchId: string;
+  testo: string;
+  raggruppa: boolean;
+}): Promise<ActionResult<AnteprimaListaSku>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+
+  const righe = analizzaListaIncollata(input.testo ?? '');
+  if (righe.length === 0) return fail('Incolla almeno un codice, uno per riga.');
+
+  const codici = righe.map((r) => r.sku);
+  const proposta = proponiRaggruppamento(codici);
+  const prodotti = input.raggruppa && proposta ? proposta.prodotti : codici.length;
+  const varianti = input.raggruppa && proposta ? codici.length - proposta.gruppi.length : 0;
+  const costi = anteprimaCosti(codici.length, prodotti);
+
+  return ok({
+    skuCaricati: codici.length,
+    prodotti,
+    varianti,
+    regola: proposta?.regola.descrizione ?? null,
+    forza: proposta?.forza ?? 0,
+    motivi: proposta?.motivi ?? [],
+    creditiConRaggruppamento: costi.creditiRaggruppati,
+    creditiSenzaRaggruppamento: costi.creditiSenzaRaggruppamento,
+    risoluzioni: prodotti,
+  });
+}
+
+export interface EsitoListaSku {
+  imported: number;
+  varianti: number;
+  risolti: number;
+  conRiserva: number;
+  daConfermare: number;
+  nonTrovati: number;
+  /** Ricerche fallite: NON sono prodotti inesistenti, si riprovano. */
+  ricercheFallite: number;
+  failures: Array<{ sku: string; reason: string }>;
+}
+
+/** Quanti prodotti risolvere in una volta: oltre, la richiesta scade. */
+const MAX_RISOLUZIONI_PER_CHIAMATA = 25;
+
+export async function importFromSkuList(input: {
+  batchId: string;
+  testo: string;
+  raggruppa: boolean;
+  domini: string[];
+}): Promise<ActionResult<EsitoListaSku>> {
+  const user = await getSessionUser();
+  if (!user) return fail('Non autenticato');
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+
+  const righe = analizzaListaIncollata(input.testo ?? '');
+  if (righe.length === 0) return fail('Incolla almeno un codice, uno per riga.');
+
+  const service = getServiceClient();
+  const ctx = await creaContestoImport(service, orgId, input.batchId);
+  const ricerca = getFornitoreRicerca();
+  const cacheRobots = new Map();
+
+  // Raggruppamento: un gruppo = un prodotto = UNA ricerca.
+  const proposta = input.raggruppa ? proponiRaggruppamento(righe.map((r) => r.sku)) : null;
+  const gruppi = proposta
+    ? raggruppa(righe.map((r) => r.sku), proposta.regola)
+    : { gruppi: [], nonRaggruppati: righe.map((r) => r.sku) };
+
+  const perSku = new Map(righe.map((r) => [r.sku, r] as const));
+  const lavoro: Array<{ codice: string; marca: string | null; sku: string[] }> = [
+    ...gruppi.gruppi.map((g) => ({
+      codice: g.codiceModello,
+      marca: perSku.get(g.sku[0]!)?.marca ?? null,
+      sku: g.sku,
+    })),
+    ...gruppi.nonRaggruppati.map((s) => ({
+      codice: s,
+      marca: perSku.get(s)?.marca ?? null,
+      sku: [s],
+    })),
+  ].slice(0, MAX_RISOLUZIONI_PER_CHIAMATA);
+
+  const failures: Array<{ sku: string; reason: string }> = [];
+  let imported = 0;
+  let varianti = 0;
+  let valid = 0;
+  const conteggi = { risolti: 0, conRiserva: 0, daConfermare: 0, nonTrovati: 0, ricercheFallite: 0 };
+
+  for (const item of lavoro) {
+    const esito = await risolviSku(ricerca, { codice: item.codice, marca: item.marca, domini: input.domini ?? [] }, cacheRobots);
+    const { risoluzione } = esito;
+
+    await logWrite(
+      'sku_resolutions.upsert',
+      service.from('sku_resolutions').upsert(
+        {
+          organization_id: orgId,
+          batch_id: input.batchId,
+          codice_normalizzato: normalizzaSku(item.codice).normalizzato,
+          marca_normalizzata: (item.marca ?? '').trim().toLowerCase(),
+          codice_originale: item.codice,
+          esito: esito.ricercaFallita ? 'errore' : risoluzione.esito,
+          punteggio_identita: risoluzione.punteggioIdentita,
+          url_scelto: risoluzione.scelto?.url ?? null,
+          dominio_scelto: risoluzione.scelto?.dominio ?? null,
+          livello_dominio: risoluzione.scelto?.livelloDominio ?? null,
+          candidati_json: risoluzione.valutati.map((v) => ({
+            url: v.candidato.url,
+            titolo: v.candidato.titolo,
+            marca: v.candidato.marcaPagina,
+            dominio: v.candidato.dominio,
+            livello: v.candidato.livelloDominio,
+            prezzo: v.candidato.prezzo,
+            immagine: v.candidato.immaginePrincipale,
+            punteggio: v.punteggio,
+          })) as unknown as Json,
+          motivo: risoluzione.motivo,
+          aggiornato_il: new Date().toISOString(),
+        },
+        { onConflict: 'organization_id,codice_normalizzato,marca_normalizzata,batch_id' },
+      ),
+    );
+
+    if (esito.ricercaFallita) {
+      conteggi.ricercheFallite++;
+      failures.push({ sku: item.codice, reason: risoluzione.motivo });
+      continue;
+    }
+    if (risoluzione.esito === 'non-trovato') {
+      conteggi.nonTrovati++;
+      failures.push({ sku: item.codice, reason: risoluzione.motivo });
+      continue;
+    }
+    if (risoluzione.esito === 'coda-conferma') {
+      // Nessun campo si scrive finché l'identità non è confermata: è la regola
+      // che impedisce una scheda in cui ogni dato è sbagliato pur essendo stato
+      // letto benissimo.
+      conteggi.daConfermare++;
+      continue;
+    }
+
+    if (risoluzione.esito === 'risolto') conteggi.risolti++;
+    else conteggi.conRiserva++;
+
+    const dati = esito.estratto;
+    if (!dati) {
+      failures.push({ sku: item.codice, reason: 'Pagina agganciata ma non rileggibile.' });
+      continue;
+    }
+
+    const facts: Record<string, string> = { ...dati.attributes };
+    if (dati.brand) facts['Brand'] = dati.brand;
+    if (dati.price) facts['Prezzo'] = dati.price;
+
+    const skuProdotto = ctx.skuUnico(item.sku.length > 1 ? item.codice : item.sku[0]!);
+    const creato = await creaProdottoDaiFatti(service, {
+      orgId,
+      batchId: input.batchId,
+      ctx,
+      sku: skuProdotto,
+      name: dati.name ?? item.codice,
+      facts,
+      rawInput: { codice: item.codice, url: risoluzione.scelto?.url ?? '' },
+      // Un dato trovato sul sito del produttore e uno trovato su un marketplace
+      // non pesano uguale, e la differenza deve arrivare fino all'audit dei
+      // claim: da una terza parte «biologico» non si può scrivere.
+      sourceType:
+        risoluzione.scelto?.livelloDominio === 'produttore' || risoluzione.scelto?.livelloDominio === 'fornitore'
+          ? 'ricerca-ufficiale'
+          : 'ricerca-terza-parte',
+      hasImages: dati.imageUrls.length > 0,
+    });
+    if (!creato.ok) {
+      failures.push({ sku: item.codice, reason: creato.error });
+      continue;
+    }
+    imported++;
+    if (creato.eligible) valid++;
+
+    // Le varianti: i codici del gruppo che non sono il prodotto.
+    if (item.sku.length > 1) {
+      const righeVarianti = item.sku.map((s) => ({
+        product_id: creato.productId,
+        external_id: s,
+        sku: s,
+        color: null,
+        size: null,
+        variant_attributes_json: {} as unknown as Json,
+      }));
+      varianti += righeVarianti.length;
+      await writeOrTrace(
+        service,
+        'product_variants.insert(lista-sku)',
+        service.from('product_variants').insert(righeVarianti),
+        { organizationId: orgId, batchId: input.batchId, refId: creato.productId },
+      );
+    }
+
+    // La confidenza di ogni campo tiene conto di quanto è sicuro l'aggancio:
+    // un dato letto perfettamente da una pagina agganciata con riserva resta un
+    // dato debole, e finisce fra i dubbi come tale.
+    await logWrite(
+      'product_attribute_values.update(confidenza identita)',
+      service
+        .from('product_attribute_values')
+        .update({ confidence: confidenzaCampo(1, risoluzione.punteggioIdentita) })
+        .eq('product_id', creato.productId),
+    );
+  }
+
+  if (imported > 0) {
+    const avanzato = await mustWrite(
+      'batches.update',
+      service
+        .from('batches')
+        .update({
+          status: 'input_review',
+          source_type: 'sku_list',
+          total_products: imported,
+          valid_products: valid,
+          invalid_products: imported - valid,
+        })
+        .eq('id', input.batchId),
+    );
+    if (!avanzato.ok) return fail(`Stato del batch non aggiornato: ${avanzato.error}`);
+    await getOrCreateBatchSource(service, orgId, input.batchId, SKU_LIST_SOURCE);
+    await logWrite(
+      'app_events.insert',
+      service.from('app_events').insert({
+        organization_id: orgId,
+        user_id: user.id,
+        event_name: 'sku_list_import_confirmed',
+        batch_id: input.batchId,
+        metadata_json: { imported, varianti, ...conteggi } as unknown as Json,
+      }),
+    );
+  }
+
+  return ok({ imported, varianti, ...conteggi, failures: failures.slice(0, 20) });
 }
 
 // ---------------------------------------------------------------------------

@@ -56,7 +56,13 @@ export const SOGLIA_MINIMA = 0.35;
 const FORME_SOCIETARIE =
   /\b(s\.?r\.?l\.?|s\.?p\.?a\.?|s\.?n\.?c\.?|s\.?a\.?s\.?|gmbh|ltd|limited|inc|llc|b\.?v\.?|s\.?a\.?|co|company|group|italia|italy)\b/g;
 
-function normalizzaMarca(s: string): string {
+/**
+ * Il nome della marca ridotto a ciò che la identifica: niente sigle societarie,
+ * niente accenti, niente punteggiatura. Esportata perché serve anche a decidere
+ * se un dominio è quello del produttore, e due definizioni della stessa cosa
+ * prima o poi divergono su un caso solo.
+ */
+export function normalizzaMarca(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')

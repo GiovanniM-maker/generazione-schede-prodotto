@@ -38,6 +38,9 @@ import {
   getBatchCategoryOptions,
   importFromUrls,
   importFromPdfs,
+  importFromSkuList,
+  anteprimaListaSku,
+  type AnteprimaListaSku,
   type PublishedPresetSummary,
   type PresetExplorer,
   type UploadSpreadsheetResult,
@@ -120,7 +123,7 @@ interface SampleCopy {
   metaDescription?: string;
 }
 
-type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url' | 'pdf';
+type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url' | 'pdf' | 'sku';
 
 interface StepDef {
   id: number;
@@ -409,6 +412,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
+  const [skuText, setSkuText] = useState('');
+  const [skuDomini, setSkuDomini] = useState('');
+  const [skuRaggruppa, setSkuRaggruppa] = useState(true);
+  const [skuAnteprima, setSkuAnteprima] = useState<AnteprimaListaSku | null>(null);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -627,7 +634,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
     // Import da URL o da PDF: i prodotti sono già stati creati dalla loro
     // action. NON rieseguire confirmImportV2 (cancellerebbe gli importati).
-    if (sourceMode === 'url' || sourceMode === 'pdf') {
+    if (sourceMode === 'url' || sourceMode === 'pdf' || sourceMode === 'sku') {
       setProducts(null);
       void (async () => {
         try {
@@ -838,6 +845,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       await importPdfs();
       return;
     }
+    if (sourceMode === 'sku') {
+      await importSku();
+      return;
+    }
     const sourceTypes: WizardSourceType[] =
       sourceMode === 'both' ? ['spreadsheet', 'images'] : sourceMode === 'spreadsheet' ? ['spreadsheet'] : ['images'];
     setBusy(true);
@@ -942,6 +953,65 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       imageOnly: 0,
       // L'import da PDF fallisce per documento, non per riga: i motivi stanno
       // già nel suo elenco di `failures`.
+      scartate: [],
+      factsInsertErrors: 0,
+      senzaNome: 0,
+      categoriesMatched: 0,
+      unmatchedCategories: [],
+    });
+    goTo(9);
+  }
+
+  async function anteprimaSku() {
+    if (!batchId || !skuText.trim()) return;
+    const res = await anteprimaListaSku({ batchId, testo: skuText, raggruppa: skuRaggruppa }).catch(() => null);
+    setSkuAnteprima(res && res.ok ? res.data : null);
+  }
+
+  async function importSku() {
+    if (!batchId) return;
+    if (!skuText.trim()) {
+      setError('Incolla almeno un codice, uno per riga.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    let res;
+    try {
+      res = await importFromSkuList({
+        batchId,
+        testo: skuText,
+        raggruppa: skuRaggruppa,
+        domini: skuDomini.split(/[\s,;]+/).map((d) => d.trim()).filter(Boolean),
+      });
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    const d = res.data;
+    if (d.imported === 0) {
+      // I tre motivi per cui può non aver importato niente vogliono dire cose
+      // molto diverse, e dirlo genericamente manda l'utente a cercare il
+      // problema dalla parte sbagliata.
+      const perche = d.ricercheFallite > 0
+        ? 'La ricerca non ha risposto: riprova fra poco. I codici non sono stati archiviati come inesistenti.'
+        : d.daConfermare > 0
+          ? `${d.daConfermare} codici hanno più di un candidato possibile: vanno confermati a mano.`
+          : 'Nessuna pagina trovata per questi codici. Prova a indicare la marca o a limitare la ricerca al sito del fornitore.';
+      setError(`Nessun prodotto importato. ${perche}`);
+      return;
+    }
+    setImportSummary({
+      imported: d.imported,
+      valid: d.risolti,
+      invalid: d.conRiserva,
+      imageOnly: 0,
       scartate: [],
       factsInsertErrors: 0,
       senzaNome: 0,
@@ -1252,6 +1322,15 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           pdfFiles={pdfFiles}
           setPdfFiles={setPdfFiles}
           onImportPdfs={importPdfs}
+          skuText={skuText}
+          setSkuText={setSkuText}
+          skuDomini={skuDomini}
+          setSkuDomini={setSkuDomini}
+          skuRaggruppa={skuRaggruppa}
+          setSkuRaggruppa={setSkuRaggruppa}
+          skuAnteprima={skuAnteprima}
+          onAnteprimaSku={anteprimaSku}
+          onImportSku={importSku}
           busy={busy}
         />
       )}
@@ -1356,13 +1435,22 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           // Il passo che carica blocca «Continua»: senza, si attraversavano
           // mappatura e verifica senza vederle.
           busy={busy || analyzingImages || passoInCaricamento === stepId}
-          step3Label={sourceMode === 'url' ? 'Importa da URL' : sourceMode === 'pdf' ? 'Importa i PDF' : 'Continua'}
+          step3Label={
+            sourceMode === 'url'
+              ? 'Importa da URL'
+              : sourceMode === 'pdf'
+                ? 'Importa i PDF'
+                : sourceMode === 'sku'
+                  ? 'Cerca e importa'
+                  : 'Continua'
+          }
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
             3:
               !!sourceMode &&
               (sourceMode !== 'url' || urlText.trim().length > 0) &&
-              (sourceMode !== 'pdf' || pdfFiles.length > 0),
+              (sourceMode !== 'pdf' || pdfFiles.length > 0) &&
+              (sourceMode !== 'sku' || skuText.trim().length > 0),
             5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
             10: sampleDone,
           }}
@@ -1727,6 +1815,7 @@ const SOURCE_CARDS: SourceCard[] = [
   // accanto all'altra. Una sola, e la sceglie il codice in base a `disabled`:
   // così non si può più scriverne una terza per sbaglio.
   { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true },
+  { mode: 'sku', title: 'Lista SKU', description: 'Incolli i codici articolo: li cerchiamo online, agganciamo la pagina del produttore ed estraiamo dati e foto.', note: 'Novità' },
   { mode: 'pdf', title: 'PDF', description: 'Carichi le schede tecniche in PDF, una per prodotto: leggiamo le coppie «etichetta: valore» dichiarate nel documento.', note: 'Novità' },
 ];
 
@@ -1739,6 +1828,15 @@ function Step3({
   pdfFiles,
   setPdfFiles,
   onImportPdfs,
+  skuText,
+  setSkuText,
+  skuDomini,
+  setSkuDomini,
+  skuRaggruppa,
+  setSkuRaggruppa,
+  skuAnteprima,
+  onAnteprimaSku,
+  onImportSku,
   busy,
 }: {
   sourceMode: SourceMode | null;
@@ -1749,6 +1847,15 @@ function Step3({
   pdfFiles: File[];
   setPdfFiles: (f: File[]) => void;
   onImportPdfs: () => void;
+  skuText: string;
+  setSkuText: (v: string) => void;
+  skuDomini: string;
+  setSkuDomini: (v: string) => void;
+  skuRaggruppa: boolean;
+  setSkuRaggruppa: (v: boolean) => void;
+  skuAnteprima: AnteprimaListaSku | null;
+  onAnteprimaSku: () => void;
+  onImportSku: () => void;
   busy: boolean;
 }) {
   const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
@@ -1820,6 +1927,106 @@ function Step3({
               <Button onClick={onImportUrls} disabled={busy || urlCount === 0} data-tour="url-import">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {busy ? 'Importo…' : 'Importa e continua'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {sourceMode === 'sku' && (
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <div>
+              <Label htmlFor="sku-list">Codici articolo (uno per riga)</Label>
+              <Textarea
+                id="sku-list"
+                rows={7}
+                value={skuText}
+                onChange={(e) => setSkuText(e.target.value)}
+                onBlur={onAnteprimaSku}
+                placeholder={'SED-AUR-01\nSED-AUR-02; Ferrini\nTAV-ORI-160'}
+                className="mt-1 font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-ink-500">
+                Puoi scrivere anche «codice; marca»: la marca serve a distinguere due produttori
+                che usano lo stesso codice.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="sku-domini">Cerca solo su questi siti (facoltativo)</Label>
+              <Input
+                id="sku-domini"
+                value={skuDomini}
+                onChange={(e) => setSkuDomini(e.target.value)}
+                onBlur={onAnteprimaSku}
+                placeholder="ferrini.it, grossista.it"
+                className="mt-1 font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-ink-500">
+                Il sito del produttore o del fornitore. Alza molto la precisione, e i dati che
+                arrivano da lì valgono più di quelli di un rivenditore qualsiasi.
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-ink-200 bg-white p-3">
+              <input
+                type="checkbox"
+                checked={skuRaggruppa}
+                onChange={(e) => {
+                  setSkuRaggruppa(e.target.checked);
+                  onAnteprimaSku();
+                }}
+                className="mt-1"
+              />
+              <span className="text-sm text-ink-700">
+                Raggruppa i codici dello stesso modello in un prodotto con varianti
+                <span className="mt-0.5 block text-xs text-ink-500">
+                  Otto colori dello stesso articolo diventano una scheda sola: si paga un credito
+                  invece di otto, e non escono otto descrizioni quasi identiche.
+                </span>
+              </span>
+            </label>
+
+            {/* L'anteprima dei costi sta QUI, dove si decide — non spiegata
+                altrove. È l'unico momento in cui il numero cambia una scelta. */}
+            {skuAnteprima && (
+              <div className="rounded-lg border border-ink-200 bg-ink-50 p-3 text-sm">
+                <div className="font-medium text-ink-900">
+                  {skuAnteprima.skuCaricati} codici → {skuAnteprima.prodotti}{' '}
+                  {skuAnteprima.prodotti === 1 ? 'prodotto' : 'prodotti'}
+                  {skuAnteprima.varianti > 0 && ` e ${skuAnteprima.varianti} varianti`}
+                </div>
+                <ul className="mt-1 space-y-0.5 text-xs text-ink-600">
+                  <li>{skuAnteprima.risoluzioni} ricerche online</li>
+                  <li>
+                    {skuAnteprima.creditiConRaggruppamento} crediti di generazione
+                    {skuAnteprima.creditiSenzaRaggruppamento > skuAnteprima.creditiConRaggruppamento &&
+                      ` invece di ${skuAnteprima.creditiSenzaRaggruppamento} senza raggruppamento`}
+                  </li>
+                </ul>
+                {skuAnteprima.regola && (
+                  <div className="mt-2 border-t border-ink-200 pt-2 text-xs text-ink-600">
+                    <div className="font-medium text-ink-700">Regola: {skuAnteprima.regola}</div>
+                    {skuAnteprima.motivi.map((m) => (
+                      <div key={m}>{m}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Avviso tono="attenzione" className="text-xs">
+              I dati e le foto vengono da pagine di altri. Quello che troviamo su un sito che non è
+              del produttore non basta a scrivere parole come «biologico» o «certificato»: la scheda
+              tace su quel punto invece di dichiararlo. La verifica dei diritti sulle immagini resta
+              a carico tuo.
+            </Avviso>
+
+            <div className="flex justify-end">
+              <Button onClick={onImportSku} disabled={busy || skuText.trim().length === 0} data-tour="sku-import">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {busy ? 'Cerco…' : 'Cerca e importa'}
               </Button>
             </div>
           </CardContent>

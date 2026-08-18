@@ -34,6 +34,7 @@ export * from './ricerca.js';
 export * from './precedenza.js';
 export * from './attendibilita.js';
 export * from './immagini-web.js';
+export * from './lista-sku.js';
 export * from './ip-guard.js';
 export * from './chunk.js';
 export * from './category-vocabulary.js';
