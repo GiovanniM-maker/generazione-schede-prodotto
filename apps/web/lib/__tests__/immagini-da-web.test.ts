@@ -58,6 +58,7 @@ const CTX = {
   batchSourceId: 'bs1',
   urlPagina: 'https://ferrini.it/p/sed-aur-01',
   livelloDominio: 'produttore' as const,
+  daRicerca: true,
   sku: 'SED-AUR-01',
 };
 
@@ -127,6 +128,16 @@ describe('scaricaImmaginiDaPagina', () => {
       dirittiDaVerificare: true,
     });
     expect(typeof meta.recuperataIl).toBe('string');
+  });
+
+  it('distingue una pagina trovata da noi da un indirizzo dato dal cliente', async () => {
+    // Sui diritti la posizione non cambia — sono immagini di terzi in tutti e
+    // due i casi — ma «l'avete presa voi da internet o ve l'ho data io?» è una
+    // domanda legittima, e la risposta non si ricostruisce dopo.
+    await scaricaImmaginiDaPagina([foto('https://cdn.it/1.jpg', 'AAA')], { ...CTX, daRicerca: false });
+    const meta = service.corrente!.rows('source_items')[0]!.metadata_json as Record<string, unknown>;
+    expect(meta.daRicerca).toBe(false);
+    expect(meta.dirittiDaVerificare).toBe(true);
   });
 
   it('scarta loghi e badge prima di scaricarli', async () => {

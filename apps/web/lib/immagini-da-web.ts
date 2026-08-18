@@ -65,6 +65,17 @@ export interface ContestoImmagini {
   batchSourceId: string;
   /** La pagina da cui provengono. */
   urlPagina: string;
+  /**
+   * `true` se la pagina è stata TROVATA da noi cercando un codice, `false` se
+   * l'indirizzo l'ha dato il cliente.
+   *
+   * Resta scritto accanto a ogni file perché sono due provenienze diverse e a
+   * un certo punto qualcuno lo chiederà: «questa foto l'avete presa voi da
+   * internet o gliel'ho data io?». Sui diritti la posizione non cambia — restano
+   * immagini di terzi in tutti e due i casi — ma la domanda è legittima e la
+   * risposta non si ricostruisce dopo.
+   */
+  daRicerca: boolean;
   livelloDominio: LivelloDominio;
   /** Lo SKU del prodotto: dà il nome ai file. */
   sku: string;
@@ -180,7 +191,7 @@ export async function scaricaImmaginiDaPagina(
         metadata_json: {
           // Da qui si risponde a «questa foto da dove esce»: la pagina, il file
           // e quando. Una pagina cambia, e questa data dice quando era vero.
-          daRicerca: true,
+          daRicerca: ctx.daRicerca,
           urlPagina: ctx.urlPagina,
           urlFile: risposta.finalUrl,
           recuperataIl,

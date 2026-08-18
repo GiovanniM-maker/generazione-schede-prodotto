@@ -23,6 +23,7 @@ import {
   valutaConferma,
   ordinaPerLaScelta,
   livelloDelDominio,
+  dominioDi,
   esitoDeciso,
   IN_CODA,
   MAX_TENTATIVI,
@@ -2078,7 +2079,6 @@ export async function getBatchProductsV2(input: {
 // ---------------------------------------------------------------------------
 
 const MAX_URLS_PER_IMPORT = 60;
-const URL_IMAGES_PER_PRODUCT = 6;
 const URL_FETCH_CONCURRENCY = 4;
 
 export interface UrlImportResult {
@@ -2101,14 +2101,6 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: num
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return out;
-}
-
-function extFromContentType(ct: string): string | null {
-  const t = ct.toLowerCase();
-  if (t.includes('jpeg') || t.includes('jpg')) return '.jpg';
-  if (t.includes('png')) return '.png';
-  if (t.includes('webp')) return '.webp';
-  return null;
 }
 
 function slugFromUrl(rawUrl: string, index: number): string {
@@ -2370,7 +2362,6 @@ export async function importFromUrls(input: {
     return { url, data };
   });
 
-  const bucket = STORAGE_BUCKETS.productAssets;
   const failures: Array<{ url: string; reason: string }> = [];
   let imported = 0;
   let valid = 0;
@@ -2408,72 +2399,37 @@ export async function importFromUrls(input: {
       failures.push({ url, reason: creato.error });
       continue;
     }
-    const productRow = { id: creato.productId };
     imported++;
     if (creato.eligible) valid++;
 
-    // Immagini: scarica (SSRF-safe) → storage → source_files/source_items → link.
-    for (const imgUrl of data.imageUrls.slice(0, URL_IMAGES_PER_PRODUCT)) {
-      const img = await safeFetch(imgUrl, { maxBytes: 8_000_000, accept: 'image/*' });
-      if (!img.ok || !img.contentType.toLowerCase().startsWith('image/')) continue;
-      const ext = extFromContentType(img.contentType);
-      if (!ext) continue;
-      const buf = Buffer.from(img.bytes);
-      const sha = createHash('sha256').update(buf).digest('hex');
-      const path = `${orgId}/${input.batchId}/${crypto.randomUUID()}-url${ext}`;
-      const up = await service.storage.from(bucket).upload(path, buf, { contentType: img.contentType, upsert: false });
-      if (up.error) continue;
+    // Le immagini della pagina passano dallo STESSO percorso della fonte
+    // «Lista SKU»: selezione prima dello scaricamento, doppioni riconosciuti
+    // dall'impronta del file, provenienza scritta accanto a ogni foto.
+    //
+    // Qui c'era una seconda copia di quel percorso, scritta prima. Faceva tre
+    // cose peggio, e nessuna delle tre si vedeva: scaricava le prime immagini
+    // in ordine di pagina — quindi il logo e i badge di pagamento — perché non
+    // passava dalla selezione; deduplicava per indirizzo invece che per
+    // contenuto, e la stessa foto ridimensionata contava due volte; e dava a
+    // tutte le foto di un prodotto lo stesso nome file.
+    if (data.images.length > 0) {
       if (!imageBatchSourceId) {
         imageBatchSourceId = await getOrCreateBatchSource(service, orgId, input.batchId, IMAGE_SOURCE);
       }
-      if (!imageBatchSourceId) continue;
-      const filename = `${sku}${ext}`;
-      const { data: sf } = await service
-        .from('source_files')
-        .insert({
-          organization_id: orgId,
-          batch_id: input.batchId,
-          storage_bucket: bucket,
-          storage_path: path,
-          original_filename: filename,
-          mime_type: img.contentType,
-          sha256: sha,
-          size_bytes: buf.byteLength,
-          status: 'ready',
-        })
-        .select('id')
-        .single();
-      if (!sf) continue;
-      const { data: si } = await service
-        .from('source_items')
-        .insert({
-          organization_id: orgId,
-          batch_source_id: imageBatchSourceId,
-          source_file_id: sf.id,
-          filename,
-          mime_type: img.contentType,
-          size_bytes: buf.byteLength,
-          detected_sku: sku,
-          status: 'valid',
-          metadata_json: { imageType: suggestImageType(filename), fromUrl: imgUrl } as unknown as Json,
-        })
-        .select('id')
-        .single();
-      if (!si) continue;
-      // Senza il collegamento la foto e' a database ma nessuno la trova:
-      // niente analisi visiva, niente immagine nella scheda.
-      await writeOrTrace(
-        service,
-        'product_source_links.insert(url)',
-        service.from('product_source_links').insert({
-          organization_id: orgId,
-          product_id: productRow.id,
-          source_item_id: si.id,
-          link_type: 'sku_exact',
-        }),
-        { organizationId: orgId, batchId: input.batchId, refId: productRow.id },
-      );
-      imagesAttached++;
+      if (imageBatchSourceId) {
+        const foto = await scaricaImmaginiDaPagina(data.images, {
+          orgId,
+          batchId: input.batchId,
+          productId: creato.productId,
+          batchSourceId: imageBatchSourceId,
+          urlPagina: url,
+          // L'indirizzo l'ha dato il cliente: non l'abbiamo trovato noi.
+          daRicerca: false,
+          livelloDominio: livelloDelDominio(dominioDi(url), data.brand, []),
+          sku,
+        });
+        imagesAttached += foto.scaricate;
+      }
     }
   }
 
@@ -3273,6 +3229,7 @@ export async function proseguiListaSku(input: {
           productId: creato.productId,
           batchSourceId: sorgenteImmagini,
           urlPagina: scelto.url,
+          daRicerca: true,
           livelloDominio: scelto.livelloDominio,
           sku: skuProdotto,
           valoriVariante: membri.length > 1 ? membri : [],
@@ -3526,6 +3483,7 @@ export async function confermaIdentita(input: {
       productId: creato.productId,
       batchSourceId: sorgente,
       urlPagina: pagina.finalUrl,
+      daRicerca: true,
       livelloDominio: livello,
       sku: skuProdotto,
       valoriVariante: membri.length > 1 ? membri : [],
