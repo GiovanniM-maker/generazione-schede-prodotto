@@ -89,7 +89,9 @@ test.describe('fonte Lista SKU', () => {
     // prodotti — TS100 con tre varianti e PL200 da solo.
     await expect(page.getByText(/4 codici → 2 prodotti/)).toBeVisible({ timeout: 20000 });
 
-    await page.getByRole('button', { name: /cerca e importa/i }).click();
+    // Il pulsante della scheda, non quello della barra in fondo: fanno la
+    // stessa cosa e portano la stessa scritta, come per le fonti URL e PDF.
+    await page.locator('[data-tour="sku-import"]').click();
 
     // E dice cosa è successo davvero: nessuna pagina trovata. Non «fatto».
     await expect(page.getByText(/Nessun prodotto importato/i)).toBeVisible({ timeout: 60000 });

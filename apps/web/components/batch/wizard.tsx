@@ -1076,6 +1076,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (!batchId) return;
     setCoda(iniziale);
     setCodaInCorso(true);
+    // Anche `busy`, che è quello che spegne i due pulsanti «Cerca e importa».
+    // Senza, restano accesi per tutto il giro: un secondo clic farebbe partire
+    // una seconda lavorazione sulla stessa coda, e due giri paralleli possono
+    // prendere la stessa riga prima che l'altro l'abbia registrata — due
+    // ricerche pagate e due prodotti dallo stesso codice.
+    setBusy(true);
     let ultimo = iniziale;
     try {
       // Il tetto sui giri non è una scadenza: è la protezione da un giro che
@@ -1092,6 +1098,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       }
     } finally {
       setCodaInCorso(false);
+      setBusy(false);
     }
     if (ultimo.finita) concludiListaSku(ultimo);
   }
