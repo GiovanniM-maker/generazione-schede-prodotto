@@ -296,3 +296,36 @@ export function confidenzaCampo(confidenzaEstrazione: number, punteggioIdentita:
   const i = Math.max(0, Math.min(1, punteggioIdentita));
   return Number((e * i).toFixed(3));
 }
+
+/**
+ * Perché non è rimasto nessun candidato, detto come sta.
+ *
+ * «Nessun candidato trovato per questo codice» copriva tre situazioni diverse,
+ * e due su tre erano una bugia: il motore che non propone niente, le pagine
+ * escluse da robots.txt, e le pagine che ci sono ma non si lasciano leggere —
+ * quest'ultima è la normalità sui siti di moda, che rispondono 403 a chi non
+ * sembra un browser. Dire «non trovato» quando le pagine c'erano manda il
+ * cliente a cercare il problema nei suoi codici, che sono giusti.
+ */
+export function motivoSenzaCandidati(conto: {
+  proposti: number;
+  esclusiDaRobots: number;
+  nonLeggibili: number;
+}): string {
+  if (conto.proposti === 0) {
+    return 'Il motore di ricerca non ha proposto nessuna pagina per questo codice.';
+  }
+  const pezzi: string[] = [];
+  if (conto.esclusiDaRobots > 0) {
+    pezzi.push(
+      `${conto.esclusiDaRobots} ${conto.esclusiDaRobots === 1 ? 'esclusa' : 'escluse'} dal robots.txt del sito`,
+    );
+  }
+  if (conto.nonLeggibili > 0) {
+    pezzi.push(
+      `${conto.nonLeggibili} non ${conto.nonLeggibili === 1 ? 'raggiungibile' : 'raggiungibili'}`,
+    );
+  }
+  const dettaglio = pezzi.length > 0 ? `: ${pezzi.join(', ')}` : ', ma nessuna leggibile';
+  return `${conto.proposti} ${conto.proposti === 1 ? 'pagina trovata' : 'pagine trovate'}${dettaglio}. Il codice potrebbe esserci: è la pagina che non si è lasciata leggere.`;
+}

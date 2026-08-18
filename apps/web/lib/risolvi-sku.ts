@@ -7,6 +7,7 @@ import {
   dopoLaRisposta,
   extractProductFromHtml,
   livelloDelDominio,
+  motivoSenzaCandidati,
   type CandidatoPagina,
   type FornitoreRicerca,
   type Risoluzione,
@@ -41,6 +42,10 @@ export interface EsitoRisoluzione {
   estratto: ReturnType<typeof extractProductFromHtml> | null;
   /** Pagine saltate perché robots.txt le escludeva. */
   escluseDaRobots: string[];
+  /** Pagine proposte dal motore ma che non si sono lasciate leggere. */
+  nonLeggibili: string[];
+  /** Quante pagine ha proposto il motore, prima di ogni filtro. */
+  propostiDalMotore: number;
   /** `true` quando la ricerca stessa è fallita: NON è «non trovato». */
   ricercaFallita: boolean;
 }
@@ -192,11 +197,14 @@ export async function risolviSku(
       },
       estratto: null,
       escluseDaRobots: [],
+      nonLeggibili: [],
+      propostiDalMotore: 0,
       ricercaFallita: true,
     };
   }
 
   const escluseDaRobots: string[] = [];
+  const nonLeggibili: string[] = [];
   const candidati: CandidatoPagina[] = [];
   // L'estratto di ogni pagina si tiene da parte mentre la si legge. Rifarlo
   // dopo, sulla sola pagina scelta, vorrebbe dire una seconda richiesta allo
@@ -215,7 +223,14 @@ export async function risolviSku(
       maxBytes: MAX_BYTE_PAGINA,
       accept: 'text/html,application/xhtml+xml',
     });
-    if (!pagina.ok) continue;
+    if (!pagina.ok) {
+      // Non è un dettaglio da ingoiare: i siti di moda e i marketplace
+      // rispondono spesso 403 a chi non sembra un browser, e senza questa riga
+      // la pagina c'era, l'abbiamo trovata, e il cliente si sentiva dire che il
+      // suo codice non esiste.
+      nonLeggibili.push(r.url);
+      continue;
+    }
     const html = new TextDecoder('utf-8').decode(pagina.bytes);
     const dati = extractProductFromHtml(html, pagina.finalUrl);
     const dominio = dominioDi(pagina.finalUrl) || r.dominio;
@@ -241,8 +256,26 @@ export async function risolviSku(
     candidati,
   );
 
+  // Senza candidati, `decidiIdentita` non può sapere PERCHÉ non ce ne sono: da
+  // lì dentro «zero pagine proposte» e «otto pagine che non si aprono» sono la
+  // stessa cosa. Qui lo sappiamo, e va scritto.
+  if (candidati.length === 0) {
+    risoluzione.motivo = motivoSenzaCandidati({
+      proposti: risultati.length,
+      esclusiDaRobots: escluseDaRobots.length,
+      nonLeggibili: nonLeggibili.length,
+    });
+  }
+
   const estratto = risoluzione.scelto ? (estrattoPerUrl.get(risoluzione.scelto.url) ?? null) : null;
-  return { risoluzione, estratto, escluseDaRobots, ricercaFallita: false };
+  return {
+    risoluzione,
+    estratto,
+    escluseDaRobots,
+    nonLeggibili,
+    propostiDalMotore: risultati.length,
+    ricercaFallita: false,
+  };
 }
 
 /**
@@ -273,6 +306,8 @@ export async function riverificaPagina(
     },
     estratto: null,
     escluseDaRobots: [],
+    nonLeggibili: [],
+    propostiDalMotore: 0,
     ricercaFallita: false,
   };
 
@@ -299,7 +334,14 @@ export async function riverificaPagina(
 
   const risoluzione = decidiIdentita({ codice: richiesta.codice, marca: richiesta.marca }, [candidato]);
   if (!risoluzione.scelto) return fuori;
-  return { risoluzione, estratto: dati, escluseDaRobots: [], ricercaFallita: false };
+  return {
+    risoluzione,
+    estratto: dati,
+    escluseDaRobots: [],
+    nonLeggibili: [],
+    propostiDalMotore: 1,
+    ricercaFallita: false,
+  };
 }
 
 function testoDaEstratto(dati: ReturnType<typeof extractProductFromHtml>): string {

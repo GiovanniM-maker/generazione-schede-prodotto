@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -431,6 +431,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [skuMappatura, setSkuMappatura] = useState<MappaturaListaSku | null>(null);
   const [coda, setCoda] = useState<ProgressoListaSku | null>(null);
   const [codaInCorso, setCodaInCorso] = useState(false);
+  const rifErrore = useRef<HTMLDivElement | null>(null);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -621,6 +622,17 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       vivo = false;
     };
   }, [stepId, batchId, codaInCorso]);
+
+  // Un errore che compare fuori dallo schermo è un errore che non esiste.
+  //
+  // Il messaggio si scrive in cima al passo, ma il pulsante che lo provoca sta
+  // in fondo alla pagina: chi clicca «Cerca e importa» dopo aver riempito il
+  // riquadro dei codici è scrollato in basso, e l'esito — riuscito o fallito —
+  // gli compare alle spalle. Il prodotto sembra non aver fatto niente.
+  useEffect(() => {
+    if (!error) return;
+    rifErrore.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [error]);
 
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
@@ -1450,7 +1462,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       />
 
       {error && (
-        <Avviso tono="errore">{error}</Avviso>
+        <div ref={rifErrore}>
+          <Avviso tono="errore">{error}</Avviso>
+        </div>
       )}
 
       {stepId === 1 && (

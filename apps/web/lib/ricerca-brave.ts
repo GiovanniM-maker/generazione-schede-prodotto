@@ -2,7 +2,7 @@ import {
   LIMITE_RISULTATI_MASSIMO,
   LIMITE_RISULTATI_PREDEFINITO,
   RicercaFinta,
-  costruisciQuery,
+  costruisciQueries,
   leggiRisultatiBrave,
   type FornitoreRicerca,
   type RichiestaRicerca,
@@ -81,12 +81,26 @@ export class RicercaBrave implements FornitoreRicerca {
     this.ultimaChiamata = Date.now();
   }
 
+  /**
+   * Le forme del codice si provano in ordine, e ci si ferma alla prima che
+   * risponde.
+   *
+   * Nel caso normale — un codice senza separatori — la lista ha un elemento
+   * solo e si paga una chiamata come sempre. Le chiamate in più si fanno solo
+   * quando la prima forma non ha trovato niente, cioè quando l'alternativa è
+   * dichiarare inesistente un prodotto che esiste.
+   */
   async cerca(richiesta: RichiestaRicerca): Promise<RisultatoRicerca[]> {
-    const q = costruisciQuery(richiesta);
     // Senza codice non c'è ricerca da fare, e chiamare comunque costerebbe.
-    if (!q) return [];
+    for (const q of costruisciQueries(richiesta)) {
+      const trovati = await this.chiedi(q, richiesta.limite);
+      if (trovati.length > 0) return trovati;
+    }
+    return [];
+  }
 
-    const limite = Math.max(1, Math.min(richiesta.limite || LIMITE_RISULTATI_PREDEFINITO, LIMITE_RISULTATI_MASSIMO));
+  private async chiedi(q: string, limiteRichiesto: number | undefined): Promise<RisultatoRicerca[]> {
+    const limite = Math.max(1, Math.min(limiteRichiesto || LIMITE_RISULTATI_PREDEFINITO, LIMITE_RISULTATI_MASSIMO));
     const url = new URL(ENDPOINT);
     url.searchParams.set('q', q);
     url.searchParams.set('count', String(limite));

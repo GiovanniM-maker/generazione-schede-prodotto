@@ -94,25 +94,35 @@ function formeDaCercare(codice: string): string[] {
   return forme;
 }
 
-export function costruisciQuery(richiesta: RichiestaRicerca): string {
+/**
+ * Le domande da fare al motore: UNA PER FORMA DEL CODICE, in ordine.
+ *
+ * Non una sola query con le forme in alternativa. Ci ero passato, ed è una
+ * scommessa su una sintassi che il motore non documenta: se `("A" OR "B")` non
+ * viene interpretato come alternativa ma preso alla lettera, il risultato non è
+ * un errore — è zero risultati, cioè un prodotto dichiarato inesistente. Una
+ * frase esatta per volta è quello che ogni motore capisce di sicuro.
+ *
+ * Chi chiama le prova in ordine e si ferma alla prima che risponde. Nel caso
+ * normale — un codice senza separatori — la lista ha un elemento solo e si paga
+ * una chiamata come prima.
+ */
+export function costruisciQueries(richiesta: RichiestaRicerca): string[] {
   const codice = (richiesta.codice ?? '').trim();
-  if (!codice) return '';
+  if (!codice) return [];
 
-  const forme = formeDaCercare(codice).map((f) => `"${f.replace(/"/g, '')}"`);
-  // Con una forma sola niente parentesi: la query di un codice senza
-  // separatori resta identica a prima.
-  const pezzi: string[] = [forme.length > 1 ? `(${forme.join(' OR ')})` : (forme[0] ?? '')];
+  const coda: string[] = [];
   const marca = (richiesta.marca ?? '').trim();
-  if (marca) pezzi.push(marca.replace(/"/g, ''));
+  if (marca) coda.push(marca.replace(/"/g, ''));
 
   const domini = [...new Set((richiesta.domini ?? []).map(dominioPulito).filter(Boolean))].slice(
     0,
     MAX_DOMINI_PER_QUERY,
   );
-  if (domini.length === 1) pezzi.push(`site:${domini[0]}`);
-  else if (domini.length > 1) pezzi.push(`(${domini.map((d) => `site:${d}`).join(' OR ')})`);
+  if (domini.length === 1) coda.push(`site:${domini[0]}`);
+  else if (domini.length > 1) coda.push(`(${domini.map((d) => `site:${d}`).join(' OR ')})`);
 
-  return pezzi.join(' ');
+  return formeDaCercare(codice).map((f) => [`"${f.replace(/"/g, '')}"`, ...coda].join(' '));
 }
 
 /** Il dominio di un URL, senza `www.`. Stringa vuota se l'URL non è un URL. */
