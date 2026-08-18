@@ -53,6 +53,7 @@ import { safeFetch } from '@/lib/safe-fetch';
 import { estraiTestoDaPdf } from '@/lib/pdf';
 import { getFornitoreRicerca } from '@/lib/ricerca-brave';
 import { risolviSku } from '@/lib/risolvi-sku';
+import { scaricaImmaginiDaPagina } from '@/lib/immagini-da-web';
 import { writeOrTrace } from '@app/pipeline';
 
 // ---------------------------------------------------------------------------
@@ -2863,6 +2864,9 @@ export interface EsitoListaSku {
   nonTrovati: number;
   /** Ricerche fallite: NON sono prodotti inesistenti, si riprovano. */
   ricercheFallite: number;
+  immaginiScaricate: number;
+  /** Prodotti risolti da cui non è arrivata nessuna foto: validi, ma senza. */
+  senzaImmagini: number;
   failures: Array<{ sku: string; reason: string }>;
 }
 
@@ -2941,7 +2945,16 @@ export async function importFromSkuList(input: {
   let imported = 0;
   let varianti = 0;
   let valid = 0;
-  const conteggi = { risolti: 0, conRiserva: 0, daConfermare: 0, nonTrovati: 0, ricercheFallite: 0 };
+  const conteggi = {
+    risolti: 0,
+    conRiserva: 0,
+    daConfermare: 0,
+    nonTrovati: 0,
+    ricercheFallite: 0,
+    immaginiScaricate: 0,
+    senzaImmagini: 0,
+  };
+  let sorgenteImmagini: string | null = null;
 
   for (const item of lavoro) {
     // L'ambito dichiarato sulla riga vale insieme a quello della lavorazione:
@@ -3058,6 +3071,30 @@ export async function importFromSkuList(input: {
       );
     }
 
+    // Le foto della pagina agganciata. Un prodotto risolto da cui non arriva
+    // nessuna immagine NON è un errore: resta valido, e si conta a parte.
+    if (dati.images.length > 0 && risoluzione.scelto) {
+      if (!sorgenteImmagini) {
+        sorgenteImmagini = await getOrCreateBatchSource(service, orgId, input.batchId, IMAGE_SOURCE);
+      }
+      if (sorgenteImmagini) {
+        const foto = await scaricaImmaginiDaPagina(dati.images, {
+          orgId,
+          batchId: input.batchId,
+          productId: creato.productId,
+          batchSourceId: sorgenteImmagini,
+          urlPagina: risoluzione.scelto.url,
+          livelloDominio: risoluzione.scelto.livelloDominio,
+          sku: skuProdotto,
+          valoriVariante: item.sku.length > 1 ? item.sku : [],
+        });
+        conteggi.immaginiScaricate += foto.scaricate;
+        if (foto.scaricate === 0) conteggi.senzaImmagini++;
+      }
+    } else {
+      conteggi.senzaImmagini++;
+    }
+
     // La confidenza di ogni campo tiene conto di quanto è sicuro l'aggancio:
     // un dato letto perfettamente da una pagina agganciata con riserva resta un
     // dato debole, e finisce fra i dubbi come tale.
@@ -3067,6 +3104,15 @@ export async function importFromSkuList(input: {
         .from('product_attribute_values')
         .update({ confidence: confidenzaCampo(1, risoluzione.punteggioIdentita) })
         .eq('product_id', creato.productId),
+    );
+  }
+
+  if (sorgenteImmagini) {
+    await writeOrTrace(
+      service,
+      'batch_sources.update(pronta)',
+      service.from('batch_sources').update({ status: 'ready' }).eq('id', sorgenteImmagini),
+      { organizationId: orgId, batchId: input.batchId, refId: sorgenteImmagini },
     );
   }
 
@@ -3238,6 +3284,28 @@ export async function confermaIdentita(input: {
     hasImages: dati.imageUrls.length > 0,
   });
   if (!creato.ok) return fail(creato.error);
+
+  // Le foto della pagina appena confermata: stesso percorso dell'import, perché
+  // un prodotto confermato a mano non è un prodotto di serie B.
+  const sorgente = await getOrCreateBatchSource(service, orgId, input.batchId, IMAGE_SOURCE);
+  if (sorgente && dati.images.length > 0) {
+    await scaricaImmaginiDaPagina(dati.images, {
+      orgId,
+      batchId: input.batchId,
+      productId: creato.productId,
+      batchSourceId: sorgente,
+      urlPagina: pagina.finalUrl,
+      livelloDominio: livello,
+      sku: skuProdotto,
+      valoriVariante: membri.length > 1 ? membri : [],
+    });
+    await writeOrTrace(
+      service,
+      'batch_sources.update(pronta)',
+      service.from('batch_sources').update({ status: 'ready' }).eq('id', sorgente),
+      { organizationId: orgId, batchId: input.batchId, refId: sorgente },
+    );
+  }
 
   if (membri.length > 1) {
     await writeOrTrace(

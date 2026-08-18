@@ -424,6 +424,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [confermeAperte, setConfermeAperte] = useState(false);
   const [confermeInSospeso, setConfermeInSospeso] = useState(0);
   const [skuFoglio, setSkuFoglio] = useState<FoglioListaSku | null>(null);
+  const [esitoFotoSku, setEsitoFotoSku] = useState<{ scaricate: number; senza: number } | null>(null);
   const [skuMappatura, setSkuMappatura] = useState<MappaturaListaSku | null>(null);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
@@ -1107,6 +1108,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       categoriesMatched: 0,
       unmatchedCategories: [],
     });
+    setEsitoFotoSku(
+      d.immaginiScaricate > 0 || d.senzaImmagini > 0
+        ? { scaricate: d.immaginiScaricate, senza: d.senzaImmagini }
+        : null,
+    );
     goTo(9);
   }
 
@@ -1501,6 +1507,18 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       )}
 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} nameHeader={nameHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
+
+      {stepId === 9 && esitoFotoSku && (
+        <Avviso tono="informazione" className="mb-3">
+          {esitoFotoSku.scaricate > 0
+            ? `${esitoFotoSku.scaricate} ${esitoFotoSku.scaricate === 1 ? 'foto recuperata' : 'foto recuperate'} dalle pagine dei prodotti`
+            : 'Nessuna foto recuperata dalle pagine'}
+          {esitoFotoSku.senza > 0 &&
+            `, ${esitoFotoSku.senza} ${esitoFotoSku.senza === 1 ? 'prodotto è rimasto' : 'prodotti sono rimasti'} senza`}
+          . Sono immagini di chi le ha pubblicate: la verifica dei diritti di
+          utilizzo resta a carico tuo.
+        </Avviso>
+      )}
 
       {stepId === 9 && batchId && (
         <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} categoryFromFile={hasSpreadsheet && Boolean(categoryHeader)} />
