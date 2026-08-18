@@ -238,6 +238,9 @@ export interface Database {
         codice_normalizzato: string;
         marca_normalizzata: string;
         codice_originale: string;
+        marca_originale: string | null;
+        /** Gli SKU che questo codice rappresenta: il gruppo, o solo sé stesso. */
+        sku_membri: string[];
         /** 'risolto' | 'risolto-con-riserva' | 'coda-conferma' | 'non-trovato' | 'errore' */
         esito: string;
         punteggio_identita: number;

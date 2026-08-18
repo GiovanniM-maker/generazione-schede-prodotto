@@ -39,6 +39,7 @@ import {
   importFromUrls,
   importFromPdfs,
   importFromSkuList,
+  listaConfermeIdentita,
   anteprimaListaSku,
   type AnteprimaListaSku,
   type PublishedPresetSummary,
@@ -59,6 +60,7 @@ import {
 } from '@/lib/actions/visual-background';
 import { CategoryAssigner } from '@/components/batch/category-assigner';
 import { ImageQcPanel } from '@/components/batch/image-qc-panel';
+import { ConfermaIdentita } from '@/components/batch/conferma-identita';
 import { GuidedTour, tourSeen, markTourSeen, type TourStep } from '@/components/onboarding/guided-tour';
 import { HelpBubble } from '@/components/onboarding/help-bubble';
 import { WizardGuide } from '@/components/onboarding/wizard-guide';
@@ -416,6 +418,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [skuDomini, setSkuDomini] = useState('');
   const [skuRaggruppa, setSkuRaggruppa] = useState(true);
   const [skuAnteprima, setSkuAnteprima] = useState<AnteprimaListaSku | null>(null);
+  const [confermeAperte, setConfermeAperte] = useState(false);
+  const [confermeInSospeso, setConfermeInSospeso] = useState(0);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -573,6 +577,23 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       return next;
     });
   }, [skuHeader, categoryHeader, nameHeader]);
+
+  // La coda di conferma sopravvive alla sessione: sta a database, non nella
+  // memoria del browser. Senza questo controllo, chi chiude la pagina con dei
+  // codici da confermare non avrebbe più nessuna strada per tornarci — e la
+  // riga «lo ritrovi riaprendo questa lavorazione» sarebbe una promessa che il
+  // prodotto non mantiene.
+  useEffect(() => {
+    if (stepId !== 3 || !batchId) return;
+    let vivo = true;
+    void (async () => {
+      const res = await listaConfermeIdentita({ batchId }).catch(() => null);
+      if (vivo) setConfermeInSospeso(res && res.ok ? res.data.length : 0);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [stepId, batchId, confermeAperte]);
 
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
@@ -995,6 +1016,26 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       return;
     }
     const d = res.data;
+    // Le ambiguità si sciolgono PRIMA di andare avanti: per quei codici non è
+    // stato scritto nessun campo, e passare al passo dopo lascerebbe fuori dal
+    // catalogo dei prodotti che l'utente crede di aver importato.
+    if (d.daConfermare > 0) {
+      setConfermeAperte(true);
+      if (d.imported > 0) {
+        setImportSummary({
+          imported: d.imported,
+          valid: d.risolti,
+          invalid: d.conRiserva,
+          imageOnly: 0,
+          scartate: [],
+          factsInsertErrors: 0,
+          senzaNome: 0,
+          categoriesMatched: 0,
+          unmatchedCategories: [],
+        });
+      }
+      return;
+    }
     if (d.imported === 0) {
       // I tre motivi per cui può non aver importato niente vogliono dire cose
       // molto diverse, e dirlo genericamente manda l'utente a cercare il
@@ -1312,7 +1353,32 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 2 && <Step2 explorer={explorer} expandedCat={expandedCat} setExpandedCat={setExpandedCat} expandedAttr={expandedAttr} setExpandedAttr={setExpandedAttr} />}
 
-      {stepId === 3 && (
+      {stepId === 3 && confermeAperte && batchId && (
+        <ConfermaIdentita
+          batchId={batchId}
+          onFinito={() => {
+            setConfermeAperte(false);
+            goTo(9);
+          }}
+        />
+      )}
+
+      {stepId === 3 && !confermeAperte && confermeInSospeso > 0 && (
+        <Avviso tono="attenzione" className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {confermeInSospeso}{' '}
+              {confermeInSospeso === 1 ? 'codice aspetta' : 'codici aspettano'} che tu dica qual è
+              la pagina giusta. Finché non lo fai, per quei codici non viene scritto nessun dato.
+            </span>
+            <Button size="sm" onClick={() => setConfermeAperte(true)}>
+              Riprendi le conferme
+            </Button>
+          </div>
+        </Avviso>
+      )}
+
+      {stepId === 3 && !confermeAperte && (
         <Step3
           sourceMode={sourceMode}
           setSourceMode={setSourceMode}

@@ -16,6 +16,10 @@ import {
   raggruppa,
   anteprimaCosti,
   confidenzaCampo,
+  valutaConferma,
+  ordinaPerLaScelta,
+  livelloDelDominio,
+  type CandidatoSalvato,
   extractSkuFromFilename,
   isSupportedImage,
   logWrite,
@@ -2830,6 +2834,8 @@ export async function importFromSkuList(input: {
           codice_normalizzato: normalizzaSku(item.codice).normalizzato,
           marca_normalizzata: (item.marca ?? '').trim().toLowerCase(),
           codice_originale: item.codice,
+          marca_originale: item.marca,
+          sku_membri: item.sku,
           esito: esito.ricercaFallita ? 'errore' : risoluzione.esito,
           punteggio_identita: risoluzione.punteggioIdentita,
           url_scelto: risoluzione.scelto?.url ?? null,
@@ -2968,6 +2974,196 @@ export async function importFromSkuList(input: {
   }
 
   return ok({ imported, varianti, ...conteggi, failures: failures.slice(0, 20) });
+}
+
+// ---------------------------------------------------------------------------
+// LA CODA DI CONFERMA DELL'IDENTITÀ.
+//
+// Quando i segnali non bastano — lo stesso codice presso due produttori, due
+// candidati che si equivalgono — il sistema non sceglie e mette il codice qui.
+// Nessun campo è stato scritto: è la regola che impedisce una scheda in cui
+// ogni dato è sbagliato pur essendo stato letto benissimo.
+// ---------------------------------------------------------------------------
+
+export interface RigaDaConfermare {
+  id: string;
+  codice: string;
+  marca: string | null;
+  /** Quanti SKU dipendono da questa scelta: uno, o tutto un gruppo di varianti. */
+  quantiSku: number;
+  motivo: string | null;
+  candidati: CandidatoSalvato[];
+}
+
+export async function listaConfermeIdentita(input: {
+  batchId: string;
+}): Promise<ActionResult<RigaDaConfermare[]>> {
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+
+  const { data } = await service
+    .from('sku_resolutions')
+    .select('id, codice_originale, marca_originale, sku_membri, motivo, candidati_json')
+    .eq('batch_id', input.batchId)
+    .eq('esito', 'coda-conferma')
+    .order('creato_il', { ascending: true });
+
+  return ok(
+    (data ?? []).map((r) => ({
+      id: r.id,
+      codice: r.codice_originale,
+      marca: r.marca_originale,
+      quantiSku: (r.sku_membri ?? []).length || 1,
+      motivo: r.motivo,
+      candidati: ordinaPerLaScelta((r.candidati_json ?? []) as unknown as CandidatoSalvato[]),
+    })),
+  );
+}
+
+export interface EsitoConfermaIdentita {
+  /** `true` se la conferma ha prodotto un prodotto a catalogo. */
+  importato: boolean;
+  restanti: number;
+}
+
+/**
+ * Conferma (o scarta) l'identità di una riga in coda.
+ *
+ * L'indirizzo scelto viene confrontato con i candidati SALVATI: la richiesta
+ * arriva dal browser, e senza quel confronto sarebbe chi la manda a decidere
+ * cosa fa scaricare al nostro server.
+ */
+export async function confermaIdentita(input: {
+  batchId: string;
+  risoluzioneId: string;
+  url?: string | null;
+  scarta?: boolean;
+}): Promise<ActionResult<EsitoConfermaIdentita>> {
+  const user = await getSessionUser();
+  if (!user) return fail('Non autenticato');
+  const orgId = await assertBatchAccess(input.batchId);
+  if (!orgId) return fail('Batch non accessibile');
+  const service = getServiceClient();
+
+  const { data: riga } = await service
+    .from('sku_resolutions')
+    .select('id, codice_originale, marca_originale, sku_membri, candidati_json, esito')
+    .eq('id', input.risoluzioneId)
+    // Il vincolo sul batch non è ridondante: senza, un identificativo di
+    // un'altra organizzazione basterebbe a farsi confermare una sua riga.
+    .eq('batch_id', input.batchId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!riga) return fail('Riga non trovata');
+
+  const candidati = (riga.candidati_json ?? []) as unknown as CandidatoSalvato[];
+  const decisione = valutaConferma(candidati, { url: input.url, scarta: input.scarta });
+  if (decisione.azione === 'rifiuta') return fail(decisione.motivo);
+
+  const restanti = async () => {
+    const { count } = await service
+      .from('sku_resolutions')
+      .select('id', { count: 'exact', head: true })
+      .eq('batch_id', input.batchId)
+      .eq('esito', 'coda-conferma');
+    return count ?? 0;
+  };
+
+  if (decisione.azione === 'scarta') {
+    await mustWrite(
+      'sku_resolutions.update(scartata)',
+      service
+        .from('sku_resolutions')
+        .update({ esito: 'non-trovato', motivo: 'Scartata da chi ha verificato.', aggiornato_il: new Date().toISOString() })
+        .eq('id', riga.id),
+    );
+    return ok({ importato: false, restanti: await restanti() });
+  }
+
+  // Si rilegge la pagina scelta adesso: i candidati salvati portano titolo e
+  // prezzo per la schermata, non i fatti. Quelli si prendono dalla pagina, con
+  // lo stesso estrattore della fonte URL.
+  const pagina = await safeFetch(decisione.url, {
+    maxBytes: 3_000_000,
+    accept: 'text/html,application/xhtml+xml',
+  });
+  if (!pagina.ok) return fail(`Pagina non raggiungibile: ${pagina.error ?? 'errore'}`);
+  const dati = extractProductFromHtml(new TextDecoder('utf-8').decode(pagina.bytes), pagina.finalUrl);
+
+  const ctx = await creaContestoImport(service, orgId, input.batchId);
+  const membri = (riga.sku_membri ?? []).length > 0 ? riga.sku_membri : [riga.codice_originale];
+  const facts: Record<string, string> = { ...dati.attributes };
+  if (dati.brand) facts['Brand'] = dati.brand;
+  if (dati.price) facts['Prezzo'] = dati.price;
+
+  const dominio = new URL(pagina.finalUrl).hostname;
+  const livello = livelloDelDominio(dominio, riga.marca_originale, []);
+  const skuProdotto = ctx.skuUnico(membri.length > 1 ? riga.codice_originale : membri[0]!);
+
+  const creato = await creaProdottoDaiFatti(service, {
+    orgId,
+    batchId: input.batchId,
+    ctx,
+    sku: skuProdotto,
+    name: dati.name ?? riga.codice_originale,
+    facts,
+    rawInput: { codice: riga.codice_originale, url: pagina.finalUrl },
+    sourceType: livello === 'produttore' || livello === 'fornitore' ? 'ricerca-ufficiale' : 'ricerca-terza-parte',
+    hasImages: dati.imageUrls.length > 0,
+  });
+  if (!creato.ok) return fail(creato.error);
+
+  if (membri.length > 1) {
+    await writeOrTrace(
+      service,
+      'product_variants.insert(conferma)',
+      service.from('product_variants').insert(
+        membri.map((sku) => ({
+          product_id: creato.productId,
+          external_id: sku,
+          sku,
+          color: null,
+          size: null,
+          variant_attributes_json: {} as unknown as Json,
+        })),
+      ),
+      { organizationId: orgId, batchId: input.batchId, refId: creato.productId },
+    );
+  }
+
+  await mustWrite(
+    'sku_resolutions.update(confermata)',
+    service
+      .from('sku_resolutions')
+      .update({
+        esito: 'risolto',
+        product_id: creato.productId,
+        url_scelto: pagina.finalUrl,
+        dominio_scelto: dominio,
+        livello_dominio: livello,
+        // Una persona ha guardato i candidati e ne ha indicato uno: è la prova
+        // migliore che possiamo avere, e i campi non devono ripresentarsi fra i
+        // dubbi come se l'aggancio fosse ancora incerto.
+        punteggio_identita: decisione.punteggioIdentita,
+        motivo: 'Confermata da chi ha verificato.',
+        aggiornato_il: new Date().toISOString(),
+      })
+      .eq('id', riga.id),
+  );
+
+  await logWrite(
+    'app_events.insert',
+    service.from('app_events').insert({
+      organization_id: orgId,
+      user_id: user.id,
+      event_name: 'sku_identity_confirmed',
+      batch_id: input.batchId,
+      metadata_json: { codice: riga.codice_originale, url: pagina.finalUrl, livello } as unknown as Json,
+    }),
+  );
+
+  return ok({ importato: true, restanti: await restanti() });
 }
 
 // ---------------------------------------------------------------------------

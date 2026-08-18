@@ -26,6 +26,14 @@ create table if not exists sku_resolutions (
   -- Il codice come l'ha scritto il cliente: è quello che deve rivedere nel
   -- registro, non la nostra versione maiuscola.
   codice_originale text not null,
+  -- La marca dichiarata, come l'ha scritta lui. Serve a rivalutare il livello
+  -- di un dominio quando la conferma arriva molto dopo la ricerca.
+  marca_originale text,
+  -- Gli SKU che questo codice rappresenta: uno solo se non è un raggruppamento,
+  -- tutti quelli del gruppo se lo è. Senza, confermando un'identità in coda non
+  -- si saprebbe più quali varianti creare — il raggruppamento era stato
+  -- calcolato in memoria durante la ricerca, e quella memoria non c'è più.
+  sku_membri text[] not null default '{}',
 
   -- 'risolto' | 'risolto-con-riserva' | 'coda-conferma' | 'non-trovato' | 'errore'
   esito text not null,
