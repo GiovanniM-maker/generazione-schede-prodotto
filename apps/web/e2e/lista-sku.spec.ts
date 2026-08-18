@@ -5,10 +5,11 @@ import { seminaScenario } from './semina';
 // ---------------------------------------------------------------------------
 // La fonte «Lista SKU», nel browser.
 //
-// Qui la ricerca NON è configurata — in CI non c'è nessuna chiave — e il
-// fornitore finto non inventa risultati. Quindi questa prova verifica una cosa
-// precisa e che vale: che il percorso arrivi fino in fondo e dica la verità.
-// Nessun prodotto importato, e il motivo scritto a schermo.
+// Qui la ricerca NON è configurata — in CI non c'è nessuna chiave. Quindi
+// questa prova verifica una cosa precisa e che vale: che il percorso arrivi
+// fino in fondo e dica la verità, cioè che non si può cercare — che è diverso
+// da «non ho trovato niente», e non lascia nessun codice archiviato come
+// inesistente.
 //
 // Se un giorno questa prova cominciasse a vedere prodotti importati senza che
 // nessuno abbia messo una chiave, vorrebbe dire che qualcuno ha insegnato al
@@ -92,7 +93,12 @@ test.describe('fonte Lista SKU', () => {
     // Uno solo, in fondo: il passo ha un'azione principale sola.
     await page.getByRole('button', { name: /cerca e importa/i }).click();
 
-    // E dice cosa è successo davvero: nessuna pagina trovata. Non «fatto».
-    await expect(page.getByText(/Nessun prodotto importato/i)).toBeVisible({ timeout: 60000 });
+    // E dice cosa è successo davvero. In CI la chiave di ricerca non c'è, e la
+    // risposta giusta a «non posso cercare» non è «non ho trovato niente»:
+    // sono due cose diverse, e la seconda manderebbe a cercare il problema nei
+    // codici del cliente. Nessuna riga viene messa in coda, quindi nessun
+    // codice resta archiviato come inesistente.
+    await expect(page.getByText(/ricerca online non è configurata/i)).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/nessuna pagina trovata/i)).toHaveCount(0);
   });
 });
