@@ -11,6 +11,10 @@ import {
   extractProductFromHtml,
   extractProductFromPdfText,
   analizzaListaIncollata,
+  righeDaTabella,
+  suggerisciColonneListaSku,
+  type MappaturaListaSku,
+  type RigaListaSku,
   normalizzaSku,
   proponiRaggruppamento,
   raggruppa,
@@ -2733,32 +2737,121 @@ export interface AnteprimaListaSku {
  */
 export async function anteprimaListaSku(input: {
   batchId: string;
-  testo: string;
+  testo?: string;
+  /** Le righe già mappate dal foglio, in alternativa al testo incollato. */
+  righeFoglio?: Array<Record<string, string>>;
+  mappatura?: MappaturaListaSku;
   raggruppa: boolean;
 }): Promise<ActionResult<AnteprimaListaSku>> {
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
 
-  const righe = analizzaListaIncollata(input.testo ?? '');
-  if (righe.length === 0) return fail('Incolla almeno un codice, uno per riga.');
+  const righe = righeDellaLista(input);
+  if (righe.length === 0) return fail('Nessun codice da importare.');
 
   const codici = righe.map((r) => r.sku);
-  const proposta = proponiRaggruppamento(codici);
-  const prodotti = input.raggruppa && proposta ? proposta.prodotti : codici.length;
-  const varianti = input.raggruppa && proposta ? codici.length - proposta.gruppi.length : 0;
+  // Il codice modello dichiarato in colonna È la verità e non si indovina: solo
+  // quando manca si prova a ricavare una regola dai codici.
+  const conModello = righe.filter((r) => r.codiceModello);
+  const proposta = conModello.length > 0 ? null : proponiRaggruppamento(codici);
+  const gruppiDichiarati = new Set(conModello.map((r) => r.codiceModello as string)).size;
+  const prodotti = !input.raggruppa
+    ? codici.length
+    : conModello.length > 0
+      ? gruppiDichiarati + (codici.length - conModello.length)
+      : (proposta?.prodotti ?? codici.length);
+  const varianti = input.raggruppa ? codici.length - prodotti : 0;
   const costi = anteprimaCosti(codici.length, prodotti);
 
   return ok({
     skuCaricati: codici.length,
     prodotti,
     varianti,
-    regola: proposta?.regola.descrizione ?? null,
-    forza: proposta?.forza ?? 0,
-    motivi: proposta?.motivi ?? [],
+    regola: conModello.length > 0 ? 'Codice modello dichiarato nel file' : (proposta?.regola.descrizione ?? null),
+    forza: conModello.length > 0 ? 1 : (proposta?.forza ?? 0),
+    motivi:
+      conModello.length > 0
+        ? ['Il raggruppamento viene dalla colonna del file: non c’è niente da indovinare.']
+        : (proposta?.motivi ?? []),
     creditiConRaggruppamento: costi.creditiRaggruppati,
     creditiSenzaRaggruppamento: costi.creditiSenzaRaggruppamento,
     risoluzioni: prodotti,
   });
+}
+
+export interface FoglioListaSku {
+  intestazioni: string[];
+  /** Le prime righe, per far vedere all'utente cosa sta mappando. */
+  anteprima: Array<Record<string, string>>;
+  righeTotali: number;
+  /** Solo un suggerimento: la mappatura la conferma l'utente. */
+  suggerita: MappaturaListaSku;
+  /** Le righe complete: tornano al client e poi all'import. */
+  righe: Array<Record<string, string>>;
+}
+
+/**
+ * Legge il foglio di codici e propone la mappatura. Non scrive niente.
+ *
+ * Il file NON viene salvato: contiene i codici del cliente e basta, e a
+ * differenza di un listino non c'è niente da riesaminare dopo. Conservarlo
+ * vorrebbe dire tenere dati che non servono a nessuno.
+ */
+export async function leggiFoglioListaSku(
+  formData: FormData,
+): Promise<ActionResult<FoglioListaSku>> {
+  const batchId = String(formData.get('batchId') ?? '');
+  const orgId = await assertBatchAccess(batchId);
+  if (!orgId) return fail('Batch non accessibile');
+
+  const file = formData.getAll('files').find((f): f is File => f instanceof File);
+  if (!file) return fail('Nessun file caricato.');
+  const ext = extname(file.name).toLowerCase();
+  if (ext !== '.csv' && ext !== '.xlsx') return fail('Formato non supportato: usa CSV o XLSX.');
+  if (file.size > 20 * 1024 * 1024) return fail('File troppo grande (massimo 20 MB).');
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  let parsed: ParseResult;
+  try {
+    parsed = ext === '.csv' ? parseCsv(buffer) : await parseXlsx(buffer);
+  } catch (e) {
+    return fail(`Lettura file fallita: ${e instanceof Error ? e.message : 'errore'}`);
+  }
+  if (parsed.rows.length === 0) {
+    return fail(
+      parsed.headers.length === 0
+        ? 'Il file è vuoto.'
+        : 'Il file ha solo la riga di intestazione, nessun codice.',
+    );
+  }
+
+  return ok({
+    intestazioni: parsed.headers,
+    anteprima: parsed.rows.slice(0, 5),
+    righeTotali: parsed.rows.length,
+    suggerita: suggerisciColonneListaSku(parsed.headers),
+    righe: parsed.rows.slice(0, MAX_RIGHE_FOGLIO),
+  });
+}
+
+/** Oltre questo, il foglio non è una lista di codici: è un catalogo. */
+const MAX_RIGHE_FOGLIO = 2000;
+
+/**
+ * Le righe da lavorare, incollate o mappate da un foglio.
+ *
+ * Un posto solo perché le due strade producano la stessa cosa: se divergessero,
+ * lo stesso catalogo darebbe risultati diversi a seconda di come è entrato.
+ */
+function righeDellaLista(input: {
+  testo?: string;
+  righeFoglio?: Array<Record<string, string>>;
+  mappatura?: MappaturaListaSku;
+}): RigaListaSku[] {
+  if (input.righeFoglio && input.mappatura) {
+    return righeDaTabella(input.righeFoglio, input.mappatura);
+  }
+  return analizzaListaIncollata(input.testo ?? '');
 }
 
 export interface EsitoListaSku {
@@ -2778,7 +2871,9 @@ const MAX_RISOLUZIONI_PER_CHIAMATA = 25;
 
 export async function importFromSkuList(input: {
   batchId: string;
-  testo: string;
+  testo?: string;
+  righeFoglio?: Array<Record<string, string>>;
+  mappatura?: MappaturaListaSku;
   raggruppa: boolean;
   domini: string[];
 }): Promise<ActionResult<EsitoListaSku>> {
@@ -2787,8 +2882,8 @@ export async function importFromSkuList(input: {
   const orgId = await assertBatchAccess(input.batchId);
   if (!orgId) return fail('Batch non accessibile');
 
-  const righe = analizzaListaIncollata(input.testo ?? '');
-  if (righe.length === 0) return fail('Incolla almeno un codice, uno per riga.');
+  const righe = righeDellaLista(input);
+  if (righe.length === 0) return fail('Nessun codice da importare.');
 
   const service = getServiceClient();
   const ctx = await creaContestoImport(service, orgId, input.batchId);
@@ -2796,12 +2891,39 @@ export async function importFromSkuList(input: {
   const cacheRobots = new Map();
 
   // Raggruppamento: un gruppo = un prodotto = UNA ricerca.
-  const proposta = input.raggruppa ? proponiRaggruppamento(righe.map((r) => r.sku)) : null;
-  const gruppi = proposta
-    ? raggruppa(righe.map((r) => r.sku), proposta.regola)
-    : { gruppi: [], nonRaggruppati: righe.map((r) => r.sku) };
-
+  //
+  // Se il file dichiara il codice modello, quella è la verità e non si
+  // indovina niente. La regola derivata dai codici serve solo quando la colonna
+  // non c'è.
   const perSku = new Map(righe.map((r) => [r.sku, r] as const));
+  const dichiarati = righe.filter((r) => r.codiceModello);
+  let gruppi: { gruppi: Array<{ codiceModello: string; sku: string[] }>; nonRaggruppati: string[] };
+
+  if (!input.raggruppa) {
+    gruppi = { gruppi: [], nonRaggruppati: righe.map((r) => r.sku) };
+  } else if (dichiarati.length > 0) {
+    const perModello = new Map<string, string[]>();
+    const soli: string[] = [];
+    for (const r of righe) {
+      if (!r.codiceModello) {
+        soli.push(r.sku);
+        continue;
+      }
+      perModello.set(r.codiceModello, [...(perModello.get(r.codiceModello) ?? []), r.sku]);
+    }
+    const veri: Array<{ codiceModello: string; sku: string[] }> = [];
+    for (const [codiceModello, sku] of perModello) {
+      // Un modello con un figlio solo non è un gruppo: è un prodotto.
+      if (sku.length >= 2) veri.push({ codiceModello, sku });
+      else soli.push(...sku);
+    }
+    gruppi = { gruppi: veri, nonRaggruppati: soli };
+  } else {
+    const proposta = proponiRaggruppamento(righe.map((r) => r.sku));
+    gruppi = proposta
+      ? raggruppa(righe.map((r) => r.sku), proposta.regola)
+      : { gruppi: [], nonRaggruppati: righe.map((r) => r.sku) };
+  }
   const lavoro: Array<{ codice: string; marca: string | null; sku: string[] }> = [
     ...gruppi.gruppi.map((g) => ({
       codice: g.codiceModello,
@@ -2822,7 +2944,10 @@ export async function importFromSkuList(input: {
   const conteggi = { risolti: 0, conRiserva: 0, daConfermare: 0, nonTrovati: 0, ricercheFallite: 0 };
 
   for (const item of lavoro) {
-    const esito = await risolviSku(ricerca, { codice: item.codice, marca: item.marca, domini: input.domini ?? [] }, cacheRobots);
+    // L'ambito dichiarato sulla riga vale insieme a quello della lavorazione:
+    // chi lo scrive per riga di solito ha fornitori diversi per prodotti diversi.
+    const dominiRiga = [...new Set([...(input.domini ?? []), ...(perSku.get(item.sku[0]!)?.domini ?? [])])];
+    const esito = await risolviSku(ricerca, { codice: item.codice, marca: item.marca, domini: dominiRiga }, cacheRobots);
     const { risoluzione } = esito;
 
     await logWrite(

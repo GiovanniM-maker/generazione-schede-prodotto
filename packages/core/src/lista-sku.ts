@@ -60,6 +60,115 @@ export function analizzaListaIncollata(testo: string): RigaListaSku[] {
   return righe;
 }
 
+// ---------------------------------------------------------------------------
+// Il caricamento da file, con la mappatura delle colonne.
+//
+// Incollare un elenco basta finché i codici sono cento. A duemila righe il
+// cliente ha un foglio, e in quel foglio la marca e il codice modello di solito
+// ci sono già — sono le due cose che alzano di più la precisione della ricerca.
+// Chiederglieli a mano quando li ha davanti sarebbe fargli ribattere dati suoi.
+//
+// La mappatura è dichiarata dall'utente, non indovinata: qui si SUGGERISCE, e
+// il suggerimento parte da intestazioni che si riconoscono. Sbagliare colonna
+// vuol dire cercare online la parola «Rosso» invece del codice articolo.
+// ---------------------------------------------------------------------------
+
+export interface MappaturaListaSku {
+  sku: string;
+  codiceModello?: string | null;
+  marca?: string | null;
+  attributoVariante?: string | null;
+  /** Colonna con i domini a cui limitare la ricerca per quella riga. */
+  ambito?: string | null;
+}
+
+const SINONIMI_COLONNA: Record<keyof MappaturaListaSku, string[]> = {
+  sku: ['sku', 'codice', 'codice articolo', 'cod articolo', 'cod. articolo', 'codice prodotto', 'articolo', 'ean', 'barcode', 'part number', 'partnumber', 'item code', 'product code', 'ref', 'riferimento'],
+  codiceModello: ['codice modello', 'modello', 'cod modello', 'model', 'model code', 'codice padre', 'parent', 'parent id', 'gruppo', 'group'],
+  marca: ['marca', 'brand', 'produttore', 'fabbricante', 'manufacturer', 'vendor'],
+  attributoVariante: ['colore', 'color', 'taglia', 'size', 'finitura', 'finish', 'variante', 'variant'],
+  ambito: ['sito', 'dominio', 'domini', 'url', 'fornitore', 'site', 'ambito'],
+};
+
+function normalizzaIntestazione(h: string): string {
+  return (h ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Suggerisce quale colonna è cosa. Solo un suggerimento: decide l'utente.
+ *
+ * `sku` resta `null` quando nessuna intestazione si riconosce — ed è giusto che
+ * resti vuoto invece di prendere la prima colonna: senza lo SKU non c'è niente
+ * da cercare, e una colonna scelta a caso manderebbe a cercare online i nomi
+ * dei colori.
+ */
+export function suggerisciColonneListaSku(intestazioni: string[]): MappaturaListaSku {
+  const trovate = new Map<string, string>();
+  for (const h of intestazioni ?? []) trovate.set(normalizzaIntestazione(h), h);
+
+  const primaChe = (sinonimi: string[]): string | null => {
+    for (const s of sinonimi) {
+      const h = trovate.get(s);
+      if (h) return h;
+    }
+    return null;
+  };
+
+  return {
+    sku: primaChe(SINONIMI_COLONNA.sku) ?? '',
+    codiceModello: primaChe(SINONIMI_COLONNA.codiceModello ?? []),
+    marca: primaChe(SINONIMI_COLONNA.marca ?? []),
+    attributoVariante: primaChe(SINONIMI_COLONNA.attributoVariante ?? []),
+    ambito: primaChe(SINONIMI_COLONNA.ambito ?? []),
+  };
+}
+
+/**
+ * Applica la mappatura alle righe del foglio.
+ *
+ * Le righe senza SKU vengono saltate, non riempite: un prodotto senza codice
+ * non si può cercare e non si può riagganciare al gestionale del cliente.
+ */
+export function righeDaTabella(
+  righeFoglio: Array<Record<string, string>>,
+  mappatura: MappaturaListaSku,
+): RigaListaSku[] {
+  // Nessuna guardia sulla colonna mancante: se non è mappata, nessuna riga ha
+  // quella chiave e il ciclo qui sotto le salta tutte. Il primo tentativo aveva
+  // un `return []` anticipato, e toglierlo non faceva diventare rossa nessuna
+  // prova — cioè era codice che sembrava proteggere qualcosa e non proteggeva
+  // niente.
+  const colonnaSku = (mappatura.sku ?? '').trim();
+
+  const viste = new Set<string>();
+  const out: RigaListaSku[] = [];
+  for (const riga of righeFoglio ?? []) {
+    const sku = pulisci(riga[colonnaSku]);
+    if (!sku) continue;
+    const chiave = sku.toLowerCase();
+    if (viste.has(chiave)) continue;
+    viste.add(chiave);
+
+    const ambito = mappatura.ambito ? pulisci(riga[mappatura.ambito]) : null;
+    out.push({
+      sku,
+      codiceModello: mappatura.codiceModello ? pulisci(riga[mappatura.codiceModello]) : null,
+      marca: mappatura.marca ? pulisci(riga[mappatura.marca]) : null,
+      attributoVariante: mappatura.attributoVariante ? pulisci(riga[mappatura.attributoVariante]) : null,
+      domini: ambito ? ambito.split(/[\s,;]+/).map((d) => d.trim()).filter(Boolean) : [],
+    });
+    if (out.length >= MAX_RIGHE_LISTA) break;
+  }
+  return out;
+}
+
 function normalizzaDominio(d: string): string {
   return (d ?? '')
     .trim()

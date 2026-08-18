@@ -40,6 +40,8 @@ import {
   importFromPdfs,
   importFromSkuList,
   listaConfermeIdentita,
+  leggiFoglioListaSku,
+  type FoglioListaSku,
   anteprimaListaSku,
   type AnteprimaListaSku,
   type PublishedPresetSummary,
@@ -52,6 +54,7 @@ import {
   type ImportResultV2,
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
+import type { MappaturaListaSku } from '@app/core';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { verificaCreditiBatch, type VerificaBatchResult } from '@/lib/actions/diritti';
 import {
@@ -420,6 +423,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [skuAnteprima, setSkuAnteprima] = useState<AnteprimaListaSku | null>(null);
   const [confermeAperte, setConfermeAperte] = useState(false);
   const [confermeInSospeso, setConfermeInSospeso] = useState(0);
+  const [skuFoglio, setSkuFoglio] = useState<FoglioListaSku | null>(null);
+  const [skuMappatura, setSkuMappatura] = useState<MappaturaListaSku | null>(null);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -983,25 +988,68 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     goTo(9);
   }
 
-  async function anteprimaSku() {
-    if (!batchId || !skuText.trim()) return;
-    const res = await anteprimaListaSku({ batchId, testo: skuText, raggruppa: skuRaggruppa }).catch(() => null);
+  async function anteprimaSku(mapp?: MappaturaListaSku | null) {
+    if (!batchId) return;
+    const mappatura = mapp ?? skuMappatura;
+    const daFoglio = skuFoglio && mappatura?.sku;
+    if (!daFoglio && !skuText.trim()) {
+      setSkuAnteprima(null);
+      return;
+    }
+    const res = await anteprimaListaSku({
+      batchId,
+      ...(daFoglio
+        ? { righeFoglio: skuFoglio!.righe, mappatura: mappatura! }
+        : { testo: skuText }),
+      raggruppa: skuRaggruppa,
+    }).catch(() => null);
     setSkuAnteprima(res && res.ok ? res.data : null);
+  }
+
+  async function caricaFoglioSku(file: File) {
+    if (!batchId) return;
+    setBusy(true);
+    setError(null);
+    const fd = new FormData();
+    fd.append('batchId', batchId);
+    fd.append('files', file);
+    let res;
+    try {
+      res = await leggiFoglioListaSku(fd);
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSkuFoglio(res.data);
+    setSkuMappatura(res.data.suggerita);
+    // L'anteprima parte subito: la mappatura suggerita è già utilizzabile, e
+    // vedere i numeri prima di toccare le tendine è quello che fa capire se il
+    // suggerimento ha preso le colonne giuste.
+    if (res.data.suggerita.sku) void anteprimaSku(res.data.suggerita);
   }
 
   async function importSku() {
     if (!batchId) return;
-    if (!skuText.trim()) {
-      setError('Incolla almeno un codice, uno per riga.');
+    if (!skuText.trim() && !(skuFoglio && skuMappatura?.sku)) {
+      setError('Incolla almeno un codice, oppure carica un file e indica la colonna dei codici.');
       return;
     }
     setBusy(true);
     setError(null);
     let res;
     try {
+      const daFoglio = skuFoglio && skuMappatura?.sku;
       res = await importFromSkuList({
         batchId,
-        testo: skuText,
+        ...(daFoglio
+          ? { righeFoglio: skuFoglio.righe, mappatura: skuMappatura }
+          : { testo: skuText }),
         raggruppa: skuRaggruppa,
         domini: skuDomini.split(/[\s,;]+/).map((d) => d.trim()).filter(Boolean),
       });
@@ -1395,7 +1443,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           skuRaggruppa={skuRaggruppa}
           setSkuRaggruppa={setSkuRaggruppa}
           skuAnteprima={skuAnteprima}
-          onAnteprimaSku={anteprimaSku}
+          skuFoglio={skuFoglio}
+          skuMappatura={skuMappatura}
+          setSkuMappatura={(m) => {
+            setSkuMappatura(m);
+            void anteprimaSku(m);
+          }}
+          onCaricaFoglioSku={caricaFoglioSku}
+          onAnteprimaSku={() => void anteprimaSku()}
           onImportSku={importSku}
           busy={busy}
         />
@@ -1516,7 +1571,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
               !!sourceMode &&
               (sourceMode !== 'url' || urlText.trim().length > 0) &&
               (sourceMode !== 'pdf' || pdfFiles.length > 0) &&
-              (sourceMode !== 'sku' || skuText.trim().length > 0),
+              (sourceMode !== 'sku' ||
+                skuText.trim().length > 0 ||
+                Boolean(skuFoglio && skuMappatura?.sku)),
             5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
             10: sampleDone,
           }}
@@ -1901,6 +1958,10 @@ function Step3({
   skuRaggruppa,
   setSkuRaggruppa,
   skuAnteprima,
+  skuFoglio,
+  skuMappatura,
+  setSkuMappatura,
+  onCaricaFoglioSku,
   onAnteprimaSku,
   onImportSku,
   busy,
@@ -1920,6 +1981,10 @@ function Step3({
   skuRaggruppa: boolean;
   setSkuRaggruppa: (v: boolean) => void;
   skuAnteprima: AnteprimaListaSku | null;
+  skuFoglio: FoglioListaSku | null;
+  skuMappatura: MappaturaListaSku | null;
+  setSkuMappatura: (m: MappaturaListaSku) => void;
+  onCaricaFoglioSku: (file: File) => void;
   onAnteprimaSku: () => void;
   onImportSku: () => void;
   busy: boolean;
@@ -2019,6 +2084,86 @@ function Step3({
               </p>
             </div>
 
+            {/* Il file, per chi i codici li ha già in un foglio. A duemila
+                righe incollare non è un'opzione, e in quel foglio marca e
+                codice modello di solito ci sono già: sono le due cose che
+                alzano di più la precisione della ricerca. */}
+            <div>
+              <Label>Oppure carica un file con i codici</Label>
+              <label className="mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white p-4 text-center text-sm text-ink-600 hover:bg-ink-50">
+                <FileSpreadsheet className="h-5 w-5 text-ink-400" />
+                {skuFoglio
+                  ? `${skuFoglio.righeTotali} righe lette — clicca per cambiare file`
+                  : 'Seleziona un file .csv o .xlsx'}
+                <input
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="hidden"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) onCaricaFoglioSku(f);
+                  }}
+                  data-testid="sku-file"
+                />
+              </label>
+            </div>
+
+            {skuFoglio && skuMappatura && (
+              <div className="rounded-lg border border-ink-200 bg-white p-3">
+                <div className="text-sm font-medium text-ink-900">Quale colonna è cosa</div>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  Abbiamo provato a riconoscerle. Controlla: sbagliare la colonna dei codici vuol
+                  dire cercare online la parola sbagliata, e ogni ricerca si paga.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ['sku', 'Codice articolo (obbligatorio)'],
+                      ['codiceModello', 'Codice modello'],
+                      ['marca', 'Marca'],
+                      ['attributoVariante', 'Colore o taglia'],
+                      ['ambito', 'Sito su cui cercare'],
+                    ] as Array<
+                      ['sku' | 'codiceModello' | 'marca' | 'attributoVariante' | 'ambito', string]
+                    >
+                  ).map(([chiave, etichetta]) => (
+                    <div key={chiave}>
+                      <Label htmlFor={`sku-col-${chiave}`} className="text-xs">
+                        {etichetta}
+                      </Label>
+                      <Select
+                        id={`sku-col-${chiave}`}
+                        value={skuMappatura[chiave] ?? ''}
+                        onChange={(e) =>
+                          setSkuMappatura({ ...skuMappatura, [chiave]: e.target.value || null })
+                        }
+                        className="mt-0.5"
+                      >
+                        <option value="">— nessuna —</option>
+                        {skuFoglio.intestazioni.map((h) => (
+                          <option key={h} value={h}>
+                            {h}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+                {!skuMappatura.sku && (
+                  <p className="mt-2 text-xs text-red-600">
+                    Senza la colonna dei codici non c’è niente da cercare.
+                  </p>
+                )}
+                {skuMappatura.codiceModello && (
+                  <p className="mt-2 text-xs text-ink-500">
+                    Con il codice modello dichiarato non c’è niente da indovinare: il
+                    raggruppamento viene dal tuo file.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div>
               <Label htmlFor="sku-domini">Cerca solo su questi siti (facoltativo)</Label>
               <Input
@@ -2090,7 +2235,11 @@ function Step3({
             </Avviso>
 
             <div className="flex justify-end">
-              <Button onClick={onImportSku} disabled={busy || skuText.trim().length === 0} data-tour="sku-import">
+              <Button
+                onClick={onImportSku}
+                disabled={busy || (skuText.trim().length === 0 && !skuMappatura?.sku)}
+                data-tour="sku-import"
+              >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {busy ? 'Cerco…' : 'Cerca e importa'}
               </Button>

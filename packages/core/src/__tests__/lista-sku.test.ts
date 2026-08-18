@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_RIGHE_LISTA, analizzaListaIncollata, livelloDelDominio } from '../lista-sku.js';
+import {
+  MAX_RIGHE_LISTA,
+  analizzaListaIncollata,
+  livelloDelDominio,
+  righeDaTabella,
+  suggerisciColonneListaSku,
+} from '../lista-sku.js';
 
 // ---------------------------------------------------------------------------
 // La lista incollata, e la fiducia nei domini.
@@ -92,5 +98,111 @@ describe('livelloDelDominio', () => {
   it('un dominio vuoto o storto è terza parte, non produttore', () => {
     expect(livelloDelDominio('', 'Ferrini')).toBe('terza-parte');
     expect(livelloDelDominio('   ', 'Ferrini')).toBe('terza-parte');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Il caricamento da file.
+//
+// La mappatura la dichiara l'utente; qui si suggerisce soltanto. Sbagliare
+// colonna vuol dire mandare a cercare online la parola «Rosso» invece del
+// codice articolo — e la ricerca si paga.
+// ---------------------------------------------------------------------------
+
+describe('suggerisciColonneListaSku', () => {
+  it('riconosce le intestazioni normali di un listino', () => {
+    const m = suggerisciColonneListaSku(['SKU', 'Modello', 'Marca', 'Colore', 'Sito']);
+    expect(m).toEqual({
+      sku: 'SKU',
+      codiceModello: 'Modello',
+      marca: 'Marca',
+      attributoVariante: 'Colore',
+      ambito: 'Sito',
+    });
+  });
+
+  it('non si fa fermare da maiuscole, accenti, punti e trattini', () => {
+    const m = suggerisciColonneListaSku(['Cod. Articolo', 'BRAND']);
+    expect(m.sku).toBe('Cod. Articolo');
+    expect(m.marca).toBe('BRAND');
+  });
+
+  it('restituisce l’intestazione ORIGINALE, non quella normalizzata', () => {
+    // È la chiave con cui si leggeranno le righe: normalizzandola non
+    // troverebbe più niente.
+    expect(suggerisciColonneListaSku(['Cod. Articolo']).sku).toBe('Cod. Articolo');
+  });
+
+  it('senza una colonna riconoscibile lo SKU resta vuoto', () => {
+    // NON prende la prima colonna: una colonna a caso manderebbe a cercare
+    // online i nomi dei colori, e ogni ricerca si paga.
+    const m = suggerisciColonneListaSku(['Pippo', 'Pluto']);
+    expect(m.sku).toBe('');
+  });
+
+  it('quello che non c’è resta nullo', () => {
+    const m = suggerisciColonneListaSku(['SKU']);
+    expect(m.marca).toBeNull();
+    expect(m.codiceModello).toBeNull();
+    expect(m.ambito).toBeNull();
+  });
+
+  it('un elenco vuoto non esplode', () => {
+    expect(suggerisciColonneListaSku([]).sku).toBe('');
+  });
+});
+
+describe('righeDaTabella', () => {
+  const foglio = [
+    { SKU: 'TS100-RED', Modello: 'TS100', Marca: 'Ferrini', Colore: 'Rosso', Sito: 'ferrini.it' },
+    { SKU: 'TS100-BLU', Modello: 'TS100', Marca: 'Ferrini', Colore: 'Blu', Sito: 'ferrini.it, grossista.it' },
+  ];
+  const mappatura = {
+    sku: 'SKU',
+    codiceModello: 'Modello',
+    marca: 'Marca',
+    attributoVariante: 'Colore',
+    ambito: 'Sito',
+  };
+
+  it('porta ogni colonna al suo posto', () => {
+    const r = righeDaTabella(foglio, mappatura);
+    expect(r[0]).toEqual({
+      sku: 'TS100-RED',
+      codiceModello: 'TS100',
+      marca: 'Ferrini',
+      attributoVariante: 'Rosso',
+      domini: ['ferrini.it'],
+    });
+  });
+
+  it('spezza l’ambito su virgole e spazi', () => {
+    expect(righeDaTabella(foglio, mappatura)[1]!.domini).toEqual(['ferrini.it', 'grossista.it']);
+  });
+
+  it('le colonne non mappate restano nulle, non vuote a caso', () => {
+    const r = righeDaTabella(foglio, { sku: 'SKU' });
+    expect(r[0]).toMatchObject({ marca: null, codiceModello: null, attributoVariante: null, domini: [] });
+  });
+
+  it('una riga senza SKU viene saltata, non riempita', () => {
+    // Un prodotto senza codice non si può cercare e non si può riagganciare al
+    // gestionale del cliente: inventargli un codice è peggio che scartarlo.
+    const r = righeDaTabella([{ SKU: '   ', Marca: 'Ferrini' }, { SKU: 'AB-1' }], { sku: 'SKU' });
+    expect(r.map((x) => x.sku)).toEqual(['AB-1']);
+  });
+
+  it('lo stesso codice due volte è una riga sola', () => {
+    const r = righeDaTabella([{ SKU: 'AB-1' }, { SKU: 'ab-1' }], { sku: 'SKU' });
+    expect(r).toHaveLength(1);
+  });
+
+  it('senza colonna SKU non si importa niente', () => {
+    expect(righeDaTabella(foglio, { sku: '' })).toEqual([]);
+  });
+
+  it('si ferma al tetto', () => {
+    const molte = Array.from({ length: MAX_RIGHE_LISTA + 10 }, (_, i) => ({ SKU: `AB-${i}` }));
+    expect(righeDaTabella(molte, { sku: 'SKU' })).toHaveLength(MAX_RIGHE_LISTA);
   });
 });

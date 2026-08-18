@@ -68,6 +68,27 @@ test.describe('fonte Lista SKU', () => {
     await expect(page.getByText(/3 codici →/)).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/crediti di generazione/)).toBeVisible();
 
+    // Il caricamento da file: le colonne si riconoscono da sole, e l'anteprima
+    // si rifà sui numeri del foglio invece che su quelli incollati.
+    await campo.fill('');
+    await page.getByTestId('sku-file').setInputFiles({
+      name: 'codici.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(
+        'SKU,Modello,Marca\nTS100-RED,TS100,Ferrini\nTS100-BLU,TS100,Ferrini\nTS100-NER,TS100,Ferrini\nPL200-RED,PL200,Ferrini\n',
+        'utf8',
+      ),
+    });
+
+    await expect(page.getByText(/4 righe lette/)).toBeVisible({ timeout: 20000 });
+    // La colonna dei codici è stata riconosciuta: senza, non ci sarebbe niente
+    // da cercare e il pulsante resterebbe spento.
+    await expect(page.locator('#sku-col-sku')).toHaveValue('SKU');
+    await expect(page.locator('#sku-col-marca')).toHaveValue('Marca');
+    // Col codice modello dichiarato non si indovina niente: quattro codici, due
+    // prodotti — TS100 con tre varianti e PL200 da solo.
+    await expect(page.getByText(/4 codici → 2 prodotti/)).toBeVisible({ timeout: 20000 });
+
     await page.getByRole('button', { name: /cerca e importa/i }).click();
 
     // E dice cosa è successo davvero: nessuna pagina trovata. Non «fatto».
