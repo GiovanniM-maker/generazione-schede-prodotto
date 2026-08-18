@@ -10,6 +10,8 @@
 //
 // L'adattatore che parla con Brave sta in apps/web/lib/ricerca-brave.ts.
 
+import { normalizzaSku } from './sku-raggruppamento.js';
+
 export interface RisultatoRicerca {
   url: string;
   titolo: string;
@@ -61,11 +63,45 @@ function dominioPulito(d: string): string {
  * La marca NON va fra virgolette: è un nome commerciale, scritto in dieci modi
  * diversi, e vincolarlo alla lettera fa perdere pagine buone.
  */
+/**
+ * Le forme del codice da CHIEDERE al motore.
+ *
+ * Lo stesso codice si scrive in modi diversi a seconda di chi lo scrive, e il
+ * gestionale del cliente quasi mai usa quello del web. Caso vero, costato un
+ * import a vuoto: «E1 M50 120101» è il codice produttore di una borsa, scritto
+ * con gli spazi nell'anagrafica del cliente. Cercato così, fra virgolette, il
+ * motore restituisce un televisore Vizio M50-E1 e nient'altro. La stessa borsa,
+ * cercata come «E1M50120101», esce dal sito del produttore con tanto di codice
+ * colore. Un import intero dichiarato inesistente per via di due spazi.
+ *
+ * Restano poche apposta. Riconoscere un codice è gratis — e infatti
+ * `formeDelCodice` ne considera di più, in @app/core/sku-risoluzione — ma
+ * CHIEDERE costa: ogni alternativa in più allarga la ricerca e fa scendere le
+ * pagine giuste sotto quelle sbagliate.
+ */
+function formeDaCercare(codice: string): string[] {
+  const { normalizzato, compatto } = normalizzaSku(codice);
+  const viste = new Set<string>();
+  const forme: string[] = [];
+  for (const f of [codice.trim(), normalizzato, compatto]) {
+    const chiave = f.toUpperCase();
+    // Il motore non distingue maiuscole e minuscole: chiedere due volte la
+    // stessa cosa scritta in due modi è solo una query più lunga.
+    if (f.length < 3 || viste.has(chiave)) continue;
+    viste.add(chiave);
+    forme.push(f);
+  }
+  return forme;
+}
+
 export function costruisciQuery(richiesta: RichiestaRicerca): string {
   const codice = (richiesta.codice ?? '').trim();
   if (!codice) return '';
 
-  const pezzi: string[] = [`"${codice.replace(/"/g, '')}"`];
+  const forme = formeDaCercare(codice).map((f) => `"${f.replace(/"/g, '')}"`);
+  // Con una forma sola niente parentesi: la query di un codice senza
+  // separatori resta identica a prima.
+  const pezzi: string[] = [forme.length > 1 ? `(${forme.join(' OR ')})` : (forme[0] ?? '')];
   const marca = (richiesta.marca ?? '').trim();
   if (marca) pezzi.push(marca.replace(/"/g, ''));
 

@@ -1549,10 +1549,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           setSourceMode={setSourceMode}
           urlText={urlText}
           setUrlText={setUrlText}
-          onImportUrls={importUrls}
           pdfFiles={pdfFiles}
           setPdfFiles={setPdfFiles}
-          onImportPdfs={importPdfs}
           skuText={skuText}
           setSkuText={setSkuText}
           skuDomini={skuDomini}
@@ -1568,7 +1566,6 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           }}
           onCaricaFoglioSku={caricaFoglioSku}
           onAnteprimaSku={() => void anteprimaSku()}
-          onImportSku={importSku}
           busy={busy}
         />
       )}
@@ -1694,6 +1691,15 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
                   ? 'Cerca e importa'
                   : 'Continua'
           }
+          step3BusyLabel={
+            sourceMode === 'url'
+              ? 'Importo…'
+              : sourceMode === 'pdf'
+                ? 'Leggo i PDF…'
+                : sourceMode === 'sku'
+                  ? 'Cerco…'
+                  : 'Un momento…'
+          }
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
             3:
@@ -1782,6 +1788,7 @@ function StepPrimaryAction({
   busy,
   canProceed,
   step3Label = 'Continua',
+  step3BusyLabel = 'Un momento…',
   onSources,
   onSample,
   onStart,
@@ -1792,6 +1799,7 @@ function StepPrimaryAction({
   busy: boolean;
   canProceed: Record<number, boolean>;
   step3Label?: string;
+  step3BusyLabel?: string;
   onSources: () => void;
   onSample: () => void;
   onStart: () => void;
@@ -1808,9 +1816,11 @@ function StepPrimaryAction({
     );
   }
   if (stepId === 3) {
+    // Con l'etichetta, non solo la rotella: leggere trenta PDF o cercare
+    // cinquecento codici dura, e «sta girando» non basta a far capire cosa.
     return (
       <Button onClick={onSources} disabled={busy || !canProceed[3]}>
-        {busy ? spinner : <>{step3Label} <ArrowRight className="h-4 w-4" /></>}
+        {busy ? <>{spinner} {step3BusyLabel}</> : <>{step3Label} <ArrowRight className="h-4 w-4" /></>}
       </Button>
     );
   }
@@ -2076,10 +2086,8 @@ function Step3({
   setSourceMode,
   urlText,
   setUrlText,
-  onImportUrls,
   pdfFiles,
   setPdfFiles,
-  onImportPdfs,
   skuText,
   setSkuText,
   skuDomini,
@@ -2092,17 +2100,14 @@ function Step3({
   setSkuMappatura,
   onCaricaFoglioSku,
   onAnteprimaSku,
-  onImportSku,
   busy,
 }: {
   sourceMode: SourceMode | null;
   setSourceMode: (m: SourceMode) => void;
   urlText: string;
   setUrlText: (v: string) => void;
-  onImportUrls: () => void;
   pdfFiles: File[];
   setPdfFiles: (f: File[]) => void;
-  onImportPdfs: () => void;
   skuText: string;
   setSkuText: (v: string) => void;
   skuDomini: string;
@@ -2115,7 +2120,6 @@ function Step3({
   setSkuMappatura: (m: MappaturaListaSku) => void;
   onCaricaFoglioSku: (file: File) => void;
   onAnteprimaSku: () => void;
-  onImportSku: () => void;
   busy: boolean;
 }) {
   const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
@@ -2183,12 +2187,6 @@ function Step3({
               Importa solo pagine di cui hai i diritti (tue o del tuo fornitore). L’AI riscrive una
               scheda nuova a partire dai fatti: non copiamo il testo originale.
             </Avviso>
-            <div className="flex justify-end">
-              <Button onClick={onImportUrls} disabled={busy || urlCount === 0} data-tour="url-import">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {busy ? 'Importo…' : 'Importa e continua'}
-              </Button>
-            </div>
           </CardContent>
         </Card>
       )}
@@ -2363,16 +2361,6 @@ function Step3({
               a carico tuo.
             </Avviso>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={onImportSku}
-                disabled={busy || (skuText.trim().length === 0 && !skuMappatura?.sku)}
-                data-tour="sku-import"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {busy ? 'Cerco…' : 'Cerca e importa'}
-              </Button>
-            </div>
           </CardContent>
         </Card>
       )}
@@ -2420,12 +2408,6 @@ function Step3({
               legge niente, e ve lo diciamo invece di importare una scheda vuota. La descrizione
               del fornitore non viene copiata: l’AI riscrive la scheda dai fatti.
             </Avviso>
-            <div className="flex justify-end">
-              <Button onClick={onImportPdfs} disabled={busy || pdfFiles.length === 0} data-tour="pdf-import">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {busy ? 'Leggo i PDF…' : 'Importa e continua'}
-              </Button>
-            </div>
           </CardContent>
         </Card>
       )}

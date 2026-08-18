@@ -112,7 +112,8 @@ test.describe('import da PDF', () => {
       ),
     });
 
-    await page.getByRole('button', { name: /importa e continua/i }).click();
+    // L'azione principale del passo sta nella barra in fondo, ed è una sola.
+    await page.getByRole('button', { name: /importa i PDF/i }).click();
 
     // Il prodotto esiste: nome dal titolo, SKU dal codice articolo. Se la
     // migrazione 38 mancasse, l'import fallirebbe qui e non a casa di qualcuno.
