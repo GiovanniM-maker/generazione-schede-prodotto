@@ -1010,19 +1010,26 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     goTo(9);
   }
 
-  async function anteprimaSku(mapp?: MappaturaListaSku | null) {
+  // Il foglio arriva anche come parametro, non solo dallo stato.
+  //
+  // Chiamandola subito dopo `setSkuFoglio`, lo stato non è ancora aggiornato in
+  // questa chiusura: `skuFoglio` è ancora `null`, la funzione crede che non ci
+  // sia nessun file e con la casella di testo vuota cancella l'anteprima. Il
+  // risultato era che dopo aver caricato un CSV i numeri non comparivano
+  // affatto — cioè spariva l'unico momento in cui il cliente vede quanto gli
+  // costerà, prima di spendere.
+  async function anteprimaSku(mapp?: MappaturaListaSku | null, foglio?: FoglioListaSku | null) {
     if (!batchId) return;
     const mappatura = mapp ?? skuMappatura;
-    const daFoglio = skuFoglio && mappatura?.sku;
+    const f = foglio ?? skuFoglio;
+    const daFoglio = f && mappatura?.sku;
     if (!daFoglio && !skuText.trim()) {
       setSkuAnteprima(null);
       return;
     }
     const res = await anteprimaListaSku({
       batchId,
-      ...(daFoglio
-        ? { righeFoglio: skuFoglio!.righe, mappatura: mappatura! }
-        : { testo: skuText }),
+      ...(daFoglio ? { righeFoglio: f.righe, mappatura: mappatura! } : { testo: skuText }),
       raggruppa: skuRaggruppa,
     }).catch(() => null);
     setSkuAnteprima(res && res.ok ? res.data : null);
@@ -1053,7 +1060,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     // L'anteprima parte subito: la mappatura suggerita è già utilizzabile, e
     // vedere i numeri prima di toccare le tendine è quello che fa capire se il
     // suggerimento ha preso le colonne giuste.
-    if (res.data.suggerita.sku) void anteprimaSku(res.data.suggerita);
+    if (res.data.suggerita.sku) void anteprimaSku(res.data.suggerita, res.data);
   }
 
   // ---------------------------------------------------------------------------
