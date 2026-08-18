@@ -123,6 +123,18 @@ describe('riprendere un batch', () => {
     expect(d.immagini).toBe(2);
   });
 
+  it('conta i prodotti già in catalogo: la Lista SKU non carica file', async () => {
+    // Una lavorazione da SKU crea prodotti senza nessun file: guardando solo
+    // file e immagini, la ripresa la considerava «senza dati» e riportava chi
+    // era al passo 9 indietro al passo delle fonti — il wizard che «torna
+    // indietro da solo» visto in produzione.
+    db.seed('products', [
+      { id: 'pr-1', organization_id: ORG, batch_id: BATCH, sku: 'E1V9G130201' },
+    ]);
+    const res = await riprendiBatch({ batchId: BATCH });
+    expect(dati(res).prodotti).toBe(1);
+  });
+
   it('un batch di un’altra organizzazione viene rifiutato', async () => {
     db.seed('batches', [
       { id: 'b9', organization_id: ALTRA_ORG, name: 'Non tuo', status: 'draft', credits_reserved: 0 },
