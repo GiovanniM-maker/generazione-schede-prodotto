@@ -241,8 +241,14 @@ export interface Database {
         marca_originale: string | null;
         /** Gli SKU che questo codice rappresenta: il gruppo, o solo sé stesso. */
         sku_membri: string[];
-        /** 'risolto' | 'risolto-con-riserva' | 'coda-conferma' | 'non-trovato' | 'errore' */
+        /** 'in-coda' | 'risolto' | 'risolto-con-riserva' | 'coda-conferma' | 'non-trovato' | 'errore' */
         esito: string;
+        /** I domini a cui era limitata la ricerca. Vuoto = tutto il web. */
+        ambito: string[];
+        /** Tentativi falliti di fila: oltre il limite la riga non si riprende. */
+        tentativi: number;
+        /** Ripresa da una ricerca già fatta invece che cercata di nuovo. */
+        da_cache: boolean;
         punteggio_identita: number;
         url_scelto: string | null;
         dominio_scelto: string | null;

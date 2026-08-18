@@ -1,13 +1,16 @@
 import {
   analizzaRobots,
+  attesaPrimaDi,
   consentito,
   decidiIdentita,
   dominioDi,
+  dopoLaRisposta,
   extractProductFromHtml,
   livelloDelDominio,
   type CandidatoPagina,
   type FornitoreRicerca,
   type Risoluzione,
+  type StatoDominio,
 } from '@app/core';
 import { safeFetch } from '@/lib/safe-fetch';
 
@@ -45,18 +48,84 @@ export interface EsitoRisoluzione {
 /** Cache di robots.txt per dominio, viva quanto la lavorazione. */
 type CacheRobots = Map<string, ReturnType<typeof analizzaRobots> | null>;
 
-async function robotsDi(dominio: string, cache: CacheRobots) {
-  if (cache.has(dominio)) return cache.get(dominio) ?? null;
-  const res = await safeFetch(`https://${dominio}/robots.txt`, { maxBytes: 500_000, accept: 'text/plain' });
+// ---------------------------------------------------------------------------
+// Il contesto di rete di una lavorazione: robots.txt già letti e ritmo per
+// dominio.
+//
+// Vive quanto la lavorazione e non quanto la singola riga, ed è tutto il punto:
+// cinquecento codici dello stesso fornitore sono duemila richieste al suo sito,
+// e senza una memoria fra una riga e l'altra il ritmo non esiste — ogni riga
+// ripartirebbe da zero e il sito le vedrebbe arrivare tutte insieme.
+//
+// Le regole di quanto aspettare stanno in @app/core, provate col tempo passato
+// come parametro. Qui c'è solo l'orologio vero e l'attesa vera.
+// ---------------------------------------------------------------------------
+
+export interface ContestoRete {
+  robots: CacheRobots;
+  /** Aspetta il turno di quel dominio. */
+  prima(dominio: string): Promise<void>;
+  /** Registra com'è andata: un errore allunga l'attesa successiva. */
+  dopo(dominio: string, ok: boolean): void;
+}
+
+export function creaContestoRete(
+  opzioni: { adesso?: () => number; attesa?: (ms: number) => Promise<void> } = {},
+): ContestoRete {
+  const adesso = opzioni.adesso ?? (() => Date.now());
+  const attesa = opzioni.attesa ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const stati = new Map<string, StatoDominio>();
+
+  return {
+    robots: new Map(),
+    async prima(dominio: string) {
+      const ms = attesaPrimaDi(stati.get(dominio), adesso());
+      if (ms > 0) await attesa(ms);
+      // Il momento che conta è quello in cui la richiesta parte, non quello in
+      // cui è tornata: distanziando dalla fine, due risposte lente basterebbero
+      // a far partire due richieste a un millisecondo l'una dall'altra.
+      stati.set(dominio, { ...(stati.get(dominio) ?? { errori: 0 }), ultima: adesso() });
+    },
+    dopo(dominio: string, ok: boolean) {
+      stati.set(dominio, dopoLaRisposta(stati.get(dominio), adesso(), ok));
+    },
+  };
+}
+
+async function robotsDi(dominio: string, rete: ContestoRete) {
+  if (rete.robots.has(dominio)) return rete.robots.get(dominio) ?? null;
+  const res = await recupera(`https://${dominio}/robots.txt`, dominio, rete, {
+    maxBytes: 500_000,
+    accept: 'text/plain',
+  });
   // Un robots.txt che non risponde non è un divieto: è un file che non c'è, e
   // un sito che non dice niente non ha vietato niente. Un 500 momentaneo non
   // deve impedire per sempre di leggere un catalogo.
   const regole = res.ok ? analizzaRobots(new TextDecoder('utf-8').decode(res.bytes)) : null;
-  cache.set(dominio, regole);
+  rete.robots.set(dominio, regole);
   return regole;
 }
 
-async function paginaConsentita(url: string, cache: CacheRobots): Promise<boolean> {
+/** Una richiesta a un sito di terzi, al ritmo che quel sito si è guadagnato. */
+async function recupera(
+  url: string,
+  dominio: string,
+  rete: ContestoRete,
+  opzioni: { maxBytes: number; accept: string },
+) {
+  await rete.prima(dominio);
+  const res = await safeFetch(url, opzioni);
+  // Solo un sito in DIFFICOLTÀ allunga l'attesa: troppe richieste, guasto,
+  // rete che non risponde. Un 404 non è un sito che soffre — è una pagina che
+  // non c'è, e il caso più comune di tutti è il robots.txt che manca. Contarlo
+  // come guasto vorrebbe dire due secondi di penalità su quasi ogni dominio
+  // visitato, cioè far durare un'ora una lavorazione da dieci minuti.
+  const inDifficolta = !res.ok && (res.status === 0 || res.status === 429 || res.status >= 500);
+  rete.dopo(dominio, !inDifficolta);
+  return res;
+}
+
+async function paginaConsentita(url: string, rete: ContestoRete): Promise<boolean> {
   let percorso = '/';
   let dominio = '';
   try {
@@ -66,8 +135,16 @@ async function paginaConsentita(url: string, cache: CacheRobots): Promise<boolea
   } catch {
     return false;
   }
-  const regole = await robotsDi(dominio, cache);
+  const regole = await robotsDi(dominio, rete);
   return regole ? consentito(regole, percorso, USER_AGENT) : true;
+}
+
+function hostDi(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
 }
 
 export interface RichiestaRisolviSku {
@@ -89,7 +166,7 @@ export interface RichiestaRisolviSku {
 export async function risolviSku(
   ricerca: FornitoreRicerca,
   richiesta: RichiestaRisolviSku,
-  cacheRobots: CacheRobots = new Map(),
+  rete: ContestoRete = creaContestoRete(),
 ): Promise<EsitoRisoluzione> {
   const vuoto: Risoluzione = {
     esito: 'non-trovato',
@@ -130,11 +207,11 @@ export async function risolviSku(
 
   for (const r of risultati) {
     if (candidati.length >= MAX_PAGINE_DA_LEGGERE) break;
-    if (!(await paginaConsentita(r.url, cacheRobots))) {
+    if (!(await paginaConsentita(r.url, rete))) {
       escluseDaRobots.push(r.url);
       continue;
     }
-    const pagina = await safeFetch(r.url, {
+    const pagina = await recupera(r.url, hostDi(r.url) || r.dominio, rete, {
       maxBytes: MAX_BYTE_PAGINA,
       accept: 'text/html,application/xhtml+xml',
     });
@@ -166,6 +243,63 @@ export async function risolviSku(
 
   const estratto = risoluzione.scelto ? (estrattoPerUrl.get(risoluzione.scelto.url) ?? null) : null;
   return { risoluzione, estratto, escluseDaRobots, ricercaFallita: false };
+}
+
+/**
+ * Riprende una pagina già agganciata in passato, e ricontrolla che sia lei.
+ *
+ * È la metà utile della cache: la ricerca — che è la parte che si paga a
+ * chiamata e che al motore costa un secondo di attesa — non si rifà, ma la
+ * pagina sì. E la pagina va rivista, non creduta sulla parola: un indirizzo
+ * viene riusato, un articolo esce di catalogo e al suo posto ne compare un
+ * altro. Riprendere l'aggancio senza guardare vorrebbe dire scrivere in scheda
+ * i dati di un prodotto diverso con la fiducia di uno verificato.
+ *
+ * Se il codice non si ritrova più sulla pagina, l'esito è `non-trovato` e chi
+ * chiama rifà la ricerca vera: la cache era vecchia, non era una risposta.
+ */
+export async function riverificaPagina(
+  url: string,
+  richiesta: RichiestaRisolviSku,
+  rete: ContestoRete = creaContestoRete(),
+): Promise<EsitoRisoluzione> {
+  const fuori: EsitoRisoluzione = {
+    risoluzione: {
+      esito: 'non-trovato',
+      scelto: null,
+      valutati: [],
+      punteggioIdentita: 0,
+      motivo: 'La pagina agganciata prima non conferma più questo codice.',
+    },
+    estratto: null,
+    escluseDaRobots: [],
+    ricercaFallita: false,
+  };
+
+  if (!(await paginaConsentita(url, rete))) return fuori;
+  const pagina = await recupera(url, hostDi(url), rete, {
+    maxBytes: MAX_BYTE_PAGINA,
+    accept: 'text/html,application/xhtml+xml',
+  });
+  if (!pagina.ok) return fuori;
+
+  const html = new TextDecoder('utf-8').decode(pagina.bytes);
+  const dati = extractProductFromHtml(html, pagina.finalUrl);
+  const dominio = dominioDi(pagina.finalUrl) || hostDi(url);
+  const candidato: CandidatoPagina = {
+    url: pagina.finalUrl,
+    dominio,
+    livelloDominio: livelloDelDominio(dominio, richiesta.marca, richiesta.domini),
+    titolo: dati.name,
+    marcaPagina: dati.brand,
+    testo: `${testoDaEstratto(dati)}\n${html.replace(/<[^>]*>/g, ' ')}`,
+    prezzo: dati.price,
+    immaginePrincipale: dati.imageUrls[0] ?? null,
+  };
+
+  const risoluzione = decidiIdentita({ codice: richiesta.codice, marca: richiesta.marca }, [candidato]);
+  if (!risoluzione.scelto) return fuori;
+  return { risoluzione, estratto: dati, escluseDaRobots: [], ricercaFallita: false };
 }
 
 function testoDaEstratto(dati: ReturnType<typeof extractProductFromHtml>): string {

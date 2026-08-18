@@ -169,7 +169,8 @@ export function righeDaTabella(
   return out;
 }
 
-function normalizzaDominio(d: string): string {
+/** Il dominio ridotto alla forma con cui si confronta: niente schema, niente www. */
+export function normalizzaDominio(d: string): string {
   return (d ?? '')
     .trim()
     .toLowerCase()

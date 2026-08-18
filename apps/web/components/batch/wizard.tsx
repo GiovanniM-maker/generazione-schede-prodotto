@@ -38,12 +38,15 @@ import {
   getBatchCategoryOptions,
   importFromUrls,
   importFromPdfs,
-  importFromSkuList,
+  avviaListaSku,
+  proseguiListaSku,
+  progressoListaSku,
   listaConfermeIdentita,
   leggiFoglioListaSku,
   type FoglioListaSku,
   anteprimaListaSku,
   type AnteprimaListaSku,
+  type ProgressoListaSku,
   type PublishedPresetSummary,
   type PresetExplorer,
   type UploadSpreadsheetResult,
@@ -426,6 +429,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [skuFoglio, setSkuFoglio] = useState<FoglioListaSku | null>(null);
   const [esitoFotoSku, setEsitoFotoSku] = useState<{ scaricate: number; senza: number } | null>(null);
   const [skuMappatura, setSkuMappatura] = useState<MappaturaListaSku | null>(null);
+  const [coda, setCoda] = useState<ProgressoListaSku | null>(null);
+  const [codaInCorso, setCodaInCorso] = useState(false);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -600,6 +605,22 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       vivo = false;
     };
   }, [stepId, batchId, confermeAperte]);
+
+  // Una coda lasciata a metà si ritrova riaprendo la lavorazione: lo stato sta
+  // nel registro, non qui. Senza questa lettura, chi chiude la pagina durante
+  // una lista da cinquecento codici non avrebbe nessuna strada per riprenderla
+  // — e ricominciando da capo ripagherebbe le ricerche già fatte.
+  useEffect(() => {
+    if (stepId !== 3 || !batchId || codaInCorso) return;
+    let vivo = true;
+    void (async () => {
+      const res = await progressoListaSku({ batchId }).catch(() => null);
+      if (vivo && res && res.ok && res.data.totale > 0) setCoda(res.data);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [stepId, batchId, codaInCorso]);
 
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
@@ -1035,6 +1056,82 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (res.data.suggerita.sku) void anteprimaSku(res.data.suggerita);
   }
 
+  // ---------------------------------------------------------------------------
+  // La coda a scaglioni, vista da qui.
+  //
+  // Un catalogo intero non si risolve in una richiesta: si mette in coda e poi
+  // si fanno dei giri. Il ciclo sta nel browser ma lo STATO no — sta nel
+  // registro, e per questo chiudere la pagina a metà costa il giro in corso e
+  // nient'altro: si riapre la lavorazione e si riprende da dove era.
+  // ---------------------------------------------------------------------------
+
+  async function giraLaCoda(iniziale: ProgressoListaSku) {
+    if (!batchId) return;
+    setCoda(iniziale);
+    setCodaInCorso(true);
+    let ultimo = iniziale;
+    try {
+      // Il tetto sui giri non è una scadenza: è la protezione da un giro che
+      // non avanza mai. Se si esce di qui con la coda non finita, resta lo
+      // stato a schermo e il tasto per riprendere — non un silenzio.
+      for (let giro = 0; giro < 200 && !ultimo.finita; giro++) {
+        const res = await proseguiListaSku({ batchId }).catch(() => null);
+        if (!res || !res.ok) {
+          setError(res && !res.ok ? res.error : 'La lavorazione si è interrotta: riprendi quando vuoi.');
+          return;
+        }
+        ultimo = res.data;
+        setCoda(ultimo);
+      }
+    } finally {
+      setCodaInCorso(false);
+    }
+    if (ultimo.finita) concludiListaSku(ultimo);
+  }
+
+  function concludiListaSku(d: ProgressoListaSku) {
+    // Le ambiguità si sciolgono PRIMA di andare avanti: per quei codici non è
+    // stato scritto nessun campo, e passare al passo dopo lascerebbe fuori dal
+    // catalogo dei prodotti che l'utente crede di aver importato.
+    if (d.daConfermare > 0) {
+      setConfermeAperte(true);
+      if (d.importati > 0) setImportSummary(riepilogoDa(d));
+      return;
+    }
+    if (d.importati === 0) {
+      // I motivi per cui può non aver importato niente vogliono dire cose molto
+      // diverse, e dirlo genericamente manda l'utente a cercare il problema
+      // dalla parte sbagliata.
+      const perche =
+        d.daRiprovare > 0 || d.esaurite > 0
+          ? 'La ricerca non ha risposto: riprendi fra poco. I codici non sono stati archiviati come inesistenti.'
+          : 'Nessuna pagina trovata per questi codici. Prova a indicare la marca o a limitare la ricerca al sito del fornitore.';
+      setError(`Nessun prodotto importato. ${perche}`);
+      return;
+    }
+    setImportSummary(riepilogoDa(d));
+    setEsitoFotoSku(
+      d.immaginiScaricate > 0 || d.senzaImmagini > 0
+        ? { scaricate: d.immaginiScaricate, senza: d.senzaImmagini }
+        : null,
+    );
+    goTo(9);
+  }
+
+  function riepilogoDa(d: ProgressoListaSku) {
+    return {
+      imported: d.importati,
+      valid: d.risolti,
+      invalid: d.conRiserva,
+      imageOnly: 0,
+      scartate: [],
+      factsInsertErrors: 0,
+      senzaNome: 0,
+      categoriesMatched: 0,
+      unmatchedCategories: [],
+    };
+  }
+
   async function importSku() {
     if (!batchId) return;
     if (!skuText.trim() && !(skuFoglio && skuMappatura?.sku)) {
@@ -1046,7 +1143,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     let res;
     try {
       const daFoglio = skuFoglio && skuMappatura?.sku;
-      res = await importFromSkuList({
+      res = await avviaListaSku({
         batchId,
         ...(daFoglio
           ? { righeFoglio: skuFoglio.righe, mappatura: skuMappatura }
@@ -1064,56 +1161,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       setError(res.error);
       return;
     }
-    const d = res.data;
-    // Le ambiguità si sciolgono PRIMA di andare avanti: per quei codici non è
-    // stato scritto nessun campo, e passare al passo dopo lascerebbe fuori dal
-    // catalogo dei prodotti che l'utente crede di aver importato.
-    if (d.daConfermare > 0) {
-      setConfermeAperte(true);
-      if (d.imported > 0) {
-        setImportSummary({
-          imported: d.imported,
-          valid: d.risolti,
-          invalid: d.conRiserva,
-          imageOnly: 0,
-          scartate: [],
-          factsInsertErrors: 0,
-          senzaNome: 0,
-          categoriesMatched: 0,
-          unmatchedCategories: [],
-        });
-      }
-      return;
-    }
-    if (d.imported === 0) {
-      // I tre motivi per cui può non aver importato niente vogliono dire cose
-      // molto diverse, e dirlo genericamente manda l'utente a cercare il
-      // problema dalla parte sbagliata.
-      const perche = d.ricercheFallite > 0
-        ? 'La ricerca non ha risposto: riprova fra poco. I codici non sono stati archiviati come inesistenti.'
-        : d.daConfermare > 0
-          ? `${d.daConfermare} codici hanno più di un candidato possibile: vanno confermati a mano.`
-          : 'Nessuna pagina trovata per questi codici. Prova a indicare la marca o a limitare la ricerca al sito del fornitore.';
-      setError(`Nessun prodotto importato. ${perche}`);
-      return;
-    }
-    setImportSummary({
-      imported: d.imported,
-      valid: d.risolti,
-      invalid: d.conRiserva,
-      imageOnly: 0,
-      scartate: [],
-      factsInsertErrors: 0,
-      senzaNome: 0,
-      categoriesMatched: 0,
-      unmatchedCategories: [],
-    });
-    setEsitoFotoSku(
-      d.immaginiScaricate > 0 || d.senzaImmagini > 0
-        ? { scaricate: d.immaginiScaricate, senza: d.senzaImmagini }
-        : null,
-    );
-    goTo(9);
+    await giraLaCoda(res.data);
   }
 
   async function doUploadSpreadsheet(file: File) {
@@ -1430,6 +1478,55 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
             </Button>
           </div>
         </Avviso>
+      )}
+
+      {stepId === 3 && !confermeAperte && coda && coda.totale > 0 && (codaInCorso || !coda.finita) && (
+        <Card className="mb-3">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-sm font-medium text-ink-900">
+                {codaInCorso ? 'Sto cercando i prodotti…' : 'Lavorazione da riprendere'}
+              </span>
+              <span className="text-sm tabular-nums text-ink-600">
+                {coda.fatte} di {coda.totale}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+              <div
+                className="h-full rounded-full bg-brand-accent transition-all"
+                style={{ width: `${coda.totale > 0 ? Math.round((coda.fatte / coda.totale) * 100) : 0}%` }}
+              />
+            </div>
+            <p className="text-sm text-ink-600">
+              {coda.importati > 0 && `${coda.importati} ${coda.importati === 1 ? 'prodotto' : 'prodotti'} in catalogo. `}
+              {coda.daConfermare > 0 &&
+                `${coda.daConfermare} ${coda.daConfermare === 1 ? 'codice aspetta' : 'codici aspettano'} una conferma. `}
+              {coda.nonTrovati > 0 && `${coda.nonTrovati} non trovati. `}
+              {/* Una ricerca ripresa non è un prodotto in meno: è la stessa
+                  domanda a cui si era già risposto. */}
+              {coda.riprese > 0 &&
+                `${coda.riprese} ${coda.riprese === 1 ? 'ripreso' : 'ripresi'} da una ricerca già fatta. `}
+            </p>
+            {coda.daRiprovare > 0 && !codaInCorso && (
+              <p className="text-sm text-ink-600">
+                {coda.daRiprovare}{' '}
+                {coda.daRiprovare === 1 ? 'codice non è stato cercato' : 'codici non sono stati cercati'}: la
+                ricerca non ha risposto. Non sono archiviati come inesistenti.
+              </p>
+            )}
+            {!codaInCorso && (
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => void giraLaCoda(coda)}>
+                  Riprendi
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-ink-500">
+              Puoi chiudere questa pagina: quello che è già stato cercato resta, e riaprendo la lavorazione
+              si riparte da qui.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {stepId === 3 && !confermeAperte && (

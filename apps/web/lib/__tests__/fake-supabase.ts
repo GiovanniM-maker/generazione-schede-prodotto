@@ -322,6 +322,10 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     this.filters.push((r) => (r[col] ?? null) === val);
     return this;
   }
+  lt(col: string, val: number): this {
+    this.filters.push((r) => Number(r[col] ?? 0) < val);
+    return this;
+  }
   in(col: string, vals: readonly unknown[]): this {
     this.filters.push((r) => vals.includes(r[col]));
     return this;
