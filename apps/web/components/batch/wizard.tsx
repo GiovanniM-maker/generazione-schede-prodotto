@@ -38,6 +38,15 @@ import {
   getBatchCategoryOptions,
   importFromUrls,
   importFromPdfs,
+  avviaListaSku,
+  proseguiListaSku,
+  progressoListaSku,
+  listaConfermeIdentita,
+  leggiFoglioListaSku,
+  type FoglioListaSku,
+  anteprimaListaSku,
+  type AnteprimaListaSku,
+  type ProgressoListaSku,
   type PublishedPresetSummary,
   type PresetExplorer,
   type UploadSpreadsheetResult,
@@ -48,6 +57,7 @@ import {
   type ImportResultV2,
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
+import type { MappaturaListaSku } from '@app/core';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { verificaCreditiBatch, type VerificaBatchResult } from '@/lib/actions/diritti';
 import {
@@ -56,6 +66,7 @@ import {
 } from '@/lib/actions/visual-background';
 import { CategoryAssigner } from '@/components/batch/category-assigner';
 import { ImageQcPanel } from '@/components/batch/image-qc-panel';
+import { ConfermaIdentita } from '@/components/batch/conferma-identita';
 import { GuidedTour, tourSeen, markTourSeen, type TourStep } from '@/components/onboarding/guided-tour';
 import { HelpBubble } from '@/components/onboarding/help-bubble';
 import { WizardGuide } from '@/components/onboarding/wizard-guide';
@@ -120,7 +131,7 @@ interface SampleCopy {
   metaDescription?: string;
 }
 
-type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url' | 'pdf';
+type SourceMode = 'images' | 'spreadsheet' | 'both' | 'url' | 'pdf' | 'sku';
 
 interface StepDef {
   id: number;
@@ -409,6 +420,17 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Step 3 — import da URL (uno per riga).
   const [urlText, setUrlText] = useState('');
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
+  const [skuText, setSkuText] = useState('');
+  const [skuDomini, setSkuDomini] = useState('');
+  const [skuRaggruppa, setSkuRaggruppa] = useState(true);
+  const [skuAnteprima, setSkuAnteprima] = useState<AnteprimaListaSku | null>(null);
+  const [confermeAperte, setConfermeAperte] = useState(false);
+  const [confermeInSospeso, setConfermeInSospeso] = useState(0);
+  const [skuFoglio, setSkuFoglio] = useState<FoglioListaSku | null>(null);
+  const [esitoFotoSku, setEsitoFotoSku] = useState<{ scaricate: number; senza: number } | null>(null);
+  const [skuMappatura, setSkuMappatura] = useState<MappaturaListaSku | null>(null);
+  const [coda, setCoda] = useState<ProgressoListaSku | null>(null);
+  const [codaInCorso, setCodaInCorso] = useState(false);
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
@@ -567,6 +589,39 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     });
   }, [skuHeader, categoryHeader, nameHeader]);
 
+  // La coda di conferma sopravvive alla sessione: sta a database, non nella
+  // memoria del browser. Senza questo controllo, chi chiude la pagina con dei
+  // codici da confermare non avrebbe più nessuna strada per tornarci — e la
+  // riga «lo ritrovi riaprendo questa lavorazione» sarebbe una promessa che il
+  // prodotto non mantiene.
+  useEffect(() => {
+    if (stepId !== 3 || !batchId) return;
+    let vivo = true;
+    void (async () => {
+      const res = await listaConfermeIdentita({ batchId }).catch(() => null);
+      if (vivo) setConfermeInSospeso(res && res.ok ? res.data.length : 0);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [stepId, batchId, confermeAperte]);
+
+  // Una coda lasciata a metà si ritrova riaprendo la lavorazione: lo stato sta
+  // nel registro, non qui. Senza questa lettura, chi chiude la pagina durante
+  // una lista da cinquecento codici non avrebbe nessuna strada per riprenderla
+  // — e ricominciando da capo ripagherebbe le ricerche già fatte.
+  useEffect(() => {
+    if (stepId !== 3 || !batchId || codaInCorso) return;
+    let vivo = true;
+    void (async () => {
+      const res = await progressoListaSku({ batchId }).catch(() => null);
+      if (vivo && res && res.ok && res.data.totale > 0) setCoda(res.data);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [stepId, batchId, codaInCorso]);
+
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
     if (stepId !== 9 || !batchId) return;
@@ -627,7 +682,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
     // Import da URL o da PDF: i prodotti sono già stati creati dalla loro
     // action. NON rieseguire confirmImportV2 (cancellerebbe gli importati).
-    if (sourceMode === 'url' || sourceMode === 'pdf') {
+    if (sourceMode === 'url' || sourceMode === 'pdf' || sourceMode === 'sku') {
       setProducts(null);
       void (async () => {
         try {
@@ -838,6 +893,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       await importPdfs();
       return;
     }
+    if (sourceMode === 'sku') {
+      await importSku();
+      return;
+    }
     const sourceTypes: WizardSourceType[] =
       sourceMode === 'both' ? ['spreadsheet', 'images'] : sourceMode === 'spreadsheet' ? ['spreadsheet'] : ['images'];
     setBusy(true);
@@ -949,6 +1008,174 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       unmatchedCategories: [],
     });
     goTo(9);
+  }
+
+  // Il foglio arriva anche come parametro, non solo dallo stato.
+  //
+  // Chiamandola subito dopo `setSkuFoglio`, lo stato non è ancora aggiornato in
+  // questa chiusura: `skuFoglio` è ancora `null`, la funzione crede che non ci
+  // sia nessun file e con la casella di testo vuota cancella l'anteprima. Il
+  // risultato era che dopo aver caricato un CSV i numeri non comparivano
+  // affatto — cioè spariva l'unico momento in cui il cliente vede quanto gli
+  // costerà, prima di spendere.
+  async function anteprimaSku(mapp?: MappaturaListaSku | null, foglio?: FoglioListaSku | null) {
+    if (!batchId) return;
+    const mappatura = mapp ?? skuMappatura;
+    const f = foglio ?? skuFoglio;
+    const daFoglio = f && mappatura?.sku;
+    if (!daFoglio && !skuText.trim()) {
+      setSkuAnteprima(null);
+      return;
+    }
+    const res = await anteprimaListaSku({
+      batchId,
+      ...(daFoglio ? { righeFoglio: f.righe, mappatura: mappatura! } : { testo: skuText }),
+      raggruppa: skuRaggruppa,
+    }).catch(() => null);
+    setSkuAnteprima(res && res.ok ? res.data : null);
+  }
+
+  async function caricaFoglioSku(file: File) {
+    if (!batchId) return;
+    setBusy(true);
+    setError(null);
+    const fd = new FormData();
+    fd.append('batchId', batchId);
+    fd.append('files', file);
+    let res;
+    try {
+      res = await leggiFoglioListaSku(fd);
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSkuFoglio(res.data);
+    setSkuMappatura(res.data.suggerita);
+    // L'anteprima parte subito: la mappatura suggerita è già utilizzabile, e
+    // vedere i numeri prima di toccare le tendine è quello che fa capire se il
+    // suggerimento ha preso le colonne giuste.
+    if (res.data.suggerita.sku) void anteprimaSku(res.data.suggerita, res.data);
+  }
+
+  // ---------------------------------------------------------------------------
+  // La coda a scaglioni, vista da qui.
+  //
+  // Un catalogo intero non si risolve in una richiesta: si mette in coda e poi
+  // si fanno dei giri. Il ciclo sta nel browser ma lo STATO no — sta nel
+  // registro, e per questo chiudere la pagina a metà costa il giro in corso e
+  // nient'altro: si riapre la lavorazione e si riprende da dove era.
+  // ---------------------------------------------------------------------------
+
+  async function giraLaCoda(iniziale: ProgressoListaSku) {
+    if (!batchId) return;
+    setCoda(iniziale);
+    setCodaInCorso(true);
+    // Anche `busy`, che è quello che spegne i due pulsanti «Cerca e importa».
+    // Senza, restano accesi per tutto il giro: un secondo clic farebbe partire
+    // una seconda lavorazione sulla stessa coda, e due giri paralleli possono
+    // prendere la stessa riga prima che l'altro l'abbia registrata — due
+    // ricerche pagate e due prodotti dallo stesso codice.
+    setBusy(true);
+    let ultimo = iniziale;
+    try {
+      // Il tetto sui giri non è una scadenza: è la protezione da un giro che
+      // non avanza mai. Se si esce di qui con la coda non finita, resta lo
+      // stato a schermo e il tasto per riprendere — non un silenzio.
+      for (let giro = 0; giro < 200 && !ultimo.finita; giro++) {
+        const res = await proseguiListaSku({ batchId }).catch(() => null);
+        if (!res || !res.ok) {
+          setError(res && !res.ok ? res.error : 'La lavorazione si è interrotta: riprendi quando vuoi.');
+          return;
+        }
+        ultimo = res.data;
+        setCoda(ultimo);
+      }
+    } finally {
+      setCodaInCorso(false);
+      setBusy(false);
+    }
+    if (ultimo.finita) concludiListaSku(ultimo);
+  }
+
+  function concludiListaSku(d: ProgressoListaSku) {
+    // Le ambiguità si sciolgono PRIMA di andare avanti: per quei codici non è
+    // stato scritto nessun campo, e passare al passo dopo lascerebbe fuori dal
+    // catalogo dei prodotti che l'utente crede di aver importato.
+    if (d.daConfermare > 0) {
+      setConfermeAperte(true);
+      if (d.importati > 0) setImportSummary(riepilogoDa(d));
+      return;
+    }
+    if (d.importati === 0) {
+      // I motivi per cui può non aver importato niente vogliono dire cose molto
+      // diverse, e dirlo genericamente manda l'utente a cercare il problema
+      // dalla parte sbagliata.
+      const perche =
+        d.daRiprovare > 0 || d.esaurite > 0
+          ? 'La ricerca non ha risposto: riprendi fra poco. I codici non sono stati archiviati come inesistenti.'
+          : 'Nessuna pagina trovata per questi codici. Prova a indicare la marca o a limitare la ricerca al sito del fornitore.';
+      setError(`Nessun prodotto importato. ${perche}`);
+      return;
+    }
+    setImportSummary(riepilogoDa(d));
+    setEsitoFotoSku(
+      d.immaginiScaricate > 0 || d.senzaImmagini > 0
+        ? { scaricate: d.immaginiScaricate, senza: d.senzaImmagini }
+        : null,
+    );
+    goTo(9);
+  }
+
+  function riepilogoDa(d: ProgressoListaSku) {
+    return {
+      imported: d.importati,
+      valid: d.risolti,
+      invalid: d.conRiserva,
+      imageOnly: 0,
+      scartate: [],
+      factsInsertErrors: 0,
+      senzaNome: 0,
+      categoriesMatched: 0,
+      unmatchedCategories: [],
+    };
+  }
+
+  async function importSku() {
+    if (!batchId) return;
+    if (!skuText.trim() && !(skuFoglio && skuMappatura?.sku)) {
+      setError('Incolla almeno un codice, oppure carica un file e indica la colonna dei codici.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    let res;
+    try {
+      const daFoglio = skuFoglio && skuMappatura?.sku;
+      res = await avviaListaSku({
+        batchId,
+        ...(daFoglio
+          ? { righeFoglio: skuFoglio.righe, mappatura: skuMappatura }
+          : { testo: skuText }),
+        raggruppa: skuRaggruppa,
+        domini: skuDomini.split(/[\s,;]+/).map((d) => d.trim()).filter(Boolean),
+      });
+    } catch (e) {
+      setError(messaggioDiRete(e));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    await giraLaCoda(res.data);
   }
 
   async function doUploadSpreadsheet(file: File) {
@@ -1242,7 +1469,81 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 2 && <Step2 explorer={explorer} expandedCat={expandedCat} setExpandedCat={setExpandedCat} expandedAttr={expandedAttr} setExpandedAttr={setExpandedAttr} />}
 
-      {stepId === 3 && (
+      {stepId === 3 && confermeAperte && batchId && (
+        <ConfermaIdentita
+          batchId={batchId}
+          onFinito={() => {
+            setConfermeAperte(false);
+            goTo(9);
+          }}
+        />
+      )}
+
+      {stepId === 3 && !confermeAperte && confermeInSospeso > 0 && (
+        <Avviso tono="attenzione" className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {confermeInSospeso}{' '}
+              {confermeInSospeso === 1 ? 'codice aspetta' : 'codici aspettano'} che tu dica qual è
+              la pagina giusta. Finché non lo fai, per quei codici non viene scritto nessun dato.
+            </span>
+            <Button size="sm" onClick={() => setConfermeAperte(true)}>
+              Riprendi le conferme
+            </Button>
+          </div>
+        </Avviso>
+      )}
+
+      {stepId === 3 && !confermeAperte && coda && coda.totale > 0 && (codaInCorso || !coda.finita) && (
+        <Card className="mb-3">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-sm font-medium text-ink-900">
+                {codaInCorso ? 'Sto cercando i prodotti…' : 'Lavorazione da riprendere'}
+              </span>
+              <span className="text-sm tabular-nums text-ink-600">
+                {coda.fatte} di {coda.totale}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+              <div
+                className="h-full rounded-full bg-brand-accent transition-all"
+                style={{ width: `${coda.totale > 0 ? Math.round((coda.fatte / coda.totale) * 100) : 0}%` }}
+              />
+            </div>
+            <p className="text-sm text-ink-600">
+              {coda.importati > 0 && `${coda.importati} ${coda.importati === 1 ? 'prodotto' : 'prodotti'} in catalogo. `}
+              {coda.daConfermare > 0 &&
+                `${coda.daConfermare} ${coda.daConfermare === 1 ? 'codice aspetta' : 'codici aspettano'} una conferma. `}
+              {coda.nonTrovati > 0 && `${coda.nonTrovati} non trovati. `}
+              {/* Una ricerca ripresa non è un prodotto in meno: è la stessa
+                  domanda a cui si era già risposto. */}
+              {coda.riprese > 0 &&
+                `${coda.riprese} ${coda.riprese === 1 ? 'ripreso' : 'ripresi'} da una ricerca già fatta. `}
+            </p>
+            {coda.daRiprovare > 0 && !codaInCorso && (
+              <p className="text-sm text-ink-600">
+                {coda.daRiprovare}{' '}
+                {coda.daRiprovare === 1 ? 'codice non è stato cercato' : 'codici non sono stati cercati'}: la
+                ricerca non ha risposto. Non sono archiviati come inesistenti.
+              </p>
+            )}
+            {!codaInCorso && (
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => void giraLaCoda(coda)}>
+                  Riprendi
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-ink-500">
+              Puoi chiudere questa pagina: quello che è già stato cercato resta, e riaprendo la lavorazione
+              si riparte da qui.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {stepId === 3 && !confermeAperte && (
         <Step3
           sourceMode={sourceMode}
           setSourceMode={setSourceMode}
@@ -1252,6 +1553,22 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           pdfFiles={pdfFiles}
           setPdfFiles={setPdfFiles}
           onImportPdfs={importPdfs}
+          skuText={skuText}
+          setSkuText={setSkuText}
+          skuDomini={skuDomini}
+          setSkuDomini={setSkuDomini}
+          skuRaggruppa={skuRaggruppa}
+          setSkuRaggruppa={setSkuRaggruppa}
+          skuAnteprima={skuAnteprima}
+          skuFoglio={skuFoglio}
+          skuMappatura={skuMappatura}
+          setSkuMappatura={(m) => {
+            setSkuMappatura(m);
+            void anteprimaSku(m);
+          }}
+          onCaricaFoglioSku={caricaFoglioSku}
+          onAnteprimaSku={() => void anteprimaSku()}
+          onImportSku={importSku}
           busy={busy}
         />
       )}
@@ -1301,6 +1618,18 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       )}
 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} nameHeader={nameHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
+
+      {stepId === 9 && esitoFotoSku && (
+        <Avviso tono="informazione" className="mb-3">
+          {esitoFotoSku.scaricate > 0
+            ? `${esitoFotoSku.scaricate} ${esitoFotoSku.scaricate === 1 ? 'foto recuperata' : 'foto recuperate'} dalle pagine dei prodotti`
+            : 'Nessuna foto recuperata dalle pagine'}
+          {esitoFotoSku.senza > 0 &&
+            `, ${esitoFotoSku.senza} ${esitoFotoSku.senza === 1 ? 'prodotto è rimasto' : 'prodotti sono rimasti'} senza`}
+          . Sono immagini di chi le ha pubblicate: la verifica dei diritti di
+          utilizzo resta a carico tuo.
+        </Avviso>
+      )}
 
       {stepId === 9 && batchId && (
         <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} categoryFromFile={hasSpreadsheet && Boolean(categoryHeader)} />
@@ -1356,13 +1685,24 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           // Il passo che carica blocca «Continua»: senza, si attraversavano
           // mappatura e verifica senza vederle.
           busy={busy || analyzingImages || passoInCaricamento === stepId}
-          step3Label={sourceMode === 'url' ? 'Importa da URL' : sourceMode === 'pdf' ? 'Importa i PDF' : 'Continua'}
+          step3Label={
+            sourceMode === 'url'
+              ? 'Importa da URL'
+              : sourceMode === 'pdf'
+                ? 'Importa i PDF'
+                : sourceMode === 'sku'
+                  ? 'Cerca e importa'
+                  : 'Continua'
+          }
           canProceed={{
             1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
             3:
               !!sourceMode &&
               (sourceMode !== 'url' || urlText.trim().length > 0) &&
-              (sourceMode !== 'pdf' || pdfFiles.length > 0),
+              (sourceMode !== 'pdf' || pdfFiles.length > 0) &&
+              (sourceMode !== 'sku' ||
+                skuText.trim().length > 0 ||
+                Boolean(skuFoglio && skuMappatura?.sku)),
             5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
             10: sampleDone,
           }}
@@ -1727,6 +2067,7 @@ const SOURCE_CARDS: SourceCard[] = [
   // accanto all'altra. Una sola, e la sceglie il codice in base a `disabled`:
   // così non si può più scriverne una terza per sbaglio.
   { mode: null, title: 'Google Drive', description: 'Colleghi una cartella Drive con file e immagini.', disabled: true },
+  { mode: 'sku', title: 'Lista SKU', description: 'Incolli i codici articolo: li cerchiamo online, agganciamo la pagina del produttore ed estraiamo dati e foto.', note: 'Novità' },
   { mode: 'pdf', title: 'PDF', description: 'Carichi le schede tecniche in PDF, una per prodotto: leggiamo le coppie «etichetta: valore» dichiarate nel documento.', note: 'Novità' },
 ];
 
@@ -1739,6 +2080,19 @@ function Step3({
   pdfFiles,
   setPdfFiles,
   onImportPdfs,
+  skuText,
+  setSkuText,
+  skuDomini,
+  setSkuDomini,
+  skuRaggruppa,
+  setSkuRaggruppa,
+  skuAnteprima,
+  skuFoglio,
+  skuMappatura,
+  setSkuMappatura,
+  onCaricaFoglioSku,
+  onAnteprimaSku,
+  onImportSku,
   busy,
 }: {
   sourceMode: SourceMode | null;
@@ -1749,6 +2103,19 @@ function Step3({
   pdfFiles: File[];
   setPdfFiles: (f: File[]) => void;
   onImportPdfs: () => void;
+  skuText: string;
+  setSkuText: (v: string) => void;
+  skuDomini: string;
+  setSkuDomini: (v: string) => void;
+  skuRaggruppa: boolean;
+  setSkuRaggruppa: (v: boolean) => void;
+  skuAnteprima: AnteprimaListaSku | null;
+  skuFoglio: FoglioListaSku | null;
+  skuMappatura: MappaturaListaSku | null;
+  setSkuMappatura: (m: MappaturaListaSku) => void;
+  onCaricaFoglioSku: (file: File) => void;
+  onAnteprimaSku: () => void;
+  onImportSku: () => void;
   busy: boolean;
 }) {
   const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
@@ -1820,6 +2187,190 @@ function Step3({
               <Button onClick={onImportUrls} disabled={busy || urlCount === 0} data-tour="url-import">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {busy ? 'Importo…' : 'Importa e continua'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {sourceMode === 'sku' && (
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <div>
+              <Label htmlFor="sku-list">Codici articolo (uno per riga)</Label>
+              <Textarea
+                id="sku-list"
+                rows={7}
+                value={skuText}
+                onChange={(e) => setSkuText(e.target.value)}
+                onBlur={onAnteprimaSku}
+                placeholder={'SED-AUR-01\nSED-AUR-02; Ferrini\nTAV-ORI-160'}
+                className="mt-1 font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-ink-500">
+                Puoi scrivere anche «codice; marca»: la marca serve a distinguere due produttori
+                che usano lo stesso codice.
+              </p>
+            </div>
+
+            {/* Il file, per chi i codici li ha già in un foglio. A duemila
+                righe incollare non è un'opzione, e in quel foglio marca e
+                codice modello di solito ci sono già: sono le due cose che
+                alzano di più la precisione della ricerca. */}
+            <div>
+              <Label>Oppure carica un file con i codici</Label>
+              <label className="mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300 bg-white p-4 text-center text-sm text-ink-600 hover:bg-ink-50">
+                <FileSpreadsheet className="h-5 w-5 text-ink-400" />
+                {skuFoglio
+                  ? `${skuFoglio.righeTotali} righe lette — clicca per cambiare file`
+                  : 'Seleziona un file .csv o .xlsx'}
+                <input
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="hidden"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) onCaricaFoglioSku(f);
+                  }}
+                  data-testid="sku-file"
+                />
+              </label>
+            </div>
+
+            {skuFoglio && skuMappatura && (
+              <div className="rounded-lg border border-ink-200 bg-white p-3">
+                <div className="text-sm font-medium text-ink-900">Quale colonna è cosa</div>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  Abbiamo provato a riconoscerle. Controlla: sbagliare la colonna dei codici vuol
+                  dire cercare online la parola sbagliata, e ogni ricerca si paga.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ['sku', 'Codice articolo (obbligatorio)'],
+                      ['codiceModello', 'Codice modello'],
+                      ['marca', 'Marca'],
+                      ['attributoVariante', 'Colore o taglia'],
+                      ['ambito', 'Sito su cui cercare'],
+                    ] as Array<
+                      ['sku' | 'codiceModello' | 'marca' | 'attributoVariante' | 'ambito', string]
+                    >
+                  ).map(([chiave, etichetta]) => (
+                    <div key={chiave}>
+                      <Label htmlFor={`sku-col-${chiave}`} className="text-xs">
+                        {etichetta}
+                      </Label>
+                      <Select
+                        id={`sku-col-${chiave}`}
+                        value={skuMappatura[chiave] ?? ''}
+                        onChange={(e) =>
+                          setSkuMappatura({ ...skuMappatura, [chiave]: e.target.value || null })
+                        }
+                        className="mt-0.5"
+                      >
+                        <option value="">— nessuna —</option>
+                        {skuFoglio.intestazioni.map((h) => (
+                          <option key={h} value={h}>
+                            {h}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+                {!skuMappatura.sku && (
+                  <p className="mt-2 text-xs text-red-600">
+                    Senza la colonna dei codici non c’è niente da cercare.
+                  </p>
+                )}
+                {skuMappatura.codiceModello && (
+                  <p className="mt-2 text-xs text-ink-500">
+                    Con il codice modello dichiarato non c’è niente da indovinare: il
+                    raggruppamento viene dal tuo file.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="sku-domini">Cerca solo su questi siti (facoltativo)</Label>
+              <Input
+                id="sku-domini"
+                value={skuDomini}
+                onChange={(e) => setSkuDomini(e.target.value)}
+                onBlur={onAnteprimaSku}
+                placeholder="ferrini.it, grossista.it"
+                className="mt-1 font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-ink-500">
+                Il sito del produttore o del fornitore. Alza molto la precisione, e i dati che
+                arrivano da lì valgono più di quelli di un rivenditore qualsiasi.
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-ink-200 bg-white p-3">
+              <input
+                type="checkbox"
+                checked={skuRaggruppa}
+                onChange={(e) => {
+                  setSkuRaggruppa(e.target.checked);
+                  onAnteprimaSku();
+                }}
+                className="mt-1"
+              />
+              <span className="text-sm text-ink-700">
+                Raggruppa i codici dello stesso modello in un prodotto con varianti
+                <span className="mt-0.5 block text-xs text-ink-500">
+                  Otto colori dello stesso articolo diventano una scheda sola: si paga un credito
+                  invece di otto, e non escono otto descrizioni quasi identiche.
+                </span>
+              </span>
+            </label>
+
+            {/* L'anteprima dei costi sta QUI, dove si decide — non spiegata
+                altrove. È l'unico momento in cui il numero cambia una scelta. */}
+            {skuAnteprima && (
+              <div className="rounded-lg border border-ink-200 bg-ink-50 p-3 text-sm">
+                <div className="font-medium text-ink-900">
+                  {skuAnteprima.skuCaricati} codici → {skuAnteprima.prodotti}{' '}
+                  {skuAnteprima.prodotti === 1 ? 'prodotto' : 'prodotti'}
+                  {skuAnteprima.varianti > 0 && ` e ${skuAnteprima.varianti} varianti`}
+                </div>
+                <ul className="mt-1 space-y-0.5 text-xs text-ink-600">
+                  <li>{skuAnteprima.risoluzioni} ricerche online</li>
+                  <li>
+                    {skuAnteprima.creditiConRaggruppamento} crediti di generazione
+                    {skuAnteprima.creditiSenzaRaggruppamento > skuAnteprima.creditiConRaggruppamento &&
+                      ` invece di ${skuAnteprima.creditiSenzaRaggruppamento} senza raggruppamento`}
+                  </li>
+                </ul>
+                {skuAnteprima.regola && (
+                  <div className="mt-2 border-t border-ink-200 pt-2 text-xs text-ink-600">
+                    <div className="font-medium text-ink-700">Regola: {skuAnteprima.regola}</div>
+                    {skuAnteprima.motivi.map((m) => (
+                      <div key={m}>{m}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Avviso tono="attenzione" className="text-xs">
+              I dati e le foto vengono da pagine di altri. Quello che troviamo su un sito che non è
+              del produttore non basta a scrivere parole come «biologico» o «certificato»: la scheda
+              tace su quel punto invece di dichiararlo. La verifica dei diritti sulle immagini resta
+              a carico tuo.
+            </Avviso>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={onImportSku}
+                disabled={busy || (skuText.trim().length === 0 && !skuMappatura?.sku)}
+                data-tour="sku-import"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {busy ? 'Cerco…' : 'Cerca e importa'}
               </Button>
             </div>
           </CardContent>

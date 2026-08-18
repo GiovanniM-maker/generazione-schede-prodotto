@@ -127,3 +127,74 @@ describe('extractProductFromHtml — robustezza', () => {
     expect(r.name).toContain('&');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Le immagini «ricche», quelle che servono a scegliere.
+//
+// `imageUrls` resta com'era — solo dati strutturati — perché è quello che usa
+// l'import da URL già in produzione, e cambiarlo cambierebbe quante foto
+// ricevono i cataloghi di chi lo usa oggi. `images` è l'elenco completo, da
+// passare a `selezionaImmagini`: comprende anche il logo del negozio, e non va
+// usato così com'è.
+// ---------------------------------------------------------------------------
+
+describe('extractProductFromHtml — images', () => {
+  const html = `
+    <html><head>
+      <script type="application/ld+json">
+        {"@type":"Product","name":"Sedia","image":["https://cdn.it/main.jpg"]}
+      </script>
+    </head><body>
+      <img src="/assets/logo.png" alt="Logo negozio">
+      <img src="https://cdn.it/galleria-1.jpg" alt="Sedia fronte" width="1200" height="1200">
+      <img data-src="https://cdn.it/galleria-2.jpg" src="data:image/gif;base64,R0lGOD" alt="Sedia retro">
+      <img src="https://cdn.it/main.jpg" alt="doppione">
+    </body></html>`;
+
+  it('la prima dei dati strutturati è la principale', () => {
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    expect(r.images[0]).toMatchObject({ url: 'https://cdn.it/main.jpg', principale: true });
+  });
+
+  it('legge testo alternativo e dimensioni dichiarate', () => {
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    const g1 = r.images.find((i) => i.url === 'https://cdn.it/galleria-1.jpg');
+    expect(g1).toMatchObject({ alt: 'Sedia fronte', larghezza: 1200, altezza: 1200 });
+  });
+
+  it('preferisce data-src al segnaposto in src', () => {
+    // I caricamenti differiti mettono l'indirizzo vero in `data-src` e in `src`
+    // un pixel grigio: prendendo solo `src` si scaricherebbero i segnaposto.
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    expect(r.images.map((i) => i.url)).toContain('https://cdn.it/galleria-2.jpg');
+    expect(r.images.some((i) => i.url.startsWith('data:'))).toBe(false);
+  });
+
+  it('rende assoluti gli indirizzi relativi', () => {
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    expect(r.images.map((i) => i.url)).toContain('https://shop.it/assets/logo.png');
+  });
+
+  it('non ripete un’immagine già vista fra i dati strutturati', () => {
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    expect(r.images.filter((i) => i.url === 'https://cdn.it/main.jpg')).toHaveLength(1);
+  });
+
+  it('raccoglie anche quello che non è una foto di prodotto', () => {
+    // È voluto: qui si raccoglie, si sceglie altrove. Se il logo non arrivasse
+    // fin qui, `selezionaImmagini` non avrebbe niente da scartare e la regola
+    // vivrebbe in due posti.
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    expect(r.images.some((i) => i.url.includes('logo'))).toBe(true);
+  });
+
+  it('«imageUrls» resta ai soli dati strutturati', () => {
+    const r = extractProductFromHtml(html, 'https://shop.it/p/1');
+    expect(r.imageUrls).toEqual(['https://cdn.it/main.jpg']);
+  });
+
+  it('una pagina senza immagini non ne produce', () => {
+    const r = extractProductFromHtml('<html><body><p>niente</p></body></html>', 'https://x.it/');
+    expect(r.images).toEqual([]);
+  });
+});

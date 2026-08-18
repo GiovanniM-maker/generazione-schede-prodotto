@@ -59,7 +59,14 @@ export interface PlatformExport {
   filename: string;
 }
 
-/** Shopify — CSV prodotti (set essenziale, prodotto semplice senza varianti). */
+/**
+ * Shopify — CSV prodotti (set essenziale).
+ *
+ * Le varianti arrivano qui come item distinti che condividono titolo e testo, e
+ * quindi lo stesso `Handle`: è esattamente il modo in cui Shopify legge un
+ * prodotto con più varianti — righe con lo stesso handle, uno `Variant SKU`
+ * ciascuna. Non serve un ramo apposta, serve non rompere questa proprietà.
+ */
 function toShopify(items: ExportItem[]): PlatformExport {
   const columns = [
     'Handle',

@@ -89,8 +89,97 @@ function seedProdotto(id: string, over: { canonical?: Row; gen?: Row; prodotto?:
   ]);
 }
 
+function seminaVarianti(productId: string, varianti: Array<{ sku: string; attributi?: Row }>) {
+  db.seed(
+    'product_variants',
+    varianti.map((v, i) => ({
+      id: `${productId}-v${i}`,
+      product_id: productId,
+      sku: v.sku,
+      external_id: v.sku,
+      variant_attributes_json: v.attributi ?? {},
+    })),
+  );
+}
+
 beforeEach(() => {
   db = new FakeDb();
+});
+
+// ---------------------------------------------------------------------------
+// Prodotto e varianti nell'export.
+//
+// Il testo è generato UNA volta per prodotto: è tutto il punto del
+// raggruppamento, ed è quello che fa costare un credito invece di otto. Ma le
+// righe dell'export devono restare una per codice acquistabile, o il cliente
+// non ritrova i codici che vende.
+// ---------------------------------------------------------------------------
+
+describe('export con varianti', () => {
+  it('un prodotto con tre varianti dà tre righe, non una', async () => {
+    seedProdotto('p1');
+    seminaVarianti('p1', [
+      { sku: 'TS100-RED', attributi: { colore: 'Rosso' } },
+      { sku: 'TS100-BLU', attributi: { colore: 'Blu' } },
+      { sku: 'TS100-NER', attributi: { colore: 'Nero' } },
+    ]);
+    const res = await buildBatchExport(db as never, BATCH, 'csv');
+    expect(res.rowCount).toBe(3);
+  });
+
+  it('ogni riga porta il proprio SKU e lo stesso testo', async () => {
+    seedProdotto('p1');
+    seminaVarianti('p1', [
+      { sku: 'TS100-RED', attributi: { colore: 'Rosso' } },
+      { sku: 'TS100-BLU', attributi: { colore: 'Blu' } },
+    ]);
+    const { intestazioni, righe } = csvDi((await buildBatchExport(db as never, BATCH, 'csv')).buffer);
+    const iSku = intestazioni.indexOf('sku');
+    const iTitolo = intestazioni.indexOf('generated_title');
+    expect(righe.map((r) => r[iSku])).toEqual(['TS100-RED', 'TS100-BLU']);
+    // Il testo è lo stesso: generato una volta, pagato una volta.
+    expect(new Set(righe.map((r) => r[iTitolo])).size).toBe(1);
+  });
+
+  it('ogni riga porta il codice padre, che lega le varianti al prodotto', async () => {
+    seedProdotto('p1');
+    seminaVarianti('p1', [{ sku: 'TS100-RED' }, { sku: 'TS100-BLU' }]);
+    const { intestazioni, righe } = csvDi((await buildBatchExport(db as never, BATCH, 'csv')).buffer);
+    const i = intestazioni.indexOf('codice_padre');
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(righe.map((r) => r[i])).toEqual(['P1', 'P1']);
+  });
+
+  it('un prodotto senza varianti resta una riga sola', async () => {
+    // Il caso normale non deve cambiare: la stragrande maggioranza dei
+    // cataloghi non ha varianti, e un prodotto non deve diventare due righe.
+    seedProdotto('p1');
+    seedProdotto('p2');
+    seminaVarianti('p2', [{ sku: 'X-1' }, { sku: 'X-2' }]);
+    const res = await buildBatchExport(db as never, BATCH, 'csv');
+    expect(res.rowCount).toBe(3);
+  });
+
+  it('nei tracciati e-commerce le righe sono i codici acquistabili', async () => {
+    // Shopify e compagnia importano una riga per variante: se ne arrivasse una
+    // sola col codice del modello, il cliente non potrebbe vendere nessuna
+    // taglia.
+    seedProdotto('p1');
+    seminaVarianti('p1', [{ sku: 'TS100-RED' }, { sku: 'TS100-BLU' }]);
+    const res = await buildBatchExport(db as never, BATCH, 'shopify');
+    const testo = res.buffer.toString('utf8');
+    expect(testo).toContain('TS100-RED');
+    expect(testo).toContain('TS100-BLU');
+    // Due varianti, due righe. Il codice del modello non è un codice
+    // acquistabile e non deve aggiungerne una terza: l'importer creerebbe un
+    // articolo in vendita che non esiste a magazzino.
+    //
+    // Il conteggio si legge da `rowCount` e non contando le righe del CSV: il
+    // corpo HTML di Shopify può contenere a capo dentro un campo quotato, e il
+    // lettore di comodo qui sopra li scambierebbe per record separati.
+    expect(res.rowCount).toBe(2);
+    expect(testo).not.toMatch(/,P1,/);
+  });
 });
 
 describe('export CSV del batch', () => {

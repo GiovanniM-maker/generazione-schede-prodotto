@@ -40,6 +40,11 @@ export const serverEnvSchema = z
     // OpenRouter (gateway OpenAI-compatibile via chat completions). Se presente,
     // ha priorità su OpenAI. Modello configurabile (default gpt-4o-mini).
     OPENROUTER_API_KEY: z.string().optional().default(''),
+
+    // Ricerca web per la fonte «Lista SKU». Senza, il fornitore finto non trova
+    // niente e ogni prodotto risulta «non trovato»: si vede subito che la
+    // ricerca non è configurata, invece di credere che funzioni.
+    BRAVE_SEARCH_API_KEY: z.string().optional().default(''),
     OPENROUTER_MODEL: z.string().default('openai/gpt-4o-mini'),
     // Modello per la trascrizione audio via OpenRouter (content input_audio).
     // Deve essere un modello audio-capable (default Gemini 2.0 Flash).

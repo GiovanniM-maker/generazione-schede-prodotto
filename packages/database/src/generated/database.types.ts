@@ -225,6 +225,39 @@ export interface Database {
           variant_attributes_json: Json;
         } & Timestamps
       >;
+      /**
+       * Il registro per riga della fonte «Lista SKU»: cosa è stato cercato,
+       * cosa si è trovato, perché si è deciso così. È anche la cache e il
+       * punto da cui si riprende una lavorazione interrotta.
+       */
+      sku_resolutions: T<{
+        id: string;
+        organization_id: string;
+        batch_id: string | null;
+        product_id: string | null;
+        codice_normalizzato: string;
+        marca_normalizzata: string;
+        codice_originale: string;
+        marca_originale: string | null;
+        /** Gli SKU che questo codice rappresenta: il gruppo, o solo sé stesso. */
+        sku_membri: string[];
+        /** 'in-coda' | 'risolto' | 'risolto-con-riserva' | 'coda-conferma' | 'non-trovato' | 'errore' */
+        esito: string;
+        /** I domini a cui era limitata la ricerca. Vuoto = tutto il web. */
+        ambito: string[];
+        /** Tentativi falliti di fila: oltre il limite la riga non si riprende. */
+        tentativi: number;
+        /** Ripresa da una ricerca già fatta invece che cercata di nuovo. */
+        da_cache: boolean;
+        punteggio_identita: number;
+        url_scelto: string | null;
+        dominio_scelto: string | null;
+        livello_dominio: string | null;
+        candidati_json: Json;
+        motivo: string | null;
+        creato_il: string;
+        aggiornato_il: string;
+      }>;
       product_assets: T<{
         id: string;
         organization_id: string;

@@ -1,3 +1,5 @@
+import type { ImmagineCandidata } from './immagini-web.js';
+
 // Estrazione dei FATTI di prodotto da una pagina web (import da URL).
 // Funzione PURA: riceve l'HTML già scaricato + l'URL base, non fa rete.
 // Il principio resta "i dati posseggono i fatti, l'AI la prosa": qui ricaviamo
@@ -19,8 +21,19 @@ export interface UrlExtractedProduct {
   sku: string | null;
   /** Attributi/fatti aggiuntivi (materiale, colore, peso, additionalProperty…). */
   attributes: Record<string, string>;
-  /** URL immagini, assoluti e deduplicati. */
+  /** URL immagini, assoluti e deduplicati. Solo dai dati strutturati. */
   imageUrls: string[];
+  /**
+   * Le immagini con quello che la pagina dice di loro: testo alternativo,
+   * dimensioni dichiarate, posizione in galleria, e quale la pagina indica come
+   * principale.
+   *
+   * Comprende sia quelle dei dati strutturati sia quelle dei tag `<img>` — cioè
+   * anche il logo del negozio e i badge dei pagamenti. NON è un elenco da usare
+   * così com'è: va passato per `selezionaImmagini`, che è il posto in cui si
+   * decide cosa è una foto di prodotto. Qui si raccoglie e basta.
+   */
+  images: ImmagineCandidata[];
   /** Fonte prevalente usata per il nome (diagnostica). */
   source: 'json-ld' | 'opengraph' | 'html' | 'none';
 }
@@ -128,6 +141,47 @@ function addAttr(attrs: Record<string, string>, name: unknown, value: unknown): 
 }
 
 /** Estrae i fatti di prodotto dall'HTML. `baseUrl` serve a rendere assolute le immagini. */
+/** Legge un attributo da un tag già isolato. */
+function attributo(tag: string, nome: string): string | null {
+  const m = tag.match(new RegExp(`\\b${nome}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
+  const grezzo = m?.[2] ?? m?.[3] ?? m?.[4];
+  return grezzo ? decodeEntities(grezzo).trim() : null;
+}
+
+function numero(v: string | null): number | null {
+  if (!v) return null;
+  const n = Number(v.replace(/[^0-9]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Le immagini dei tag `<img>`, con quello che la pagina dichiara di loro.
+ *
+ * `data-src` e `data-original` oltre a `src`: i caricamenti differiti mettono lì
+ * l'indirizzo vero e in `src` un segnaposto grigio da un pixel. Prendendo solo
+ * `src` si scaricherebbero i segnaposto.
+ */
+function immaginiDaiTag(html: string, baseUrl: string): ImmagineCandidata[] {
+  const out: ImmagineCandidata[] = [];
+  let posizione = 0;
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0];
+    const grezzo =
+      attributo(tag, 'data-src') ?? attributo(tag, 'data-original') ?? attributo(tag, 'src');
+    if (!grezzo) continue;
+    const abs = absolutize(grezzo, baseUrl);
+    if (!abs) continue;
+    out.push({
+      url: abs,
+      alt: attributo(tag, 'alt'),
+      larghezza: numero(attributo(tag, 'width')),
+      altezza: numero(attributo(tag, 'height')),
+      posizione: posizione++,
+    });
+  }
+  return out;
+}
+
 export function extractProductFromHtml(html: string, baseUrl: string): UrlExtractedProduct {
   const attributes: Record<string, string> = {};
   const images: string[] = [];
@@ -236,7 +290,23 @@ export function extractProductFromHtml(html: string, baseUrl: string): UrlExtrac
   // numerico in fondo all'URL (…-628795), così ogni prodotto da URL ha uno SKU.
   if (!sku) sku = skuFromUrl(baseUrl);
 
-  return { name, brand, description, price, sku, attributes, imageUrls: images, source };
+  // Le immagini dei dati strutturati vengono prima e la prima è la principale:
+  // è la pagina stessa a dichiararlo, non una nostra scelta. Poi quelle dei
+  // tag, deduplicate su quelle già viste.
+  const daiTag = immaginiDaiTag(html, baseUrl);
+  const viste = new Set(images);
+  const ricche: ImmagineCandidata[] = images.map((url, i) => ({
+    url,
+    principale: i === 0,
+    posizione: i,
+  }));
+  for (const img of daiTag) {
+    if (viste.has(img.url)) continue;
+    viste.add(img.url);
+    ricche.push({ ...img, posizione: ricche.length });
+  }
+
+  return { name, brand, description, price, sku, attributes, imageUrls: images, images: ricche, source };
 }
 
 /** Ricava uno SKU dal segmento finale dell'URL: preferisce un codice numerico. */
