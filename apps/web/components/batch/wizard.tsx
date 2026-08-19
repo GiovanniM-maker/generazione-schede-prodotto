@@ -427,7 +427,6 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [confermeAperte, setConfermeAperte] = useState(false);
   const [confermeInSospeso, setConfermeInSospeso] = useState(0);
   const [skuFoglio, setSkuFoglio] = useState<FoglioListaSku | null>(null);
-  const [esitoFotoSku, setEsitoFotoSku] = useState<{ scaricate: number; senza: number } | null>(null);
   const [skuMappatura, setSkuMappatura] = useState<MappaturaListaSku | null>(null);
   const [coda, setCoda] = useState<ProgressoListaSku | null>(null);
   const [codaInCorso, setCodaInCorso] = useState(false);
@@ -612,7 +611,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // una lista da cinquecento codici non avrebbe nessuna strada per riprenderla
   // — e ricominciando da capo ripagherebbe le ricerche già fatte.
   useEffect(() => {
-    if (stepId !== 3 || !batchId || codaInCorso) return;
+    if ((stepId !== 3 && stepId !== 9) || !batchId || codaInCorso) return;
     let vivo = true;
     void (async () => {
       const res = await progressoListaSku({ batchId }).catch(() => null);
@@ -1128,6 +1127,25 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     if (ultimo.finita) concludiListaSku(ultimo);
   }
 
+  /**
+   * Rilegge dal registro com'è andata, e aggiorna quello che si vede.
+   *
+   * Serve DOPO la coda di conferma. Prima la conferma finiva con un
+   * `goTo(9)` e basta: i prodotti nati lì non entravano in nessun conteggio —
+   * il riepilogo restava quello di quando erano tutti ancora da confermare,
+   * cioè zero — e i codici non riusciti non venivano nominati da nessuna
+   * parte. Dieci codici entrati, sei prodotti usciti, e nessuna riga a
+   * spiegare gli altri quattro.
+   */
+  async function aggiornaEsitoLista(): Promise<ProgressoListaSku | null> {
+    if (!batchId) return null;
+    const res = await progressoListaSku({ batchId }).catch(() => null);
+    if (!res || !res.ok) return null;
+    setCoda(res.data);
+    if (res.data.importati > 0) setImportSummary(riepilogoDa(res.data));
+    return res.data;
+  }
+
   function concludiListaSku(d: ProgressoListaSku) {
     // Le ambiguità si sciolgono PRIMA di andare avanti: per quei codici non è
     // stato scritto nessun campo, e passare al passo dopo lascerebbe fuori dal
@@ -1149,11 +1167,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       return;
     }
     setImportSummary(riepilogoDa(d));
-    setEsitoFotoSku(
-      d.immaginiScaricate > 0 || d.senzaImmagini > 0
-        ? { scaricate: d.immaginiScaricate, senza: d.senzaImmagini }
-        : null,
-    );
+    setCoda(d);
     goTo(9);
   }
 
@@ -1501,6 +1515,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           batchId={batchId}
           onFinito={() => {
             setConfermeAperte(false);
+            void aggiornaEsitoLista();
             goTo(9);
           }}
         />
@@ -1643,16 +1658,62 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
       {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} nameHeader={nameHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
 
-      {stepId === 9 && esitoFotoSku && (
-        <Avviso tono="informazione" className="mb-3">
-          {esitoFotoSku.scaricate > 0
-            ? `${esitoFotoSku.scaricate} ${esitoFotoSku.scaricate === 1 ? 'foto recuperata' : 'foto recuperate'} dalle pagine dei prodotti`
-            : 'Nessuna foto recuperata dalle pagine'}
-          {esitoFotoSku.senza > 0 &&
-            `, ${esitoFotoSku.senza} ${esitoFotoSku.senza === 1 ? 'prodotto è rimasto' : 'prodotti sono rimasti'} senza`}
-          . Sono immagini di chi le ha pubblicate: la verifica dei diritti di
-          utilizzo resta a carico tuo.
-        </Avviso>
+      {/* Che fine hanno fatto i codici, al passo 9.
+
+          Prima non c'era: chi incollava dieci codici e ne vedeva sei arrivava
+          qui e non trovava una riga sui quattro mancanti. I motivi erano nel
+          registro — «il motore non ha proposto nessuna pagina», «una pagina
+          trovata ma non raggiungibile» — e non li leggeva nessuno. Un import
+          che perde per strada il 40% senza dirlo è peggio di uno che fallisce:
+          quello almeno si nota. */}
+      {stepId === 9 && coda && coda.totale > 0 && (
+        <div className="mb-3 space-y-3">
+          <Avviso tono={coda.importati === coda.totale ? 'informazione' : 'attenzione'}>
+            <div className="space-y-1">
+              <div>
+                <strong>
+                  {coda.importati} {coda.importati === 1 ? 'prodotto' : 'prodotti'} da {coda.totale}{' '}
+                  {coda.totale === 1 ? 'codice' : 'codici'}
+                </strong>
+                {coda.immaginiScaricate > 0 &&
+                  ` · ${coda.immaginiScaricate} ${coda.immaginiScaricate === 1 ? 'foto recuperata' : 'foto recuperate'} dalle pagine`}
+                {coda.senzaImmagini > 0 &&
+                  ` · ${coda.senzaImmagini} senza foto`}
+              </div>
+              {coda.immaginiScaricate > 0 && (
+                <div className="text-xs">
+                  Le foto sono di chi le ha pubblicate: la verifica dei diritti di utilizzo resta a
+                  carico tuo.
+                </div>
+              )}
+            </div>
+          </Avviso>
+
+          {coda.failures.length > 0 && (
+            <div className="rounded-lg border border-ink-200 bg-white p-3 text-sm">
+              <div className="font-medium text-ink-900">
+                {coda.failures.length}{' '}
+                {coda.failures.length === 1 ? 'codice non è diventato' : 'codici non sono diventati'}{' '}
+                un prodotto
+              </div>
+              <ul className="mt-2 space-y-1 text-ink-600">
+                {coda.failures.map((f) => (
+                  <li key={f.sku} className="flex flex-wrap gap-x-2">
+                    <span className="font-mono text-ink-900">{f.sku}</span>
+                    <span className="text-xs">{f.reason}</span>
+                  </li>
+                ))}
+              </ul>
+              {/* Il rimedio è diverso a seconda del motivo, e vale la pena
+                  scriverlo: senza marca la ricerca è molto più debole, ed è la
+                  cosa che l'utente può cambiare in dieci secondi. */}
+              <p className="mt-2 text-xs text-ink-500">
+                Puoi riprovarli in una nuova lavorazione scrivendo «codice; marca»: la marca
+                restringe la ricerca e fa riconoscere il sito del produttore.
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       {stepId === 9 && batchId && (
