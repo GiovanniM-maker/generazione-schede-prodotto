@@ -41,6 +41,8 @@ export interface FakeDbOptions {
 interface Postgrestish<T> {
   data: T;
   error: { message: string } | null;
+  /** Presente quando il select è stato chiesto con `{ count: 'exact' }`. */
+  count?: number | null;
 }
 
 type Filter = (row: Row) => boolean;
@@ -290,10 +292,15 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
   ) {}
 
   private cols?: string;
+  private conteggio = false;
 
-  select(cols?: string): this {
+  select(cols?: string, opts?: { count?: 'exact'; head?: boolean }): this {
     if (this.mode === 'select') this.mode = 'select';
     this.cols = cols;
+    // `head: true` nel client vero non riporta le righe, solo il conteggio: qui
+    // le righe restano (non costano niente) ma `count` deve esserci, o chi fa
+    // `const { count } = ...` legge `undefined` e i suoi `?? 0` azzerano tutto.
+    this.conteggio = opts?.count === 'exact';
     return this;
   }
   insert(rows: Row | Row[]): this {
@@ -365,10 +372,8 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     if (this.mode === 'insert') return this.db._insert(this.table, this.payload);
     if (this.mode === 'update') return this.db._update(this.table, this.patch, this.filters);
     if (this.mode === 'delete') return this.db._delete(this.table, this.filters);
-    return {
-      data: this.db._select(this.table, this.filters, this.orderBy, this.limitN, this.cols),
-      error: null,
-    };
+    const data = this.db._select(this.table, this.filters, this.orderBy, this.limitN, this.cols);
+    return this.conteggio ? { data, error: null, count: data?.length ?? 0 } : { data, error: null };
   }
 
   async maybeSingle(): Promise<Postgrestish<Row | null>> {

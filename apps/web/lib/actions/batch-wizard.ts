@@ -3600,6 +3600,8 @@ export interface BatchRipreso {
   } | null;
   /** Quante immagini risultano già caricate. */
   immagini: number;
+  /** Quanti prodotti sono già in catalogo per questo batch. */
+  prodotti: number;
 }
 
 export async function riprendiBatch(input: {
@@ -3630,6 +3632,13 @@ export async function riprendiBatch(input: {
 
   const caricato = await loadBatchSpreadsheet(service, input.batchId);
   const immagini = (await loadImageItems(service, input.batchId)).length;
+  // Il conteggio serve alla ripresa per decidere fino a che passo si può
+  // tornare: la fonte «Lista SKU» crea prodotti senza nessun file caricato, e
+  // guardando solo file e immagini una sua lavorazione risultava «senza dati».
+  const { count: prodotti } = await service
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('batch_id', input.batchId);
 
   const sku = caricato ? suggestSkuHeader(caricato.parsed.headers) : null;
   return ok<BatchRipreso>({
@@ -3652,6 +3661,7 @@ export async function riprendiBatch(input: {
         }
       : null,
     immagini,
+    prodotti: prodotti ?? 0,
   });
 }
 

@@ -766,13 +766,19 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // renderebbe il tasto Indietro del browser un secondo pulsante «indietro»,
   // in conflitto con quello della pagina.
   // -------------------------------------------------------------------------
+  // `history.replaceState` e NON `router.replace`: la pagina è dinamica, e il
+  // replace del router rifà la richiesta al server — autenticazione compresa —
+  // A OGNI CAMBIO DI PASSO. Era il motivo per cui il wizard «si fermava» fra un
+  // passo e l'altro: undici passi, undici giri al server per aggiornare due
+  // parametri nell'indirizzo che il server non usa nemmeno. La cronologia del
+  // browser basta, e `useSearchParams` la vede lo stesso.
   useEffect(() => {
     if (!batchId || ripresaInCorso) return;
     const atteso = `?batch=${batchId}&passo=${stepId}`;
     if (window.location.search !== atteso) {
-      router.replace(`/app/batches/new${atteso}`, { scroll: false });
+      window.history.replaceState(null, '', `/app/batches/new${atteso}`);
     }
-  }, [batchId, stepId, ripresaInCorso, router]);
+  }, [batchId, stepId, ripresaInCorso]);
 
   // Ripresa: `?batch=…` all'apertura significa che stiamo tornando su un
   // lavoro lasciato a metà.
@@ -797,6 +803,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         if (d.sourceType === 'mixed') setSourceMode('both');
         else if (d.sourceType === 'spreadsheet' || d.sourceType === 'images' || d.sourceType === 'pdf')
           setSourceMode(d.sourceType);
+        // La fonte «Lista SKU» mancava da questo elenco: riaprendo una sua
+        // lavorazione, il passo 3 compariva SENZA nessuna fonte selezionata —
+        // come se la scelta non fosse mai stata fatta — e il tetto qui sotto
+        // riportava il passo indietro. Era il «mi porta al 3 e poi torna
+        // indietro» visto dal vivo.
+        else if (d.sourceType === 'sku_list') setSourceMode('sku');
         if (d.spreadsheet) {
           setSpreadsheetResult({
             kind: 'spreadsheet',
@@ -812,8 +824,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           if (d.spreadsheet.suggestedSkuHeader) setSkuHeader(d.spreadsheet.suggestedSkuHeader);
         }
         // Non si riprende oltre il punto che i dati reggono: senza file
-        // caricato il massimo è il passo delle fonti.
-        const massimo = d.spreadsheet || d.immagini > 0 ? 9 : d.sourceType ? 4 : 3;
+        // caricato il massimo è il passo delle fonti. I prodotti contano quanto
+        // i file: la Lista SKU li crea senza caricare niente.
+        const massimo = d.spreadsheet || d.immagini > 0 || d.prodotti > 0 ? 9 : d.sourceType ? 4 : 3;
         const voluto = Number.isFinite(passoDaRiprendere) && passoDaRiprendere >= 1 ? passoDaRiprendere : 1;
         setStepId(Math.max(1, Math.min(voluto, massimo)));
       })
