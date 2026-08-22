@@ -395,6 +395,7 @@ export function PresetCopilotPanel({
             </Button>
           )}
           <Textarea
+            aria-label="Scrivi al copilota"
             rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}

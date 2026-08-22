@@ -461,6 +461,7 @@ export function CopilotPanel({
               Trascrizione (modificabile prima di usarla)
             </label>
             <Textarea
+              aria-label="Trascrizione di quello che hai detto"
               rows={3}
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
@@ -486,6 +487,7 @@ export function CopilotPanel({
 
         <div className="mt-3 flex items-end gap-2">
           <Textarea
+            aria-label="Scrivi al copilota"
             rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}

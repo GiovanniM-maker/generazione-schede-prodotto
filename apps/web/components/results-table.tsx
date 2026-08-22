@@ -1643,6 +1643,7 @@ function ProductAttributesPanel({
                 {isEditing && (
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <Input
+                      aria-label="Modifica il valore dell’attributo"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       className="h-8 text-sm"
@@ -1689,6 +1690,7 @@ function ProductAttributesPanel({
                   (fbOpen === a.attributeId ? (
                     <div className="mt-1.5 flex items-start gap-1.5">
                       <input
+                        aria-label="Perché questo campo non va"
                         type="text"
                         value={fbValue}
                         onChange={(e) => setFbValue(e.target.value)}
@@ -1788,6 +1790,7 @@ function TranslationsViewer({
 function FieldFeedback({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <input
+      aria-label="Riscontro su questo campo"
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}

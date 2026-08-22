@@ -933,6 +933,7 @@ export function OnboardingStepper({
                 placeholder="Incolla qui una descrizione esistente…"
               />
               <Textarea
+                aria-label="Secondo esempio di descrizione"
                 className="mt-2"
                 rows={2}
                 value={example2}

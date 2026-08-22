@@ -39,6 +39,7 @@ export * from './coda.js';
 export * from './latenza.js';
 export * from './allarmi.js';
 export * from './interfaccia.js';
+export * from './moduli.js';
 export * from './conferma-identita.js';
 export * from './ip-guard.js';
 export * from './chunk.js';
