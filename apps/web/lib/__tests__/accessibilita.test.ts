@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { senzaCommenti } from './senza-commenti.js';
+import { wizardIntero } from './wizard-intero.js';
 
 // ---------------------------------------------------------------------------
 // Quello che il prodotto dice a chi non guarda lo schermo.
@@ -126,7 +127,10 @@ describe('i riquadri di riscontro parlano', () => {
     'settings/preset-copilot-panel.tsx': 'evidenzia le righe aggiunte in un confronto',
     'copilot/copilot-panel.tsx': 'pannello di registrazione in corso, con i suoi comandi',
     'results-table.tsx': 'tinta di riga e bordo di un pulsante, non un messaggio',
-    'batch/wizard.tsx': 'riquadro con dentro un campo da scegliere, e un bordo di stato',
+    // Erano una voce sola quando il wizard era un file solo. Il codice non è
+    // cambiato di una riga: è cambiato il suo indirizzo.
+    'batch/passi/carica.tsx': 'riquadro con dentro un campo da scegliere, non un messaggio',
+    'batch/passi/mappa.tsx': 'bordo di stato su una riga da accostare, non un messaggio',
   };
 
   /** Le classi dichiarate in `className`, ovunque e comunque scritte. */
@@ -246,7 +250,7 @@ describe('lo stato non si affida al solo colore', () => {
     // disabilitate) portavano la STESSA pastiglia viola. Il viola dice «guarda
     // qui», e su una cosa che non si può cliccare è un invito a vuoto. Erano
     // anche due parole diverse per lo stesso stato, affiancate.
-    const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+    const wizard = senzaCommenti(wizardIntero());
     expect(wizard).toMatch(/card\.disabled \? \(\s*<Badge tone="gray">In arrivo<\/Badge>/);
     expect(wizard).not.toMatch(/Prossimamente/);
   });

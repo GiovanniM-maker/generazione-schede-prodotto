@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { senzaCommenti } from './senza-commenti.js';
+import { wizardIntero } from './wizard-intero.js';
 
 // ---------------------------------------------------------------------------
 // Le cose che potevano aspettare, e che aspettavano da troppo.
@@ -151,7 +152,7 @@ describe('provare senza rischiare', () => {
     expect(righe.length).toBeGreaterThanOrEqual(6);
     expect(righe[0]).toContain('SKU');
     expect(righe[0]).toContain('Categoria');
-    expect(leggi('components/batch/wizard.tsx')).toMatch(/href="\/listino-di-esempio\.csv"/);
+    expect(wizardIntero()).toMatch(/href="\/listino-di-esempio\.csv"/);
   });
 
   it('la landing non parla solo di moda', () => {

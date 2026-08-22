@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { senzaCommenti } from './senza-commenti.js';
+import { wizardIntero } from './wizard-intero.js';
 
 // ---------------------------------------------------------------------------
 // Le parole a schermo.
@@ -47,7 +48,7 @@ describe('i contatori dicono cosa è successo', () => {
     // Promettevano una revisione che non esiste da nessuna parte.
     const colpevoli = sorgenti.filter((f) => /\{importSummary\.invalid\} da rivedere/.test(f.src));
     expect(colpevoli.map((f) => f.path)).toEqual([]);
-    expect(leggi('components/batch/wizard.tsx')).toMatch(/righe scartate/);
+    expect(wizardIntero()).toMatch(/righe scartate/);
   });
 
   it('e si può vedere QUALI righe sono cadute, con il perché', () => {
@@ -58,7 +59,7 @@ describe('i contatori dicono cosa è successo', () => {
     for (const motivo of ['codice non valido', 'codice ripetuto nel file', 'dati insufficienti']) {
       expect(azioni, motivo).toContain(`'${motivo}'`);
     }
-    expect(leggi('components/batch/wizard.tsx')).toMatch(/Quali righe sono state scartate/);
+    expect(wizardIntero()).toMatch(/Quali righe sono state scartate/);
   });
 
   it('lo stesso file caricato due volte non si chiama «SKU duplicati»', () => {
@@ -76,7 +77,7 @@ describe('il conto dei passi non cambia strada facendo', () => {
     // Con un Excel i passi sono due in più: finché la fonte non è scelta il
     // totale non si sa, e prometterne uno vuol dire passare da «di 9» a «di 11»
     // senza aver fatto niente di sbagliato.
-    const wizard = leggi('components/batch/wizard.tsx');
+    const wizard = wizardIntero();
     expect(wizard).toMatch(/totaleNoto \? ` di \$\{steps\.length\}` : ''/);
     expect(wizard).toMatch(/totaleNoto=\{sourceMode !== null\}/);
   });
@@ -92,7 +93,7 @@ describe('l’aiuto non copre il comando principale', () => {
   });
 
   it('e nella barra c’è il suo comando', () => {
-    expect(leggi('components/batch/wizard.tsx')).toMatch(/aria-label="Apri la guida"/);
+    expect(wizardIntero()).toMatch(/aria-label="Apri la guida"/);
   });
 });
 
@@ -263,7 +264,7 @@ describe('il wizard non lascia saltare la verifica', () => {
     // prodotti. Durante l'importazione la pagina è vuota e «Continua» era
     // l'unico oggetto colorato dello schermo: un clic e si arrivava al
     // campione senza aver mai guardato i dati importati.
-    const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+    const wizard = senzaCommenti(wizardIntero());
     for (const passo of [2, 6, 8, 9]) {
       expect(wizard, `passo ${passo} senza blocco`).toContain(
         `setPassoInCaricamento(${passo})`,
@@ -342,7 +343,7 @@ describe('la barra di avanzamento misura solo l’avanzamento', () => {
   // pixel di differenza su uno strumento che serve a misurare — la parte
   // colorata si allungava e si accorciava per una ragione che con
   // l'avanzamento non c'entra niente.
-  const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+  const wizard = senzaCommenti(wizardIntero());
 
   it('il comando della guida non le toglie larghezza', () => {
     // Il pulsante entra dentro la barra, nella riga del titolo del passo, e
@@ -354,14 +355,14 @@ describe('la barra di avanzamento misura solo l’avanzamento', () => {
   });
 
   it('la barra resta larga quanto il suo contenitore', () => {
-    expect(leggi('components/batch/wizard.tsx')).toMatch(
+    expect(wizardIntero()).toMatch(
       /<div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">/,
     );
   });
 });
 
 describe('i crediti si dicono con le parole del prodotto', () => {
-  const wizard = senzaCommenti(leggi('components/batch/wizard.tsx'));
+  const wizard = senzaCommenti(wizardIntero());
 
   it('nessuna «pagina Abbonamento»: si chiama Fatturazione', () => {
     // Il messaggio di crediti insufficienti mandava «alla pagina Abbonamento».

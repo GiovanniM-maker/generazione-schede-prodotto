@@ -92,6 +92,14 @@ const NON_SI_INVIA: Record<string, string> = {
     'una casella che filtra le categorie mentre si scrive: il risultato è già a schermo',
   'settings/account-client.tsx':
     'ci si scrive ELIMINA per cancellare l’account: è l’unico campo dove Invio a caso deve NON fare niente',
+  // Arrivata spezzando il wizard: la colonna si rinomina mentre si scrive, e
+  // il valore è già applicato. Non c'è niente da inviare.
+  //
+  // L'altro campo che il taglio ha scoperto — i domini di ricerca nel passo
+  // delle fonti — NON è finito qui: lì Invio ha qualcosa da fare (rigenera
+  // l'anteprima) e adesso lo fa.
+  'batch/passi/mappa.tsx':
+    'si rinomina una colonna mentre si scrive: il nuovo nome è già applicato, non c’è niente da inviare',
 };
 
 describe('dove si scrive, Invio invia', () => {
@@ -107,7 +115,7 @@ describe('dove si scrive, Invio invia', () => {
   });
 
   it('le eccezioni sono poche e ognuna ha il suo perché', () => {
-    expect(Object.keys(NON_SI_INVIA).length).toBeLessThanOrEqual(5);
+    expect(Object.keys(NON_SI_INVIA).length).toBeLessThanOrEqual(6);
     for (const [file, perche] of Object.entries(NON_SI_INVIA)) {
       expect(perche.length, `«${file}» senza motivo scritto`).toBeGreaterThan(25);
     }
