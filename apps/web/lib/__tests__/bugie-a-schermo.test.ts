@@ -44,7 +44,7 @@ vi.mock('@/lib/ricerca-brave', () => ({
 }));
 const ricerca = { configurata: false };
 
-const { uploadBatchFiles, avviaListaSku, proseguiListaSku } = await import(
+const { uploadBatchFiles, avviaListaSku, proseguiListaSku, progressoListaSku } = await import(
   '../actions/batch-wizard.js'
 );
 
@@ -253,5 +253,43 @@ describe('la ricerca online non configurata', () => {
     });
     expect(res.ok).toBe(true);
     expect(db.rows('sku_resolutions')).toHaveLength(2);
+  });
+});
+
+describe('i codici che non sono diventati prodotti', () => {
+  // Dieci codici entrati, sei prodotti usciti, e nessuna riga sugli altri
+  // quattro: è successo davvero al primo utente. I motivi c'erano — «il motore
+  // non ha proposto nessuna pagina», «una pagina trovata ma non raggiungibile»
+  // — e non li leggeva nessuno. Un import che perde per strada il 40% senza
+  // dirlo è peggio di uno che fallisce: quello almeno si nota.
+  it('il riepilogo li conta e ne riporta il motivo', async () => {
+    db.seed('products', [{ id: 'pr-1', organization_id: ORG, batch_id: BATCH, sku: 'A-1' }]);
+    db.seed('sku_resolutions', [
+      {
+        id: 'r1', organization_id: ORG, batch_id: BATCH, codice_originale: 'A-1',
+        sku_membri: ['A-1'], esito: 'risolto', tentativi: 0, product_id: 'pr-1', motivo: null,
+      },
+      {
+        id: 'r2', organization_id: ORG, batch_id: BATCH, codice_originale: 'B-2',
+        sku_membri: ['B-2'], esito: 'non-trovato', tentativi: 0, product_id: null,
+        motivo: 'Il motore di ricerca non ha proposto nessuna pagina per questo codice.',
+      },
+      {
+        id: 'r3', organization_id: ORG, batch_id: BATCH, codice_originale: 'C-3',
+        sku_membri: ['C-3'], esito: 'non-trovato', tentativi: 0, product_id: null,
+        motivo: '1 pagina trovata: 1 non raggiungibile. Il codice potrebbe esserci.',
+      },
+    ]);
+
+    const res = await progressoListaSku({ batchId: BATCH });
+    expect(res.ok).toBe(true);
+    const d = (res as { data: { totale: number; importati: number; nonTrovati: number; failures: Array<{ sku: string; reason: string }> } }).data;
+
+    expect(d.totale).toBe(3);
+    expect(d.importati).toBe(1);
+    expect(d.nonTrovati).toBe(2);
+    // Ogni codice perso porta con sé il PROPRIO motivo: sono rimedi diversi.
+    expect(d.failures.map((f) => f.sku).sort()).toEqual(['B-2', 'C-3']);
+    expect(d.failures.find((f) => f.sku === 'C-3')?.reason).toMatch(/non raggiungibile/);
   });
 });
