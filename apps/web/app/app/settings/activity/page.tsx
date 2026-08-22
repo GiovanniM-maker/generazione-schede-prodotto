@@ -18,6 +18,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageShell } from '@/components/page-shell';
+import { DiagnosticaLatenza } from '@/components/settings/diagnostica-client';
 import { formatDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -155,6 +156,13 @@ export default async function StoricoPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* La sonda sta qui, in fondo alla pagina tecnica, e non su una schermata
+          sua: si usa quando si sospetta che l'applicazione sia lenta, cioè
+          raramente e con una domanda precisa in testa. */}
+      <div className="mt-6">
+        <DiagnosticaLatenza />
+      </div>
     </PageShell>
   );
 }
