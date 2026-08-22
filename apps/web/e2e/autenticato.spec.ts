@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } from './sessione';
 import { seminaScenario } from './semina';
+import { chiudiGuida } from './schermo';
 
 // ---------------------------------------------------------------------------
 // I flussi che richiedono di essere dentro l'app.
