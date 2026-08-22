@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { aspettoComando } from '@app/core/comandi';
 import { cn } from '@/lib/utils';
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
@@ -47,6 +48,23 @@ export interface ButtonProps
    * clic manderebbe la stessa richiesta due volte.
    */
   loading?: boolean;
+  /**
+   * Il comando non si può usare, e QUESTO è il motivo.
+   *
+   * Non è un `disabled` con una spiegazione accanto: è un'altra cosa. Un
+   * elemento `disabled` non prende il fuoco, quindi con la tastiera lo si salta
+   * — non si scopre nemmeno che esiste, e il motivo per cui è spento non lo si
+   * può leggere. Qui il comando resta RAGGIUNGIBILE (`aria-disabled`), porta il
+   * motivo dentro il proprio nome, e premerlo non fa niente.
+   *
+   * `disabled` vero resta giusto per una cosa sola: mentre la richiesta è in
+   * volo, dove dura un istante e serve a non mandarla due volte. Per quello
+   * c'è `loading`.
+   *
+   * Il motivo si scrive per chi legge: «Serve prima: il nome del lavoro», non
+   * «Requisiti non soddisfatti».
+   */
+  nonDisponibile?: string | null;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -60,14 +78,37 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   //
   // Chi vuole inviare lo dice: `type="submit"`.
   (
-    { className, variant = 'primary', size = 'md', type = 'button', loading, children, disabled, ...props },
+    {
+      className,
+      variant = 'primary',
+      size = 'md',
+      type = 'button',
+      loading,
+      nonDisponibile,
+      children,
+      disabled,
+      onClick,
+      ...props
+    },
     ref,
   ) => {
+    // Le tre situazioni che stavano sotto la stessa parola `disabled` — sta
+    // lavorando, non ancora, non disponibile — e cosa comporta ciascuna. La
+    // decisione sta in `@app/core/comandi`, dove si prova esaustivamente.
+    const aspetto = aspettoComando({ lavora: loading, motivo: nonDisponibile });
     return (
       <button
         ref={ref}
         type={type}
-        disabled={disabled || loading}
+        // `disabled` vero SOLO mentre lavora: dura un istante. Per il resto
+        // `aria-disabled`, che lascia il comando raggiungibile con Tab — un
+        // comando che non si incontra è una funzione nascosta, non spenta.
+        disabled={disabled || aspetto.spentoDavvero}
+        aria-disabled={aspetto.dichiaratoSpento || undefined}
+        // `preventDefault` e non semplicemente «nessun gestore»: senza
+        // `disabled` vero, un `type="submit"` dentro un form invierebbe lo
+        // stesso il modulo — spento a vedersi e attivo nei fatti.
+        onClick={aspetto.ignoraClic ? (e) => e.preventDefault() : onClick}
         // Chi ascolta deve sapere che è partito qualcosa: senza, il comando
         // diventa muto e spento, e sembra rotto invece che occupato.
         aria-busy={loading || undefined}
@@ -88,6 +129,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           // SEGNALE finché la risposta non arriva. Su una rete lenta sono
           // secondi in cui non si sa se il tocco è stato preso.
           'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[color,background-color,border-color,transform] duration-120 active:scale-[.97] active:duration-[60ms] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+          // Sbiadito come uno spento, ma NON `pointer-events-none`: il
+          // puntatore ci deve poter passare sopra, altrimenti il suggerimento
+          // che spiega perché non si può usare non comparirebbe proprio nel
+          // caso in cui serve. E niente `active:scale`: non succede niente,
+          // fingere una pressione sarebbe una bugia.
+          aspetto.dichiaratoSpento && 'cursor-not-allowed opacity-50 active:scale-100',
           variants[variant],
           sizes[size],
           className,
@@ -101,6 +148,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           />
         )}
         {children}
+        {/* Il motivo entra nel NOME del comando, non in una descrizione: le
+            descrizioni sono facoltative e molti lettori di schermo le saltano,
+            mentre il nome viene letto sempre. Il testo visibile resta il primo,
+            quindi chi comanda a voce continua a dire quello che legge. */}
+        {aspetto.aggiuntaAlNome !== '' && (
+          <span className="sr-only"> — {aspetto.aggiuntaAlNome}</span>
+        )}
       </button>
     );
   },

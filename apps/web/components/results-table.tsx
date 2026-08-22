@@ -50,6 +50,7 @@ import { StatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Suggerimento } from '@/components/ui/suggerimento';
+import { motivoMancante } from '@app/core/comandi';
 import { cn } from '@/lib/utils';
 import { fettaDiPagina } from '@/lib/paginazione';
 import {
@@ -960,7 +961,7 @@ export function ResultsTable({
                     variant="outline"
                     size="sm"
                     onClick={() => setPagina((p) => Math.max(0, p - 1))}
-                    disabled={fetta.pagina === 0}
+                    nonDisponibile={fetta.pagina === 0 ? 'Sei sulla prima pagina.' : ''}
                   >
                     Precedenti
                   </Button>
@@ -971,7 +972,9 @@ export function ResultsTable({
                     variant="outline"
                     size="sm"
                     onClick={() => setPagina((p) => Math.min(fetta.pagine - 1, p + 1))}
-                    disabled={fetta.pagina >= fetta.pagine - 1}
+                    nonDisponibile={
+                      fetta.pagina >= fetta.pagine - 1 ? 'Sei sull’ultima pagina.' : ''
+                    }
                   >
                     Successive
                   </Button>
@@ -1468,7 +1471,14 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={busy}>
               Chiudi
             </Button>
-            <Button size="sm" onClick={run} disabled={busy || langs.size === 0}>
+            <Button
+              size="sm"
+              onClick={run}
+              loading={busy}
+              nonDisponibile={motivoMancante([
+                { manca: langs.size === 0, cosa: 'almeno una lingua' },
+              ])}
+            >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
               {busy ? 'Traduco…' : `Avvia${langs.size ? ` (${langs.size})` : ''}`}
             </Button>
@@ -1717,8 +1727,15 @@ function ProductAttributesPanel({
                         className="h-8 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 text-xs text-violet-900 placeholder:text-violet-400 focus:border-violet-300 focus:outline-none"
                         autoFocus
                       />
-                      <Button size="sm" onClick={() => sendFeedback(a.attributeId)} disabled={fbBusy || !fbValue.trim()}>
-                        {fbBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      <Button
+                        size="sm"
+                        onClick={() => sendFeedback(a.attributeId)}
+                        loading={fbBusy}
+                        nonDisponibile={motivoMancante([
+                          { manca: !fbValue.trim(), cosa: 'cosa correggere' },
+                        ])}
+                      >
+                        <Check className="h-4 w-4" />
                         Invia
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => { setFbOpen(null); setFbValue(''); }} disabled={fbBusy}>

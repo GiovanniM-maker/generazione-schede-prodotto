@@ -110,7 +110,12 @@ export function AccountClient({ email, isOwner }: { email: string; isOwner: bool
             <Button
               variant="danger"
               onClick={handleDelete}
-              disabled={pending || confirmation.trim().toUpperCase() !== 'ELIMINA'}
+              loading={pending}
+              nonDisponibile={
+                confirmation.trim().toUpperCase() === 'ELIMINA'
+                  ? ''
+                  : 'Scrivi ELIMINA nel campo qui sopra per confermare.'
+              }
             >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Elimina definitivamente

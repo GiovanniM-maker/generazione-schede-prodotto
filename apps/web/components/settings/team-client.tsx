@@ -20,6 +20,7 @@ import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Avviso } from '@/components/ui/avviso';
 import { ConfermaDistruttiva } from '@/components/ui/overlay';
+import { motivoMancante } from '@app/core/comandi';
 
 export function TeamClient({
   members,
@@ -132,7 +133,13 @@ export function TeamClient({
                 <option value="owner">Proprietario</option>
               </Select>
             </div>
-            <Button type="submit" disabled={pending || !email.trim()}>
+            <Button
+              type="submit"
+              loading={pending}
+              nonDisponibile={motivoMancante([
+                { manca: !email.trim(), cosa: 'l’indirizzo di chi invitare' },
+              ])}
+            >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               Invita
             </Button>

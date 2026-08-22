@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
 import { Aiuto } from '@/components/ui/suggerimento';
+import { motivoMancante } from '@app/core/comandi';
 import { cn } from '@/lib/utils';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
@@ -1010,16 +1011,32 @@ export function OnboardingStepper({
               </Button>
             )}
 
+            {/* `loading` invece della rotella infilata a mano: l'etichetta
+                resta, quindi il comando non si restringe e la barra non salta.
+                E `nonDisponibile` invece di `disabled`: prima il pulsante si
+                spegneva e basta, e chi non capiva cosa mancasse non aveva un
+                posto dove leggerlo — su telefono, dove l'autocompilazione
+                spesso non fa scattare la validazione, restava spento con il
+                modulo GIÀ giusto. */}
             {step === 1 && (
-              <Button type="submit" form="passo-azienda" disabled={loading || !name.trim()}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <Button
+                type="submit"
+                form="passo-azienda"
+                loading={loading}
+                nonDisponibile={motivoMancante([
+                  { manca: !name.trim(), cosa: 'il nome dell’azienda' },
+                ])}
+              >
                 Continua
                 <ArrowRight className="h-4 w-4" />
               </Button>
             )}
             {step === 2 && (
-              <Button onClick={submitSector} disabled={loading || !sectorId}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <Button
+                onClick={submitSector}
+                loading={loading}
+                nonDisponibile={motivoMancante([{ manca: !sectorId, cosa: 'il settore' }])}
+              >
                 Continua
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -1027,23 +1044,29 @@ export function OnboardingStepper({
             {step === 3 && (
               <Button
                 onClick={submitCategories}
-                disabled={loading || categoryIds.length === 0}
+                loading={loading}
+                nonDisponibile={motivoMancante([
+                  { manca: categoryIds.length === 0, cosa: 'almeno una categoria' },
+                ])}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Continua
                 <ArrowRight className="h-4 w-4" />
               </Button>
             )}
             {step === 4 && (
-              <Button onClick={submitAttributes} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <Button onClick={submitAttributes} loading={loading}>
                 Continua
                 <ArrowRight className="h-4 w-4" />
               </Button>
             )}
             {step === 5 && (
-              <Button onClick={submitPreset} disabled={loading || !presetName.trim()}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <Button
+                onClick={submitPreset}
+                loading={loading}
+                nonDisponibile={motivoMancante([
+                  { manca: !presetName.trim(), cosa: 'il nome del preset' },
+                ])}
+              >
                 Crea preset
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -1051,18 +1074,16 @@ export function OnboardingStepper({
             {step === 6 && (
               <Button
                 onClick={generateBrand}
-                disabled={
-                  loading ||
-                  !style ||
-                  (style === 'Personalizzato' && !custom.trim())
-                }
+                loading={loading}
+                nonDisponibile={motivoMancante([
+                  { manca: !style, cosa: 'il tono di voce' },
+                  {
+                    manca: style === 'Personalizzato' && !custom.trim(),
+                    cosa: 'la descrizione del tono personalizzato',
+                  },
+                ])}
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generazione…
-                  </>
-                ) : (
+                {loading ? 'Generazione…' : (
                   <>
                     Genera profilo
                     <ArrowRight className="h-4 w-4" />
@@ -1071,8 +1092,7 @@ export function OnboardingStepper({
               </Button>
             )}
             {step === 7 && (
-              <Button onClick={finish} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <Button onClick={finish} loading={loading}>
                 Vai alla dashboard
                 <ArrowRight className="h-4 w-4" />
               </Button>
