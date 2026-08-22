@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Avviso } from '@/components/ui/avviso';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { riassuntoErrori } from '@app/core/moduli';
 
 // ---------------------------------------------------------------------------
 // I dati con cui esce la fattura.
@@ -27,6 +28,14 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
   const [errore, setErrore] = useState<string | null>(null);
   const [salvato, setSalvato] = useState(false);
   const [completi, setCompleti] = useState(iniziali.completi);
+  /**
+   * L'errore del campo colpevole, non della pagina.
+   *
+   * Prima il server rispondeva con una stringa sola e il modulo la mostrava
+   * in cima: su dieci campi diceva «qualcosa non va» senza dire dove. Adesso
+   * l'azione dice anche QUALE campo, e il messaggio va lì.
+   */
+  const [erroriCampo, setErroriCampo] = useState<Record<string, string>>({});
   const [v, setV] = useState({
     billingName: iniziali.billingName ?? '',
     vatNumber: iniziali.vatNumber ?? '',
@@ -40,24 +49,72 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
     country: iniziali.country || 'IT',
   });
 
+  /** A quale controllo appartiene ogni valore: serve a posare l'errore. */
+  const CAMPO: Partial<Record<keyof typeof v, string>> = {
+    billingName: 'fat-nome',
+    vatNumber: 'fat-piva',
+    taxCode: 'fat-cf',
+    sdiCode: 'fat-sdi',
+    pecEmail: 'fat-pec',
+    address: 'fat-indirizzo',
+    zip: 'fat-cap',
+    city: 'fat-citta',
+  };
+
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setV((p) => ({ ...p, [k]: e.target.value }));
     setSalvato(false);
+    // L'errore sparisce mentre si rimedia. Senza, bisognerebbe reinviare il
+    // modulo per sapere se il campo adesso va bene: si scrive alla cieca.
+    const id = CAMPO[k];
+    if (id && erroriCampo[id]) {
+      setErroriCampo((p) => {
+        const q = { ...p };
+        delete q[id];
+        return q;
+      });
+    }
   };
 
   function salva() {
     setErrore(null);
+    setErroriCampo({});
     setSalvato(false);
     startTransition(async () => {
       const res = await salvaDatiFatturazione(v);
       if (!res.ok) {
-        setErrore(res.error);
+        if (res.campo) {
+          setErroriCampo({ [res.campo]: res.error });
+          // Il fuoco va sul campo colpevole. È la parte che rende inutile
+          // rileggere il modulo: si arriva dove serve senza cercare.
+          requestAnimationFrame(() => {
+            const el = document.getElementById(res.campo!);
+            el?.focus();
+            el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          });
+        } else {
+          setErrore(res.error);
+        }
         return;
       }
       setCompleti(res.data.completi);
       setSalvato(true);
     });
   }
+
+  // L'ordine è quello in cui i campi stanno nella pagina, non quello in cui il
+  // validatore li ha trovati: chi preme il sommario si aspetta di finire in
+  // cima al modulo, non a metà.
+  const sommario = riassuntoErrori(erroriCampo, [
+    { id: 'fat-nome', etichetta: 'Ragione sociale' },
+    { id: 'fat-piva', etichetta: 'Partita IVA' },
+    { id: 'fat-cf', etichetta: 'Codice fiscale' },
+    { id: 'fat-sdi', etichetta: 'Codice destinatario' },
+    { id: 'fat-pec', etichetta: 'PEC' },
+    { id: 'fat-via', etichetta: 'Indirizzo' },
+    { id: 'fat-cap', etichetta: 'CAP' },
+    { id: 'fat-citta', etichetta: 'Città' },
+  ]);
 
   return (
     <div id="dati-fattura">
@@ -81,6 +138,22 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
           </Avviso>
         )}
 
+        {sommario.quanti > 0 && (
+          <Avviso tono="errore" className="mb-4">
+            <button
+              type="button"
+              className="text-left underline underline-offset-2"
+              onClick={() => {
+                const el = sommario.primo ? document.getElementById(sommario.primo) : null;
+                el?.focus();
+                el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              }}
+            >
+              {sommario.titolo}
+            </button>
+          </Avviso>
+        )}
+
         {!isOwner ? (
           <p className="text-sm text-ink-500">
             I dati di fatturazione li imposta il proprietario dell’organizzazione.
@@ -101,6 +174,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
               <Label htmlFor="fat-nome">Ragione sociale o nome e cognome</Label>
               <Input
                 id="fat-nome"
+                errore={erroriCampo['fat-nome']}
                 value={v.billingName}
                 onChange={set('billingName')}
                 placeholder="Cascina Verde S.r.l."
@@ -113,6 +187,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 <Label htmlFor="fat-piva">Partita IVA</Label>
                 <Input
                   id="fat-piva"
+                errore={erroriCampo['fat-piva']}
                   value={v.vatNumber}
                   onChange={set('vatNumber')}
                   placeholder="12345678903"
@@ -127,6 +202,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 <Label htmlFor="fat-cf">Codice fiscale</Label>
                 <Input
                   id="fat-cf"
+                errore={erroriCampo['fat-cf']}
                   value={v.taxCode}
                   onChange={set('taxCode')}
                   placeholder="RSSMRA80A01H501U"
@@ -142,6 +218,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 <Label htmlFor="fat-sdi">Codice destinatario (SDI)</Label>
                 <Input
                   id="fat-sdi"
+                errore={erroriCampo['fat-sdi']}
                   value={v.sdiCode}
                   onChange={set('sdiCode')}
                   placeholder="0000000"
@@ -155,6 +232,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 <Label htmlFor="fat-pec">PEC</Label>
                 <Input
                   id="fat-pec"
+                errore={erroriCampo['fat-pec']}
                   type="email"
                   value={v.pecEmail}
                   onChange={set('pecEmail')}
@@ -170,6 +248,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
               <Label htmlFor="fat-via">Indirizzo</Label>
               <Input
                 id="fat-via"
+                errore={erroriCampo['fat-via']}
                 value={v.address}
                 onChange={set('address')}
                 placeholder="Via Roma 1"
@@ -182,6 +261,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 <Label htmlFor="fat-cap">CAP</Label>
                 <Input
                   id="fat-cap"
+                errore={erroriCampo['fat-cap']}
                   value={v.zip}
                   onChange={set('zip')}
                   placeholder="20121"
@@ -193,6 +273,7 @@ export function DatiFatturazioneForm({ iniziali, isOwner }: Props) {
                 <Label htmlFor="fat-citta">Città</Label>
                 <Input
                   id="fat-citta"
+                errore={erroriCampo['fat-citta']}
                   value={v.city}
                   onChange={set('city')}
                   placeholder="Milano"
