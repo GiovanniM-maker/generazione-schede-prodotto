@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } from './sessione';
 import { seminaScenario } from './semina';
+import { chiudiBanner, chiudiGuida } from './schermo';
 
 // ---------------------------------------------------------------------------
 // La fonte «Lista SKU», nel browser.
@@ -48,11 +49,15 @@ test.describe('fonte Lista SKU', () => {
     await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
 
     await expect(page.getByRole('button', { name: /Preset/i }).first()).toBeVisible({ timeout: 20000 });
+    await chiudiBanner(page);
     await page.locator('#batch-name').fill('Lista SKU');
+    // Vedi `import-pdf.spec.ts`: la guida copre il comando principale.
+    await chiudiGuida(page);
     await page.getByRole('button', { name: /crea e continua/i }).click();
     await expect(page).toHaveURL(/batch=/, { timeout: 20000 });
 
-    await page.getByRole('button', { name: /^continua$/i }).first().click();
+    // «Crea e continua» porta direttamente a CARICA.
+    await chiudiGuida(page);
     await expect(page.getByText(/scegli da dove arrivano i dati/i)).toBeVisible({ timeout: 15000 });
 
     // La scheda esiste e non è «In arrivo».

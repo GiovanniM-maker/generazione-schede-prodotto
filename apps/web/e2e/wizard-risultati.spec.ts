@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } from './sessione';
 import { seminaAbbonamento, seminaScenario, type ScenarioSeminato } from './semina';
+import { chiudiBanner, chiudiGuida } from './schermo';
 
 // ---------------------------------------------------------------------------
 // La soglia dello sforo è UN pixel, non zero.
@@ -58,17 +59,6 @@ test.afterEach(async () => {
  * le stesse parole, e prendere il primo che capita chiudeva quello sbagliato
  * lasciando il banner a intercettare i clic.
  */
-async function chiudiBanner(page: Page) {
-  // Il banner si monta dopo l'idratazione: cercarlo subito significa non
-  // trovarlo e ritrovarselo un attimo dopo sopra al pulsante principale.
-  const banner = page.getByRole('region', { name: /avviso cookie/i });
-  await banner.waitFor({ state: 'visible', timeout: 4000 }).catch(() => undefined);
-  await banner
-    .getByRole('button', { name: /ho capito/i })
-    .click({ timeout: 3000 })
-    .catch(() => undefined);
-  await banner.waitFor({ state: 'detached', timeout: 4000 }).catch(() => undefined);
-}
 
 /** Comandi sotto la soglia di tocco, esclusi gli involucri e l'overlay di Next. */
 async function comandiTroppoPiccoli(page: Page) {
@@ -449,16 +439,6 @@ test.describe('wizard · non perde il lavoro', () => {
   // Questi percorrono il wizard davvero: creano un batch e ricaricano.
   test.setTimeout(120_000);
 
-  /** Il velo della guida copre i pulsanti: un clic lo chiude. */
-  async function chiudiGuida(page: Page) {
-    for (let i = 0; i < 4; i++) {
-      const velo = page.locator('[role="dialog"][aria-label^="Guida"]');
-      if ((await velo.count()) === 0) break;
-      await velo.first().click({ position: { x: 5, y: 5 }, force: true }).catch(() => undefined);
-      await page.waitForTimeout(300);
-    }
-  }
-
   test('il ricaricamento non riporta al primo passo', async ({ page }) => {
     // Era il difetto trovato da tre revisioni su sei: F5 al passo 4 riportava
     // al passo 1 e il batch creato restava irraggiungibile nel database.
@@ -478,8 +458,11 @@ test.describe('wizard · non perde il lavoro', () => {
     await avanti.click();
     await expect(page.getByText(/passo 2\b/i).first()).toBeVisible({ timeout: 15000 });
 
-    // L'indirizzo porta con sé dove siamo: è quello che rende possibile tornare.
-    await expect(page).toHaveURL(/\?batch=[0-9a-f-]{36}&passo=2/i);
+    // L'indirizzo porta con sé dove siamo: è quello che rende possibile
+    // tornare. Il nome è cambiato — `passo=2` è diventato `stadio=carica` —
+    // ma la proprietà è la stessa, e i vecchi indirizzi continuano a valere:
+    // c'è una prova apposta in `autenticato.spec.ts`.
+    await expect(page).toHaveURL(/\?batch=[0-9a-f-]{36}&stadio=carica/i);
 
     await page.reload({ waitUntil: 'networkidle' });
     await chiudiBanner(page);

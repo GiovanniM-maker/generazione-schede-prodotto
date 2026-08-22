@@ -266,8 +266,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
   const [sampleContent, setSampleContent] = useState<SampleCopy | null>(null);
 
-  // I fumetti dello stadio: quelli di tutti i passi che si vedono, in fila.
-  const fumetti = passiInVista.flatMap((p) => STEP_TOURS[p] ?? []);
+  // I fumetti dello stadio: SOLO quelli del suo primo passo.
+  //
+  // Il primo giro li univa tutti — dentro «Prepara» sarebbero stati quelli del
+  // passo 1 più quelli del 2 — e il risultato era una guida più lunga proprio
+  // sulla prima schermata. Cioè l'opposto di quello che questa tappa serve a
+  // fare. Se ne accorge la suite del browser: due prove che non chiudevano mai
+  // la guida hanno cominciato a trovarsela davanti al comando principale.
+  const fumetti = STEP_TOURS[primoPasso(stadio)] ?? [];
 
   // Dentro uno stadio i pezzi compaiono man mano: la fonte si sceglie prima
   // che ci sia qualcosa da caricare, e l'anteprima del foglio esiste solo dopo

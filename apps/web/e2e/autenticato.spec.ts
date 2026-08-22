@@ -277,8 +277,16 @@ test('il comando che non si può ancora usare resta raggiungibile e dice cosa ma
 // qualcosa, chi torna su un lavoro lasciato a metà ripartirebbe da capo.
 // ---------------------------------------------------------------------------
 test.describe('il wizard in cinque stadi', () => {
+  // Senza organizzazione `/app/batches/new` rimanda all'onboarding, e la prova
+  // finirebbe per cercare un titolo che sta su un'altra pagina. Ci sono
+  // cascato: le avevo scritte fuori da qui.
+  test.beforeEach(async () => {
+    if (utenteId) await seminaScenario(utenteId);
+  });
+
   test('si apre su «Prepara», e gli stadi sono cinque', async ({ page }) => {
     await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
+    await chiudiGuida(page);
     await expect(page.getByRole('heading', { name: 'Prepara', level: 1 })).toBeVisible({
       timeout: 20000,
     });
@@ -293,11 +301,12 @@ test.describe('il wizard in cinque stadi', () => {
 
   test('un indirizzo vecchio con `?passo=` porta ancora dove portava', async ({ page }) => {
     if (!utenteId) test.skip();
-    const scenario = await seminaScenario(utenteId);
+    const scenario = await seminaScenario(utenteId!);
     // 8 era «Mapping attributi», che adesso vive dentro «Mappa».
     await page.goto(`/app/batches/new?batch=${scenario.batchId}&passo=8`, {
       waitUntil: 'networkidle',
     });
+    await chiudiGuida(page);
     await expect(page.getByRole('heading', { name: 'Mappa', level: 1 })).toBeVisible({
       timeout: 20000,
     });
