@@ -6,29 +6,19 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
-      // ---------------------------------------------------------------
-      // La scala tipografica, ridefinita invece che riscritta ovunque.
+      // NOTA: la scala tipografica (corpo da 14 a 15 px) NON è qui.
       //
-      // Il conteggio era questo: `text-sm` 298 volte e `text-xs` 198, cioè
-      // **l'86% di tutto il testo del prodotto in due sole misure** — 14 px e
-      // 12 px. `text-base` appena 25 volte. Non era una scala: era una taglia
-      // sola con una variante più piccola, e 198 usi di 12 px sono un
-      // problema di leggibilità prima ancora che di gerarchia.
+      // C'era, ed è stata tolta: faceva scorrere di lato la dashboard di 6 px
+      // a 320 px — trovato da `wizard-risultati.spec.ts`, che prova sei
+      // larghezze e non solo le due estreme. Il difetto non si riproduce
+      // ricostruendo a mano intestazione, dashboard e portale dei riscontri:
+      // sfora un elemento che sta in un componente non ricostruibile fuori
+      // dall'applicazione vera.
       //
-      // Cambiarli uno per uno voleva dire toccare cinquecento punti e
-      // sbagliarne una parte. Ridefinire i due gradini li sposta tutti
-      // insieme: `sm` diventa il corpo vero (15 px) e `xs` smette di essere
-      // sotto la soglia della lettura comoda (13 px).
-      //
-      // `micro` resta a 11 px ed è l'UNICO posto in cui si scende: le
-      // etichette di colonna maiuscole, che si guardano e non si leggono.
-      // ---------------------------------------------------------------
-      fontSize: {
-        micro: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.08em' }], // 11px
-        xs: ['0.8125rem', { lineHeight: '1.125rem' }],                          // 13px (era 12)
-        sm: ['0.9375rem', { lineHeight: '1.4375rem' }],                         // 15px (era 14)
-        base: ['1rem', { lineHeight: '1.6rem' }],                               // 16px
-      },
+      // Cambiare `text-sm` sposta OGNI testo del prodotto in una volta sola:
+      // è la modifica con più leva dell'intero audit, e proprio per questo non
+      // va infilata in una PR che serve a un'altra cosa. Torna da sola, con la
+      // suite del browser come strumento di misura invece che come rete.
       // L'impilamento ha cinque piani e un nome ciascuno. Prima erano otto
       // numeri scelti a caso — 10, 20, 30, 40, 50, 60, 70, 100 — e il
       // prossimo pannello sarebbe stato il nono.

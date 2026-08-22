@@ -116,21 +116,10 @@ describe('i comandi', () => {
   });
 });
 
-describe('la scala tipografica', () => {
+// La scala tipografica arriva con la sua PR: qui era stata infilata e faceva
+// scorrere di lato la dashboard di 6 px a 320 px.
+describe('i piani dell’impilamento', () => {
   const config = readFileSync(join(RADICE, 'tailwind.config.ts'), 'utf8');
-
-  it('il corpo del testo è 15 px, non 14', () => {
-    // Il conteggio era: `text-sm` 298 volte, `text-xs` 198 — l'86% di tutto il
-    // testo del prodotto in due misure sole. Ridefinire i due gradini li
-    // sposta tutti insieme; toccarli uno per uno voleva dire cinquecento
-    // modifiche e sbagliarne una parte.
-    expect(config).toMatch(/sm: \['0\.9375rem'/);
-  });
-
-  it('sotto i 13 px si scende solo per le etichette', () => {
-    expect(config).toMatch(/xs: \['0\.8125rem'/);
-    expect(config).toMatch(/micro: \['0\.6875rem'/);
-  });
 
   it('l’impilamento ha dei nomi, non dei numeri a caso', () => {
     // Erano otto valori scelti uno alla volta: 10, 20, 30, 40, 50, 60, 70, 100.
