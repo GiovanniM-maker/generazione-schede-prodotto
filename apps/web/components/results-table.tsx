@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -49,6 +49,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
+import { Suggerimento } from '@/components/ui/suggerimento';
 import { cn } from '@/lib/utils';
 import { fettaDiPagina } from '@/lib/paginazione';
 import {
@@ -613,12 +614,11 @@ export function ResultsTable({
       {/* Tabs + azione multipla */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className={cn('flex-wrap gap-2 sm:flex', strumentiAperti ? 'flex' : 'hidden sm:flex')}>
-          {TABS.map((t) => (
+          {TABS.map((t) => {
+            const linguetta = (
             <button
-              key={t.key}
               type="button"
               onClick={() => setFilter(t.key)}
-              title={SPIEGAZIONI[t.key]}
               className={cn(
                 'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent',
                 filter === t.key
@@ -638,7 +638,19 @@ export function ResultsTable({
                 {counts[t.key]}
               </span>
             </button>
-          ))}
+            );
+            // La spiegazione del giudizio, prima di premerlo. Prima stava in un
+            // `title`: si scopriva col mouse fermo un secondo e mezzo, e su un
+            // dito mai — cioè proprio dove la differenza fra «Parziale» e
+            // «Insufficiente» decide se una scheda si pubblica.
+            const spiegazione = SPIEGAZIONI[t.key];
+            if (!spiegazione) return <Fragment key={t.key}>{linguetta}</Fragment>;
+            return (
+              <Suggerimento key={t.key} descrizione lato="sotto" testo={spiegazione}>
+                {linguetta}
+              </Suggerimento>
+            );
+          })}
         </div>
         <div className="flex items-center gap-3">
           {selected.size > 0 && (
@@ -1409,15 +1421,16 @@ function TranslatePanel({ batchId, productCount }: { batchId: string; productCou
 
   return (
     <div className="relative">
-      <Button
-        size="sm"
-        onClick={() => setOpen((o) => !o)}
-        className="border border-brand-accent/30 bg-brand-soft text-brand-accent hover:bg-brand-accent hover:text-white"
-        title="Traduci le schede in altre lingue"
-      >
-        <Globe className="h-4 w-4" />
-        Traduci in 6 lingue
-      </Button>
+      <Suggerimento descrizione testo="Traduci le schede in altre lingue">
+        <Button
+          size="sm"
+          onClick={() => setOpen((o) => !o)}
+          className="border border-brand-accent/30 bg-brand-soft text-brand-accent hover:bg-brand-accent hover:text-white"
+        >
+          <Globe className="h-4 w-4" />
+          Traduci in 6 lingue
+        </Button>
+      </Suggerimento>
       {open && (
         <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-ink-200 bg-white p-3 shadow-xl">
           <div className="flex items-center justify-between">
@@ -1629,8 +1642,14 @@ function ProductAttributesPanel({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {/* Barra di affidabilità + % */}
-                  <div className="flex items-center gap-1.5" title={`Affidabilità ${pct}%`}>
-                    <div className="h-1.5 w-12 overflow-hidden rounded-full bg-ink-200">
+                  {/* Il numero si vedeva, la parola no: «87%» da solo non dice
+                      percentuale DI COSA. Con `sr-only` la parola c'è per chi
+                      ascolta e non ruba spazio a chi guarda. Il `title` qui non
+                      serviva a nessuno dei due: su un dito non compare, e i
+                      lettori di schermo spesso non lo annunciano. */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="sr-only">Affidabilità</span>
+                    <div aria-hidden="true" className="h-1.5 w-12 overflow-hidden rounded-full bg-ink-200">
                       <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
                     </div>
                     <span className={cn('w-9 text-right text-xs font-bold tabular-nums', pctColor)}>

@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
+import { Suggerimento } from '@/components/ui/suggerimento';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 interface ChatMsg {
@@ -383,16 +384,16 @@ export function PresetCopilotPanel({
       <div className="border-t border-ink-100 pt-3">
         <div className="flex items-end gap-2">
           {voiceSupported && (
-            <Button
-              variant={listening ? 'primary' : 'outline'}
-              size="md"
-              onClick={toggleVoice}
-              disabled={busy}
-              aria-label={listening ? 'Ferma dettatura' : 'Detta con la voce'}
-              title={listening ? 'Ferma dettatura' : 'Detta con la voce'}
-            >
-              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </Button>
+            <Suggerimento testo={listening ? 'Ferma dettatura' : 'Detta con la voce'}>
+              <Button
+                variant={listening ? 'primary' : 'outline'}
+                size="md"
+                onClick={toggleVoice}
+                disabled={busy}
+              >
+                {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+            </Suggerimento>
           )}
           <Textarea
             aria-label="Scrivi al copilota"

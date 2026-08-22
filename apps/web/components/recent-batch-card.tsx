@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/status-badge';
 import { ConfermaDistruttiva } from '@/components/ui/overlay';
+import { Suggerimento } from '@/components/ui/suggerimento';
 import { formatDate } from '@/lib/utils';
 
 const IN_PROGRESS = new Set(['queued', 'processing']);
@@ -145,18 +146,18 @@ export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwne
           {/* Cancellare distrugge il lavoro di tutti: il cestino si mostra solo
               a chi il server lascerebbe premerlo. */}
           {isOwner && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setError(null);
-                setConfirmOpen(true);
-              }}
-              aria-label={`Elimina batch ${batch.name}`}
-              title="Elimina batch"
-            >
-              <Trash2 className="h-4 w-4 text-red-500" />
-            </Button>
+            <Suggerimento testo={`Elimina batch ${batch.name}`}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setError(null);
+                  setConfirmOpen(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            </Suggerimento>
           )}
         </div>
       </CardContent>

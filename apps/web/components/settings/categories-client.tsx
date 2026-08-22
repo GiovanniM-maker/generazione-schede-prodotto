@@ -234,7 +234,6 @@ export function CategoriesClient({
                           variant="ghost"
                           size="sm"
                           disabled={pending}
-                          title="Duplica per personalizzare"
                           onClick={() => handleDuplicate(c.id)}
                         >
                           <Copy className="h-4 w-4" />

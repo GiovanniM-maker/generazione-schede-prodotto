@@ -40,6 +40,7 @@ import { Select } from '@/components/ui/select';
 import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { PresetCopilotPanel } from '@/components/settings/preset-copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
+import { Aiuto, Suggerimento } from '@/components/ui/suggerimento';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 const KIND_LABELS: Record<string, string> = {
@@ -152,21 +153,25 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       subtitle="Configura categorie, attributi e prompt del preset."
       actions={
         <>
-        <Button
-          variant="outline"
-          onClick={() => {
-            setError(null);
-            setCopilotOpen(true);
-          }}
-          title={
+        <Suggerimento
+          descrizione
+          testo={
             editable
               ? 'Costruisci il preset con l’AI'
               : 'Verrà creata una bozza per applicare le modifiche'
           }
         >
-          <Sparkles className="h-4 w-4" />
-          Chiedi al Copilot
-        </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setError(null);
+              setCopilotOpen(true);
+            }}
+          >
+            <Sparkles className="h-4 w-4" />
+            Chiedi al Copilot
+          </Button>
+        </Suggerimento>
         {editable && (
           <>
             <Button
@@ -195,19 +200,20 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
               <ClipboardList className="h-4 w-4" />
               Attributi da lista
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              title="Rimuovi tutte le categorie e gli attributi dalla bozza"
-              onClick={() => {
-                setError(null);
-                setConfirmClear(true);
-              }}
-            >
-              <Eraser className="h-4 w-4" />
-              Svuota
-            </Button>
+            <Suggerimento descrizione testo="Rimuovi tutte le categorie e gli attributi dalla bozza">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  setConfirmClear(true);
+                }}
+              >
+                <Eraser className="h-4 w-4" />
+                Svuota
+              </Button>
+            </Suggerimento>
           </>
         )}
         {editable ? (
@@ -324,18 +330,19 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                     <Plus className="h-4 w-4" />
                     Aggiungi attributo
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!editable}
-                    title="Rimuovi categoria dal preset"
-                    onClick={() => {
-                      setError(null);
-                      setRemoveCatTarget(current.presetCategoryId);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+                  <Suggerimento testo="Rimuovi categoria dal preset">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!editable}
+                      onClick={() => {
+                        setError(null);
+                        setRemoveCatTarget(current.presetCategoryId);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </Suggerimento>
                 </div>
               </div>
 
@@ -719,10 +726,7 @@ function AttributeEditor({
           <span className="text-xs text-ink-500">{etichettaTipoDato(attr.dataType)}</span>
         </div>
         <div className="flex items-center gap-1">
-          <label
-            className="mr-2 flex items-center gap-1.5 text-sm text-ink-600"
-            title="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato."
-          >
+          <label className="flex items-center gap-1.5 text-sm text-ink-600">
             <input
               type="checkbox"
               checked={attr.isRequired}
@@ -734,33 +738,37 @@ function AttributeEditor({
             />
             Obbligatorio
           </label>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!editable || isFirst || pending}
-            onClick={() => move(-1)}
-            title="Sposta su"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!editable || isLast || pending}
-            onClick={() => move(1)}
-            title="Sposta giù"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!editable || pending}
-            onClick={() => setConfirmRemove(true)}
-            title="Rimuovi attributo"
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
+          <Aiuto testo="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato." />
+          <Suggerimento testo="Sposta su" avvolgi="mr-2 inline-flex">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!editable || isFirst || pending}
+              onClick={() => move(-1)}
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+          </Suggerimento>
+          <Suggerimento testo="Sposta giù" avvolgi="inline-flex">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!editable || isLast || pending}
+              onClick={() => move(1)}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </Suggerimento>
+          <Suggerimento testo="Rimuovi attributo" avvolgi="inline-flex">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!editable || pending}
+              onClick={() => setConfirmRemove(true)}
+            >
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          </Suggerimento>
         </div>
       </div>
 

@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Avviso } from '@/components/ui/avviso';
+import { Suggerimento } from '@/components/ui/suggerimento';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 interface ChatMessage {
@@ -501,28 +502,36 @@ export function CopilotPanel({
             disabled={starting || pending}
             className="flex-1"
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={startRecording}
-            disabled={
-              !audioSupported ||
-              starting ||
-              pending ||
-              recState === 'recording' ||
-              recState === 'transcribing'
-            }
-            title={
+          {/* `avvolgi`: un comando spento non emette eventi del puntatore, e
+              quindi il suo suggerimento non comparirebbe proprio nel caso in cui
+              serve — cioè per dire PERCHÉ è spento. L'ascolto sta sul
+              contenitore, che spento non è. */}
+          <Suggerimento
+            descrizione
+            avvolgi="inline-flex"
+            testo={
               audioSupported
                 ? 'Registra un messaggio vocale'
                 : 'Registrazione audio non supportata da questo browser'
             }
-            aria-label="Registra messaggio vocale"
           >
-            <Mic className="h-4 w-4" />
-            <span className="sr-only">Registra messaggio vocale</span>
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={startRecording}
+              disabled={
+                !audioSupported ||
+                starting ||
+                pending ||
+                recState === 'recording' ||
+                recState === 'transcribing'
+              }
+            >
+              <Mic className="h-4 w-4" />
+              <span className="sr-only">Registra messaggio vocale</span>
+            </Button>
+          </Suggerimento>
           <Button
             type="button"
             size="md"
@@ -617,24 +626,29 @@ export function CopilotPanel({
           )}
 
           <div className="mt-4 flex flex-col gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirm}
-              disabled={!canConfirm || pending}
-              title={
+            <Suggerimento
+              descrizione
+              avvolgi="flex [&>button]:w-full"
+              testo={
                 canConfirm
                   ? 'Crea e pubblica'
                   : 'Completa la bozza prima di confermare'
               }
             >
-              {pending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )}
-              Conferma e crea
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleConfirm}
+                disabled={!canConfirm || pending}
+              >
+                {pending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Conferma e crea
+              </Button>
+            </Suggerimento>
             <Button
               type="button"
               variant="outline"

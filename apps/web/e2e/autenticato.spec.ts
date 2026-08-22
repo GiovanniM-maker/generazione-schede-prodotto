@@ -155,3 +155,67 @@ test.describe('con un catalogo configurato', () => {
     expect(scoperto, 'l’avviso è coperto da qualcosa').toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// I comandi fatti di sola icona hanno un nome.
+//
+// Il difetto di partenza: venti comandi il cui unico nome era un `title` del
+// browser. Su un dito il `title` non compare MAI, quindi su telefono erano
+// icone da indovinare; e diversi lettori di schermo non lo annunciano affatto,
+// quindi non erano nomi nemmeno lì.
+//
+// Questi test girano su ENTRAMBI i profili, desktop e telefono. È il punto:
+// il nome deve esserci in tutti e due, il riquadro solo dove c'è un puntatore.
+// ---------------------------------------------------------------------------
+test.describe('i comandi di sola icona', () => {
+  test.beforeEach(async () => {
+    if (utenteId) await seminaScenario(utenteId);
+  });
+
+  test('hanno un nome anche dove il `title` non comparirebbe mai', async ({ page }) => {
+    await page.goto('/app/settings/presets', { waitUntil: 'networkidle' });
+    // Il nome si cerca per RUOLO: è così che lo trova un lettore di schermo, e
+    // così che lo pronuncia chi comanda a voce. Con il `title` questa riga
+    // falliva.
+    const rinomina = page.getByRole('button', { name: 'Rinomina' }).first();
+    if ((await rinomina.count()) === 0) test.skip();
+    await expect(rinomina).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: 'Archivia' }).first()).toBeVisible();
+  });
+
+  test('col puntatore mostrano il riquadro, e resta dentro lo schermo', async ({ page }, info) => {
+    // Il riquadro è per chi ha un puntatore: sul profilo telefono non si prova
+    // ad aprirlo, si prova che il NOME c'è lo stesso (test qui sopra).
+    test.skip(info.project.name !== 'desktop', 'il riquadro serve dove c’è un puntatore');
+
+    await page.goto('/app/settings/presets', { waitUntil: 'networkidle' });
+    const archivia = page.getByRole('button', { name: 'Archivia' }).first();
+    if ((await archivia.count()) === 0) test.skip();
+
+    await archivia.hover();
+    // Il nome non è testo del pulsante: se questo testo si vede, viene dal
+    // riquadro. `RITARDO_APERTURA_MS` è 400: l'attesa qui è abbondante.
+    const riquadro = page.getByText('Archivia', { exact: true });
+    await expect(riquadro).toBeVisible({ timeout: 5000 });
+
+    const misure = await riquadro.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        sinistra: r.left,
+        destra: r.right,
+        alto: r.top,
+        basso: r.bottom,
+        larghezzaVista: window.innerWidth,
+        altezzaVista: window.innerHeight,
+        // Il riquadro non deve intercettare i clic: coprirebbe proprio la cosa
+        // che sta spiegando, e il clic successivo finirebbe su di lui.
+        eventi: getComputedStyle(el).pointerEvents,
+      };
+    });
+    expect(misure.sinistra, 'il riquadro esce a sinistra').toBeGreaterThanOrEqual(0);
+    expect(misure.destra, 'il riquadro esce a destra').toBeLessThanOrEqual(misure.larghezzaVista);
+    expect(misure.alto, 'il riquadro esce in alto').toBeGreaterThanOrEqual(0);
+    expect(misure.basso, 'il riquadro esce in basso').toBeLessThanOrEqual(misure.altezzaVista);
+    expect(misure.eventi).toBe('none');
+  });
+});

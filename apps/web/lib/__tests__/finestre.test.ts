@@ -124,7 +124,7 @@ describe('i piani dell’impilamento', () => {
   it('l’impilamento ha dei nomi, non dei numeri a caso', () => {
     // Erano otto valori scelti uno alla volta: 10, 20, 30, 40, 50, 60, 70, 100.
     // Il nono sarebbe stato scelto allo stesso modo.
-    for (const nome of ['sticky', 'header', 'overlay', 'guida', 'toast']) {
+    for (const nome of ['sticky', 'header', 'overlay', 'guida', 'suggerimento', 'toast']) {
       expect(config, `manca il piano «${nome}»`).toContain(`${nome}: '`);
     }
   });
@@ -134,7 +134,11 @@ describe('i piani dell’impilamento', () => {
     // guida guidata. A parità di piano vincerebbe l'ordine nel documento, che
     // è esattamente il tipo di dipendenza che si rompe da sola.
     const piano = (nome: string) => Number(config.match(new RegExp(`${nome}: '(\\d+)'`))?.[1]);
-    expect(piano('toast')).toBeGreaterThan(piano('guida'));
+    expect(piano('toast')).toBeGreaterThan(piano('suggerimento'));
+    // Il suggerimento sta sopra la guida: durante il giro guidato i comandi si
+    // usano davvero, e un nome coperto dal fumetto è un nome che non c'è. Ma
+    // sotto i riscontri: un suggerimento è una comodità, un errore no.
+    expect(piano('suggerimento')).toBeGreaterThan(piano('guida'));
     expect(piano('guida')).toBeGreaterThan(piano('overlay'));
     expect(piano('overlay')).toBeGreaterThan(piano('header'));
     expect(piano('header')).toBeGreaterThan(piano('sticky'));
