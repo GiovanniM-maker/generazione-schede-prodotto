@@ -118,16 +118,17 @@ export default async function AppLayout({
               )}
             </Link>
 
-            <span
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-1.5 text-sm font-medium text-white sm:px-3"
-              title="Crediti disponibili"
-            >
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-1.5 text-sm font-medium text-white sm:px-3">
               <Coins className="h-4 w-4 text-amber-500" />
               {credits}
               {/* `ink-300` e non `ink-500`: qui il fondo è scuro (`bg-brand`),
                   e la scala va letta al contrario. Il 500 caldo su questo
                   fondo sta sotto il 3:1. */}
-              <span className="hidden text-ink-300 lg:inline">crediti</span>
+              {/* Sotto `lg` la parola spariva del tutto e restava un numero
+                  accanto a una monetina: `sr-only` la toglie dagli occhi ma la
+                  lascia a chi ascolta. È lo stesso trattamento di «Dubbi» qui
+                  sopra. Prima la dava un `title`, che su un dito non compare. */}
+              <span className="sr-only text-ink-300 lg:not-sr-only">crediti</span>
             </span>
 
             <Link href="/app/billing">

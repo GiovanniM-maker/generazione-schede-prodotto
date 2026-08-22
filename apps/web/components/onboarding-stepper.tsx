@@ -30,6 +30,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
+import { Aiuto } from '@/components/ui/suggerimento';
 import { cn } from '@/lib/utils';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
@@ -777,40 +778,44 @@ export function OnboardingStepper({
                         {/* Prima "Attivo": è l'interruttore. "Obbligatorio" ha
                             senso solo se l'attributo è attivo, per questo si
                             disabilita da solo. */}
-                        <div className="flex shrink-0 items-center gap-4 text-sm">
-                          <label
-                            className="flex items-center gap-1.5 text-ink-600"
-                            title="Se spento, l'attributo non viene estratto né generato né esportato."
-                          >
-                            <input
-                              type="checkbox"
-                              checked={e.enabled}
-                              onChange={(ev) =>
-                                setOverride(cat, attr, {
-                                  enabled: ev.target.checked,
-                                })
-                              }
-                              className="h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent"
-                            />
-                            Attivo
-                          </label>
-                          <label
-                            className="flex items-center gap-1.5 text-ink-600"
-                            title="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato."
-                          >
-                            <input
-                              type="checkbox"
-                              checked={e.isRequired}
-                              disabled={!e.enabled}
-                              onChange={(ev) =>
-                                setOverride(cat, attr, {
-                                  isRequired: ev.target.checked,
-                                })
-                              }
-                              className="h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent disabled:opacity-40"
-                            />
-                            Obbligatorio
-                          </label>
+                        {/* Le due spiegazioni stavano su un `title` del
+                            `<label>`. Un'etichetta non prende il fuoco: con la
+                            tastiera erano irraggiungibili, e sul telefono pure.
+                            Ora sono un comando vero accanto alla casella. */}
+                        <div className="flex shrink-0 items-center gap-3 text-sm">
+                          <span className="flex items-center gap-1">
+                            <label className="flex items-center gap-1.5 text-ink-600">
+                              <input
+                                type="checkbox"
+                                checked={e.enabled}
+                                onChange={(ev) =>
+                                  setOverride(cat, attr, {
+                                    enabled: ev.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent"
+                              />
+                              Attivo
+                            </label>
+                            <Aiuto testo="Se spento, l'attributo non viene estratto né generato né esportato." />
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <label className="flex items-center gap-1.5 text-ink-600">
+                              <input
+                                type="checkbox"
+                                checked={e.isRequired}
+                                disabled={!e.enabled}
+                                onChange={(ev) =>
+                                  setOverride(cat, attr, {
+                                    isRequired: ev.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 rounded border-ink-300 text-brand-accent focus:ring-brand-accent disabled:opacity-40"
+                              />
+                              Obbligatorio
+                            </label>
+                            <Aiuto testo="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato." />
+                          </span>
                         </div>
                       </li>
                     );

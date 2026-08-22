@@ -22,6 +22,7 @@ import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { Avviso } from '@/components/ui/avviso';
+import { Suggerimento } from '@/components/ui/suggerimento';
 import { creaPresetDiEsempio } from '@/lib/actions/esempio';
 
 export function PresetsClient({
@@ -215,38 +216,41 @@ export function PresetsClient({
                   <TD className="text-ink-500">{formatDate(p.updatedAt)}</TD>
                   <TD>
                     <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Rinomina"
-                        onClick={() => {
-                          setError(null);
-                          setRenameTarget(p);
-                          setRenameValue(p.name);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Duplica"
-                        disabled={pending}
-                        onClick={() => handleDuplicate(p)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Archivia"
-                        onClick={() => {
-                          setError(null);
-                          setArchiveTarget(p);
-                        }}
-                      >
-                        <Archive className="h-4 w-4" />
-                      </Button>
+                      <Suggerimento testo="Rinomina">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setError(null);
+                            setRenameTarget(p);
+                            setRenameValue(p.name);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Suggerimento>
+                      <Suggerimento testo="Duplica" avvolgi="inline-flex">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={pending}
+                          onClick={() => handleDuplicate(p)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </Suggerimento>
+                      <Suggerimento testo="Archivia">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setError(null);
+                            setArchiveTarget(p);
+                          }}
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      </Suggerimento>
                     </div>
                   </TD>
                 </TR>

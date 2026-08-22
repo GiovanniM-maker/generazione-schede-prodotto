@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./interfaccia": "./src/interfaccia.ts",
-    "./moduli": "./src/moduli.ts"
+    "./moduli": "./src/moduli.ts",
+    "./suggerimento": "./src/suggerimento.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

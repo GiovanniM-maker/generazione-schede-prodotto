@@ -21,6 +21,7 @@ import { Select } from '@/components/ui/select';
 import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
+import { Suggerimento } from '@/components/ui/suggerimento';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 const KIND_LABELS: Record<string, string> = {
@@ -329,15 +330,16 @@ function CategoryAttributeRow({
             Obbligatorio
           </label>
           {editable && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => setConfirmRemove(true)}
-              title="Rimuovi attributo"
-            >
-              <Trash2 className="h-4 w-4 text-red-500" />
-            </Button>
+            <Suggerimento testo="Rimuovi attributo">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() => setConfirmRemove(true)}
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            </Suggerimento>
           )}
         </div>
       </div>

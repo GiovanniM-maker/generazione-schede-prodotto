@@ -29,6 +29,15 @@ const config: Config = {
         /** Guida a fumetti e chat d'aiuto: sopra le finestre, sotto i riscontri. */
         guida: '70',
         /**
+         * Il suggerimento sta sopra la guida e sotto i riscontri.
+         *
+         * Sopra la guida perché durante il giro guidato i comandi si usano
+         * davvero, e un nome coperto dal fumetto è un nome che non c'è. Sotto i
+         * riscontri perché un suggerimento è una comodità, un errore no: se si
+         * sovrappongono deve vincere l'errore.
+         */
+        suggerimento: '75',
+        /**
          * I riscontri stanno sopra tutto il resto.
          *
          * Non è una preferenza: un errore deve poter comparire mentre è aperta
