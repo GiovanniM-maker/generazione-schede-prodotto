@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, X, Pencil, Loader2, Inbox as InboxIcon, MessageCircleQuestion } from 'lucide-react';
+import { Check, X, Pencil, Inbox as InboxIcon, MessageCircleQuestion } from 'lucide-react';
 import { answerDoubtAction, type DoubtView } from '@/lib/actions/doubts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
+import { motivoMancante } from '@app/core/comandi';
 
 export function InboxClient({ initial }: { initial: DoubtView[] }) {
   const router = useRouter();
@@ -84,8 +85,15 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
                   className="max-w-xs"
                   autoFocus
                 />
-                <Button type="submit" size="sm" disabled={pending || !editValue.trim()}>
-                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                <Button
+                  type="submit"
+                  size="sm"
+                  loading={pending}
+                  nonDisponibile={motivoMancante([
+                    { manca: !editValue.trim(), cosa: 'il valore corretto' },
+                  ])}
+                >
+                  <Check className="h-4 w-4" />
                   Salva correzione
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={pending}>

@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Avviso } from '@/components/ui/avviso';
 import { Suggerimento } from '@/components/ui/suggerimento';
+import { motivoMancante } from '@app/core/comandi';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 interface ChatMessage {
@@ -473,7 +474,9 @@ export function CopilotPanel({
                 type="button"
                 size="sm"
                 onClick={handleUseTranscript}
-                disabled={!transcript.trim()}
+                nonDisponibile={motivoMancante([
+                { manca: !transcript.trim(), cosa: 'del testo trascritto' },
+              ])}
               >
                 <Check className="h-4 w-4" />
                 Usa testo
@@ -506,9 +509,11 @@ export function CopilotPanel({
               quindi il suo suggerimento non comparirebbe proprio nel caso in cui
               serve — cioè per dire PERCHÉ è spento. L'ascolto sta sul
               contenitore, che spento non è. */}
+          {/* Niente più `avvolgi`: `nonDisponibile` non usa `disabled`, quindi
+              il comando resta raggiungibile col Tab e il puntatore ci passa
+              sopra — il suggerimento compare da sé. */}
           <Suggerimento
             descrizione
-            avvolgi="inline-flex"
             testo={
               audioSupported
                 ? 'Registra un messaggio vocale'
@@ -520,12 +525,9 @@ export function CopilotPanel({
               variant="outline"
               size="md"
               onClick={startRecording}
-              disabled={
-                !audioSupported ||
-                starting ||
-                pending ||
-                recState === 'recording' ||
-                recState === 'transcribing'
+              disabled={starting || pending || recState === 'recording' || recState === 'transcribing'}
+              nonDisponibile={
+                audioSupported ? '' : 'Questo browser non sa registrare l’audio.'
               }
             >
               <Mic className="h-4 w-4" />
@@ -536,7 +538,10 @@ export function CopilotPanel({
             type="button"
             size="md"
             onClick={handleSend}
-            disabled={starting || pending || !input.trim()}
+            loading={starting || pending}
+            nonDisponibile={motivoMancante([
+              { manca: !input.trim(), cosa: 'un messaggio da mandare' },
+            ])}
           >
             <Send className="h-4 w-4" />
             Invia
@@ -628,7 +633,6 @@ export function CopilotPanel({
           <div className="mt-4 flex flex-col gap-2">
             <Suggerimento
               descrizione
-              avvolgi="flex [&>button]:w-full"
               testo={
                 canConfirm
                   ? 'Crea e pubblica'
@@ -639,13 +643,12 @@ export function CopilotPanel({
                 type="button"
                 size="sm"
                 onClick={handleConfirm}
-                disabled={!canConfirm || pending}
+                loading={pending}
+                nonDisponibile={
+                  canConfirm ? '' : 'La bozza non è ancora completa.'
+                }
               >
-                {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
+                <Check className="h-4 w-4" />
                 Conferma e crea
               </Button>
             </Suggerimento>

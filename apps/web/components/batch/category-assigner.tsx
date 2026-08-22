@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/batch-wizard';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import { motivoMancante } from '@app/core/comandi';
 
 // Mappatura manuale delle categorie per SKU: utile per i batch di sole foto,
 // quando l'utente preferisce assegnare le categorie a mano invece di dedurle.
@@ -128,8 +129,15 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
                       </option>
                     ))}
                   </Select>
-                  <Button size="sm" onClick={assignBulk} disabled={!bulk || bulkBusy}>
-                    {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Applica'}
+                  <Button
+                    size="sm"
+                    onClick={assignBulk}
+                    loading={bulkBusy}
+                    nonDisponibile={motivoMancante([
+                      { manca: !bulk, cosa: 'la categoria da applicare' },
+                    ])}
+                  >
+                    Applica
                   </Button>
                 </div>
               )}

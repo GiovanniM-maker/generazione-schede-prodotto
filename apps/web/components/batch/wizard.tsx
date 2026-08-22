@@ -58,6 +58,7 @@ import {
   type WizardSourceType,
 } from '@/lib/actions/batch-wizard';
 import type { MappaturaListaSku } from '@app/core';
+import { motivoMancante } from '@app/core/comandi';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { verificaCreditiBatch, type VerificaBatchResult } from '@/lib/actions/diritti';
 import {
@@ -1745,7 +1746,8 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           nascondeva il testo: lo rendeva illeggibile ma visibile, che è peggio. */}
       <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-ink-200 bg-[var(--background)] px-4 py-3 sm:mx-0 sm:border-ink-100">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" onClick={prevStep} disabled={busy || activeIndex <= 0}>
+          <Button variant="ghost" onClick={prevStep} disabled={busy}
+        nonDisponibile={activeIndex <= 0 ? 'Sei al primo passo.' : ''}>
             <ArrowLeft className="h-4 w-4" />
             Indietro
           </Button>
@@ -1788,17 +1790,39 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
                   ? 'Cerco…'
                   : 'Un momento…'
           }
-          canProceed={{
-            1: name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0,
-            3:
-              !!sourceMode &&
-              (sourceMode !== 'url' || urlText.trim().length > 0) &&
-              (sourceMode !== 'pdf' || pdfFiles.length > 0) &&
-              (sourceMode !== 'sku' ||
-                skuText.trim().length > 0 ||
-                Boolean(skuFoglio && skuMappatura?.sku)),
-            5: (!hasSpreadsheet || !!spreadsheetResult) && (!hasImages || !!imagesResult),
-            10: sampleDone,
+          // Prima qui passavano dei BOOLEANI: il motivo per cui non si può
+          // andare avanti esisteva — è scritto in queste stesse righe — e
+          // veniva buttato via al confine. Dall'altra parte restava un pulsante
+          // grigio, cioè la cosa che l'audit chiama «spento senza dirlo».
+          motivi={{
+            1: motivoMancante([
+              { manca: name.trim() === '', cosa: 'il nome del lavoro' },
+              { manca: !selectedPresetId, cosa: 'un preset' },
+              {
+                manca: (presets?.length ?? 0) === 0,
+                cosa: 'almeno un preset pubblicato nelle impostazioni',
+              },
+            ]),
+            3: motivoMancante([
+              { manca: !sourceMode, cosa: 'da dove arrivano i dati' },
+              {
+                manca: sourceMode === 'url' && urlText.trim().length === 0,
+                cosa: 'almeno un indirizzo',
+              },
+              { manca: sourceMode === 'pdf' && pdfFiles.length === 0, cosa: 'almeno un PDF' },
+              {
+                manca:
+                  sourceMode === 'sku' &&
+                  skuText.trim().length === 0 &&
+                  !(skuFoglio && skuMappatura?.sku),
+                cosa: 'almeno un codice',
+              },
+            ]),
+            5: motivoMancante([
+              { manca: hasSpreadsheet && !spreadsheetResult, cosa: 'la lettura del foglio' },
+              { manca: hasImages && !imagesResult, cosa: 'la lettura delle immagini' },
+            ]),
+            10: motivoMancante([{ manca: !sampleDone, cosa: 'la prova su un prodotto' }]),
           }}
           onSources={submitSources}
           onSample={runSample}
@@ -1874,7 +1898,7 @@ function ProgressBar({
 function StepPrimaryAction({
   stepId,
   busy,
-  canProceed,
+  motivi,
   step3Label = 'Continua',
   step3BusyLabel = 'Un momento…',
   onSources,
@@ -1885,7 +1909,8 @@ function StepPrimaryAction({
 }: {
   stepId: number;
   busy: boolean;
-  canProceed: Record<number, boolean>;
+  /** Perché non si può andare avanti, per passo. Vuoto = si può. */
+  motivi: Record<number, string>;
   step3Label?: string;
   step3BusyLabel?: string;
   onSources: () => void;
@@ -1894,12 +1919,11 @@ function StepPrimaryAction({
   avvioBloccato?: boolean;
   onNext: () => void;
 }) {
-  const spinner = <Loader2 className="h-4 w-4 animate-spin" />;
 
   if (stepId === 1) {
     return (
-      <Button type="submit" form="passo-batch" disabled={busy || !canProceed[1]}>
-        {busy ? spinner : <>Crea e continua <ArrowRight className="h-4 w-4" /></>}
+      <Button type="submit" form="passo-batch" loading={busy} nonDisponibile={motivi[1]}>
+        Crea e continua <ArrowRight className="h-4 w-4" />
       </Button>
     );
   }
@@ -1907,35 +1931,41 @@ function StepPrimaryAction({
     // Con l'etichetta, non solo la rotella: leggere trenta PDF o cercare
     // cinquecento codici dura, e «sta girando» non basta a far capire cosa.
     return (
-      <Button onClick={onSources} disabled={busy || !canProceed[3]}>
-        {busy ? <>{spinner} {step3BusyLabel}</> : <>{step3Label} <ArrowRight className="h-4 w-4" /></>}
+      <Button onClick={onSources} loading={busy} nonDisponibile={motivi[3]}>
+        {busy ? step3BusyLabel : <>{step3Label} <ArrowRight className="h-4 w-4" /></>}
       </Button>
     );
   }
   if (stepId === 5) {
     return (
-      <Button onClick={onNext} disabled={busy || !canProceed[5]}>
+      <Button onClick={onNext} loading={busy} nonDisponibile={motivi[5]}>
         Continua <ArrowRight className="h-4 w-4" />
       </Button>
     );
   }
   if (stepId === 10) {
     return (
-      <Button onClick={onNext} disabled={busy || !canProceed[10]}>
+      <Button onClick={onNext} loading={busy} nonDisponibile={motivi[10]}>
         Continua <ArrowRight className="h-4 w-4" />
       </Button>
     );
   }
   if (stepId === 11) {
     return (
-      <Button onClick={onStart} disabled={busy || avvioBloccato}>
-        {busy ? spinner : <><Sparkles className="h-4 w-4" /> Avvia generazione</>}
+      <Button
+        onClick={onStart}
+        loading={busy}
+        // Il motivo per esteso sta nel riquadro qui sopra: qui basta dire che
+        // c'è, e dove leggerlo.
+        nonDisponibile={avvioBloccato ? 'Il controllo sui crediti non è passato: il motivo è scritto qui sopra.' : ''}
+      >
+        <Sparkles className="h-4 w-4" /> Avvia generazione
       </Button>
     );
   }
   void onSample;
   return (
-    <Button onClick={onNext} disabled={busy}>
+    <Button onClick={onNext} loading={busy}>
       Continua <ArrowRight className="h-4 w-4" />
     </Button>
   );
@@ -2224,8 +2254,12 @@ function Step3({
             <button
               key={card.title}
               type="button"
-              disabled={card.disabled}
-              onClick={() => card.mode && setSourceMode(card.mode)}
+              // `aria-disabled` e non `disabled`: una scheda spenta davvero si
+              // salta col Tab, quindi chi usa la tastiera non scopre nemmeno
+              // che Google Drive è in arrivo. Così la incontra, la legge, e
+              // premerla non fa niente.
+              aria-disabled={card.disabled || undefined}
+              onClick={() => !card.disabled && card.mode && setSourceMode(card.mode)}
               className={cn(
                 'rounded-xl border p-4 text-left transition-colors',
                 card.disabled && 'cursor-not-allowed opacity-60',

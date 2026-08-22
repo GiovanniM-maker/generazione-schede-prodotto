@@ -379,8 +379,14 @@ describe('i crediti si dicono con le parole del prodotto', () => {
     // per la corsa fra due batch avviati insieme. Il caso normale — «servono
     // 500 crediti e ne hai 320» — si vede prima, mentre si guardano le righe.
     expect(wizard).toMatch(/<ControlloCrediti diritti=\{diritti\} \/>/);
-    expect(wizard, 'il pulsante di avvio non si spegne quando i crediti non bastano').toMatch(
-      /disabled=\{busy \|\| avvioBloccato\}/,
+    // Il pulsante non si spegne più con `disabled`: `nonDisponibile` lo lascia
+    // raggiungibile col Tab — un comando che non si incontra è una funzione
+    // nascosta, non spenta — e ne mette il motivo dentro al nome.
+    expect(wizard, 'il pulsante di avvio non si ferma quando i crediti non bastano').toMatch(
+      /nonDisponibile=\{avvioBloccato \?/,
+    );
+    expect(wizard, 'e non dice perché si è fermato').toMatch(
+      /nonDisponibile=\{avvioBloccato \? '[^']{20,}'/,
     );
   });
 

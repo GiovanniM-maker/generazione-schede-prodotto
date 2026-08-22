@@ -23,6 +23,7 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Overlay } from '@/components/ui/overlay';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
+import { motivoMancante } from '@app/core/comandi';
 import { etichettaTipoDato, TIPI_DATO } from '@/lib/tipi-dato';
 
 const KINDS = [
@@ -388,7 +389,14 @@ export function AttributesClient({
             <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>
               Chiudi
             </Button>
-            <Button size="sm" onClick={handleImport} disabled={pending || !importText.trim()}>
+            <Button
+              size="sm"
+              onClick={handleImport}
+              loading={pending}
+              nonDisponibile={motivoMancante([
+                { manca: !importText.trim(), cosa: 'la lista da incollare' },
+              ])}
+            >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Importa
             </Button>

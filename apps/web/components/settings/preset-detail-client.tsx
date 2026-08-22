@@ -41,6 +41,12 @@ import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { PresetCopilotPanel } from '@/components/settings/preset-copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
 import { Aiuto, Suggerimento } from '@/components/ui/suggerimento';
+import { motivoMancante } from '@app/core/comandi';
+
+// Il motivo scritto una volta sola. Prima questa condizione spegneva otto
+// comandi senza dire niente: chi apriva un preset pubblicato vedeva mezza
+// pagina grigia e nessun modo di capire che la strada era «crea una bozza».
+const BOZZA_PER_MODIFICARE = 'Il preset è pubblicato: crea una bozza per modificarlo.';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 const KIND_LABELS: Record<string, string> = {
@@ -295,7 +301,13 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             variant="outline"
             size="sm"
             className="mt-2 w-full"
-            disabled={!editable || detail.availableCategories.length === 0}
+            nonDisponibile={
+              !editable
+                ? BOZZA_PER_MODIFICARE
+                : detail.availableCategories.length === 0
+                  ? 'Tutte le categorie del settore sono già nel preset.'
+                  : ''
+            }
             onClick={() => {
               setError(null);
               setAddCatOpen(true);
@@ -321,7 +333,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!editable}
+                    nonDisponibile={editable ? '' : BOZZA_PER_MODIFICARE}
                     onClick={() => {
                       setError(null);
                       setAddAttrOpen(true);
@@ -334,7 +346,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={!editable}
+                      nonDisponibile={editable ? '' : BOZZA_PER_MODIFICARE}
                       onClick={() => {
                         setError(null);
                         setRemoveCatTarget(current.presetCategoryId);
@@ -488,7 +500,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             <Button
               size="sm"
               onClick={handleImportAttrs}
-              disabled={pending || !importText.trim()}
+              loading={pending}
+              nonDisponibile={motivoMancante([
+                { manca: !importText.trim(), cosa: 'la lista da incollare' },
+              ])}
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Aggiungi
@@ -527,7 +542,14 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             <Button variant="outline" size="sm" onClick={() => setImportCatOpen(false)}>
               Chiudi
             </Button>
-            <Button size="sm" onClick={handleImportCats} disabled={pending || !importCatText.trim()}>
+            <Button
+              size="sm"
+              onClick={handleImportCats}
+              loading={pending}
+              nonDisponibile={motivoMancante([
+                { manca: !importCatText.trim(), cosa: 'la lista da incollare' },
+              ])}
+            >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Aggiungi
             </Button>
@@ -657,7 +679,12 @@ function CategoryRecognitionEditor({
             placeholder="Es. tavoletta scura; in etichetta «fondente» e % di cacao alta."
           />
           <div className="mt-2 flex items-center gap-2">
-            <Button size="sm" onClick={save} disabled={pending || !dirty}>
+            <Button
+              size="sm"
+              onClick={save}
+              loading={pending}
+              nonDisponibile={dirty ? '' : 'Non c’è niente da salvare.'}
+            >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Salva prompt categoria
             </Button>
@@ -739,31 +766,39 @@ function AttributeEditor({
             Obbligatorio
           </label>
           <Aiuto testo="Se manca, la scheda risulta parziale invece che completa. Non fa inventare il dato." />
-          <Suggerimento testo="Sposta su" avvolgi="mr-2 inline-flex">
+          <Suggerimento testo="Sposta su">
             <Button
+              className="mr-2"
               variant="ghost"
               size="sm"
-              disabled={!editable || isFirst || pending}
+              disabled={pending}
+              nonDisponibile={
+                !editable ? BOZZA_PER_MODIFICARE : isFirst ? 'È già il primo.' : ''
+              }
               onClick={() => move(-1)}
             >
               <ArrowUp className="h-4 w-4" />
             </Button>
           </Suggerimento>
-          <Suggerimento testo="Sposta giù" avvolgi="inline-flex">
+          <Suggerimento testo="Sposta giù">
             <Button
               variant="ghost"
               size="sm"
-              disabled={!editable || isLast || pending}
+              disabled={pending}
+              nonDisponibile={
+                !editable ? BOZZA_PER_MODIFICARE : isLast ? 'È già l’ultimo.' : ''
+              }
               onClick={() => move(1)}
             >
               <ArrowDown className="h-4 w-4" />
             </Button>
           </Suggerimento>
-          <Suggerimento testo="Rimuovi attributo" avvolgi="inline-flex">
+          <Suggerimento testo="Rimuovi attributo">
             <Button
               variant="ghost"
               size="sm"
-              disabled={!editable || pending}
+              disabled={pending}
+              nonDisponibile={editable ? '' : BOZZA_PER_MODIFICARE}
               onClick={() => setConfirmRemove(true)}
             >
               <Trash2 className="h-4 w-4 text-red-500" />
@@ -948,7 +983,14 @@ function AddCategoryModal({
             <Button variant="outline" size="sm" onClick={onClose}>
               Annulla
             </Button>
-            <Button size="sm" onClick={submit} disabled={pending || selected.size === 0}>
+            <Button
+              size="sm"
+              onClick={submit}
+              loading={pending}
+              nonDisponibile={motivoMancante([
+                { manca: selected.size === 0, cosa: 'almeno un attributo selezionato' },
+              ])}
+            >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Aggiungi ({selected.size})
             </Button>

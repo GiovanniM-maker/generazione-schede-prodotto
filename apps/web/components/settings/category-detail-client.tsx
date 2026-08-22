@@ -127,7 +127,11 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
             <Button
               variant="outline"
               size="sm"
-              disabled={detail.availableAttributes.length === 0}
+              nonDisponibile={
+                detail.availableAttributes.length === 0
+                  ? 'Questa categoria ha già tutti gli attributi che esistono.'
+                  : ''
+              }
               onClick={() => {
                 setError(null);
                 setAddOpen(true);
@@ -259,7 +263,12 @@ function RecognitionHintCard({
             placeholder="Es. tavoletta scura; in etichetta «fondente» e % di cacao alta."
           />
           <div className="mt-2 flex items-center gap-2">
-            <Button size="sm" onClick={save} disabled={pending || !dirty}>
+            <Button
+              size="sm"
+              onClick={save}
+              loading={pending}
+              nonDisponibile={dirty ? '' : 'Non c’è niente da salvare.'}
+            >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Salva
             </Button>

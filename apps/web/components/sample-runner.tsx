@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
+import { motivoMancante } from '@app/core/comandi';
 import { ProvaDelCampione } from '@/components/prova-del-campione';
 import {
   COMPLETENESS_LABELS,
@@ -310,13 +311,13 @@ export function SampleRunner({
                 <div className="flex gap-2">
                   <Button
                     onClick={applyFeedback}
-                    disabled={busy || !feedback.trim() || remaining <= 0}
+                    loading={busy}
+                    nonDisponibile={motivoMancante([
+                      { manca: !feedback.trim(), cosa: 'cosa cambiare' },
+                      { manca: remaining <= 0, cosa: 'una rigenerazione ancora disponibile' },
+                    ])}
                   >
-                    {busy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'Applica e rigenera'
-                    )}
+                    Applica e rigenera
                   </Button>
                   <Button
                     variant="ghost"
@@ -348,7 +349,10 @@ export function SampleRunner({
               <Button
                 variant="outline"
                 onClick={regenerate}
-                disabled={busy || remaining <= 0}
+                loading={busy}
+                nonDisponibile={
+                  remaining <= 0 ? 'Hai finito le rigenerazioni per questo campione.' : ''
+                }
               >
                 <RefreshCw className="h-4 w-4" />
                 Rigenera il campione

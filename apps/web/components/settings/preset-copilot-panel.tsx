@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avviso } from '@/components/ui/avviso';
 import { Suggerimento } from '@/components/ui/suggerimento';
+import { motivoMancante } from '@app/core/comandi';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
 
 interface ChatMsg {
@@ -351,7 +352,14 @@ export function PresetCopilotPanel({
               <Button variant="outline" size="sm" onClick={() => setPlan(null)} disabled={applying}>
                 Scarta
               </Button>
-              <Button size="sm" onClick={apply} disabled={applying || nothingNew}>
+              <Button
+                size="sm"
+                onClick={apply}
+                loading={applying}
+                nonDisponibile={
+                  nothingNew ? 'Il piano non aggiunge niente che non ci sia già.' : ''
+                }
+              >
                 {applying ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -415,7 +423,13 @@ export function PresetCopilotPanel({
               Stop
             </Button>
           ) : (
-            <Button size="md" onClick={send} disabled={!input.trim()}>
+            <Button
+              size="md"
+              onClick={send}
+              nonDisponibile={motivoMancante([
+                { manca: !input.trim(), cosa: 'un messaggio da mandare' },
+              ])}
+            >
               <Send className="h-4 w-4" />
               Invia
             </Button>

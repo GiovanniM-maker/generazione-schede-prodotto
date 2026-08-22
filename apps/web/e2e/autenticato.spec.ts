@@ -219,3 +219,47 @@ test.describe('i comandi di sola icona', () => {
     expect(misure.eventi).toBe('none');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Un comando spento sa dire perché, e si riesce a raggiungerlo.
+//
+// Il difetto di partenza: 118 comandi con `disabled`, e dietro quella parola
+// tre situazioni diverse trattate allo stesso modo — grigie, mute e SALTATE dal
+// Tab. Un elemento `disabled` non prende il fuoco: con la tastiera non si
+// scopre nemmeno che esiste, e il motivo per cui è spento non lo si può
+// leggere.
+//
+// Gira su desktop e telefono, perché il difetto c'era su entrambi.
+// ---------------------------------------------------------------------------
+test('il comando che non si può ancora usare resta raggiungibile e dice cosa manca', async ({
+  page,
+}) => {
+  await page.goto('/app/onboarding', { waitUntil: 'networkidle' });
+
+  // Si cerca per RUOLO e per NOME: è così che lo trova un lettore di schermo.
+  // Il motivo sta dentro al nome, quindi questa riga è anche la prova che il
+  // motivo esiste. Con `disabled` e un `title` fallisce.
+  const continua = page.getByRole('button', { name: /Continua.*Serve prima.*nome dell/i });
+  await expect(continua).toBeVisible({ timeout: 20000 });
+  await expect(continua).toHaveAttribute('aria-disabled', 'true');
+  // E NON è `disabled` vero: è la differenza fra «spento» e «introvabile».
+  expect(await continua.evaluate((el: HTMLButtonElement) => el.disabled)).toBe(false);
+
+  // Prende il fuoco davvero.
+  await continua.focus();
+  expect(await continua.evaluate((el) => el === document.activeElement)).toBe(true);
+
+  // Premerlo non fa niente. Playwright si RIFIUTA di cliccarlo — `aria-disabled`
+  // lo rende «non abilitato» anche per lui — quindi si preme come farebbe il
+  // browser, che è il caso da provare: il pulsante è `type="submit"`, e senza
+  // il guardiano invierebbe il modulo pur sembrando spento.
+  await continua.evaluate((el: HTMLElement) => el.click());
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/\/app\/onboarding/);
+
+  // Compilato il campo, il comando torna a chiamarsi solo «Continua».
+  const nome = page.getByLabel(/nome/i).first();
+  if ((await nome.count()) === 0) return;
+  await nome.fill('Prova Automatica');
+  await expect(page.getByRole('button', { name: /^Continua$/ })).toBeVisible({ timeout: 10000 });
+});
