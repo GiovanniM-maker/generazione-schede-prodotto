@@ -10,7 +10,8 @@
     "./interfaccia": "./src/interfaccia.ts",
     "./moduli": "./src/moduli.ts",
     "./suggerimento": "./src/suggerimento.ts",
-    "./comandi": "./src/comandi.ts"
+    "./comandi": "./src/comandi.ts",
+    "./stadi": "./src/stadi.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

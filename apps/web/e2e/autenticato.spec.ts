@@ -263,3 +263,61 @@ test('il comando che non si può ancora usare resta raggiungibile e dice cosa ma
   await nome.fill('Prova Automatica');
   await expect(page.getByRole('button', { name: /^Continua$/ })).toBeVisible({ timeout: 10000 });
 });
+
+// ---------------------------------------------------------------------------
+// Undici passi sono diventati cinque stadi.
+//
+// Undici non era un numero di passi, era un numero di INTERRUZIONI — e sei di
+// quelle undici schermate non chiedevano niente: mostravano il risultato di
+// quella prima e aspettavano che si premesse «Continua».
+//
+// Il caso più delicato NON è il conto: è che il wizard si scriveva da solo
+// `?batch=…&passo=8` nella cronologia a ogni cambio di passo. Quel numero sta
+// nei segnalibri e nei link che la gente si manda: se smettesse di voler dire
+// qualcosa, chi torna su un lavoro lasciato a metà ripartirebbe da capo.
+// ---------------------------------------------------------------------------
+test.describe('il wizard in cinque stadi', () => {
+  test('si apre su «Prepara», e gli stadi sono cinque', async ({ page }) => {
+    await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: 'Prepara', level: 1 })).toBeVisible({
+      timeout: 20000,
+    });
+    await expect(page.getByText(/Passo 1 di 5/)).toBeVisible();
+    // I pezzi dello stadio stanno nella stessa schermata, ognuno col suo
+    // titolo: prima erano due «Continua» separati.
+    await expect(page.getByRole('heading', { name: /Il lavoro/i, level: 2 })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /Cosa prevede il preset/i, level: 2 }),
+    ).toBeVisible();
+  });
+
+  test('un indirizzo vecchio con `?passo=` porta ancora dove portava', async ({ page }) => {
+    if (!utenteId) test.skip();
+    const scenario = await seminaScenario(utenteId);
+    // 8 era «Mapping attributi», che adesso vive dentro «Mappa».
+    await page.goto(`/app/batches/new?batch=${scenario.batchId}&passo=8`, {
+      waitUntil: 'networkidle',
+    });
+    await expect(page.getByRole('heading', { name: 'Mappa', level: 1 })).toBeVisible({
+      timeout: 20000,
+    });
+    // E l'indirizzo si riscrive col nome nuovo, senza ricaricare la pagina.
+    await expect(page).toHaveURL(/stadio=mappa/, { timeout: 10000 });
+  });
+
+  test('nessuna parentesi orfana finita a schermo', async ({ page }) => {
+    // Accorpando i passi ho avvolto ogni pezzo in una sezione con uno script, e
+    // otto parentesi tonde sono rimaste come TESTO dentro il JSX. Non le vede
+    // né il compilatore né il linter: sono figli validi di un elemento. Si
+    // vedono solo aprendo la pagina.
+    await page.goto('/app/batches/new', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(500);
+    const orfane = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('section, div')]
+          .flatMap((el) => [...el.childNodes])
+          .filter((n) => n.nodeType === 3 && /^\s*[()]\s*$/.test(n.textContent ?? '')).length,
+    );
+    expect(orfane, 'una parentesi del codice è finita a schermo').toBe(0);
+  });
+});
