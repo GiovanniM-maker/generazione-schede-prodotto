@@ -13,6 +13,7 @@ import {
   STADI,
   SOTTOTITOLI,
   TITOLI,
+  type Stadio,
 } from '../stadi.js';
 
 describe('i cinque stadi', () => {
@@ -119,8 +120,12 @@ describe('cosa si vede dentro uno stadio', () => {
 
 describe('andare avanti e indietro', () => {
   it('la catena è completa e finisce', () => {
-    let s = STADI[0];
-    const strada = [s];
+    // `let s: Stadio` e non l'inferenza da `STADI[0]`: quella lo stringe al
+    // letterale «prepara», e l'assegnazione dentro il ciclo non compila. È
+    // passato inosservato in locale perché avevo lanciato solo il typecheck di
+    // `apps/web` invece di quello della radice.
+    let s: Stadio = STADI[0];
+    const strada: Stadio[] = [s];
     for (let i = 0; i < 20; i++) {
       const p = prossimoStadio(s);
       if (!p) break;
