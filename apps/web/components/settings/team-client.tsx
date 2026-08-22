@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { Avviso } from '@/components/ui/avviso';
+import { ConfermaDistruttiva } from '@/components/ui/overlay';
 
 export function TeamClient({
   members,
@@ -36,6 +37,8 @@ export function TeamClient({
   const [role, setRole] = useState<'member' | 'owner'>('member');
   const [newLink, setNewLink] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  /** Chi si sta per togliere dal team: `null` quando non c'è nessuna domanda aperta. */
+  const [daRimuovere, setDaRimuovere] = useState<{ userId: string; nome: string } | null>(null);
 
   /** C'è qualcuno da rimuovere: non sé stessi, e solo se si è proprietari. */
   const puoRimuovere = isOwner && members.some((m) => !m.isYou);
@@ -74,8 +77,14 @@ export function TeamClient({
     });
   }
 
+  /**
+   * Chi si sta per togliere dal team.
+   *
+   * Era un `window.confirm`, cioè il dialogo del browser: blocca il thread,
+   * non si può disegnare, e su alcuni browser mostra il dominio — il che lo fa
+   * sembrare un avviso di sistema invece che una domanda del prodotto.
+   */
   function remove(userId: string) {
-    if (!window.confirm('Rimuovere questo membro dall’organizzazione?')) return;
     setError(null);
     startTransition(async () => {
       const res = await removeMember({ userId });
@@ -178,7 +187,12 @@ export function TeamClient({
                 {puoRimuovere && (
                   <TD className="text-right">
                     {!m.isYou && (
-                      <Button variant="ghost" size="sm" onClick={() => remove(m.userId)} disabled={pending}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDaRimuovere({ userId: m.userId, nome: m.email ?? 'questa persona' })}
+                        disabled={pending}
+                      >
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     )}
@@ -232,6 +246,19 @@ export function TeamClient({
           </Table>
         </Card>
       )}
+      <ConfermaDistruttiva
+        open={daRimuovere !== null}
+        title="Togliere questa persona dal team?"
+        message={`${daRimuovere?.nome ?? ''} perde subito l’accesso ai lavori e alla configurazione. Puoi invitarla di nuovo in qualunque momento, ma dovrà accettare un nuovo invito.`}
+        confirmLabel="Togli dal team"
+        busy={pending}
+        onCancel={() => setDaRimuovere(null)}
+        onConfirm={() => {
+          const d = daRimuovere;
+          setDaRimuovere(null);
+          if (d) remove(d.userId);
+        }}
+      />
     </PageShell>
   );
 }

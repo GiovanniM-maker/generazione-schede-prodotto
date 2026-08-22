@@ -9,7 +9,7 @@ import { getBatchProgressAction } from '@/lib/actions/ui';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/status-badge';
-import { ConfirmDialog } from '@/components/settings/modal';
+import { ConfermaDistruttiva } from '@/components/ui/overlay';
 import { formatDate } from '@/lib/utils';
 
 const IN_PROGRESS = new Set(['queued', 'processing']);
@@ -161,7 +161,7 @@ export function RecentBatchCard({ batch, isOwner }: { batch: RecentBatch; isOwne
         </div>
       </CardContent>
 
-      <ConfirmDialog
+      <ConfermaDistruttiva
         open={confirmOpen}
         onCancel={() => setConfirmOpen(false)}
         title="Eliminare il batch?"

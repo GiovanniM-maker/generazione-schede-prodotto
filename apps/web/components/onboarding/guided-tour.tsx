@@ -123,7 +123,7 @@ export function GuidedTour({
 
   return (
     <div
-      className="fixed inset-0 z-[70]"
+      className="fixed inset-0 z-guida"
       role="dialog"
       aria-label={`Guida: ${step.title}`}
       // Un clic fuori dal fumetto CHIUDE la guida, non la fa avanzare.

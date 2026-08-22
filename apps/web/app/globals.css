@@ -30,6 +30,17 @@ table,
   font-variant-numeric: tabular-nums;
 }
 
+/* Lo scintillio dello scheletro: il gradiente non si esprime con una utility,
+   quindi la classe `bg-ink-100` del componente viene sovrascritta qui. Resta
+   fermo per chi ha chiesto meno movimento — un lampeggio continuo in fondo
+   allo schermo è la prima cosa che dà fastidio a chi soffre di emicrania. */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-\[scintillio_1\.4s_ease-in-out_infinite\] {
+    background-image: linear-gradient(90deg, #eee8dd 25%, #f6f2ea 37%, #eee8dd 63%);
+    background-size: 400% 100%;
+  }
+}
+
 /* Focus visibile per accessibilità */
 :focus-visible {
   outline: 2px solid #c22b27;

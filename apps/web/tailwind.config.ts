@@ -6,6 +6,57 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
+      // NOTA: la scala tipografica (corpo da 14 a 15 px) NON è qui.
+      //
+      // C'era, ed è stata tolta: faceva scorrere di lato la dashboard di 6 px
+      // a 320 px — trovato da `wizard-risultati.spec.ts`, che prova sei
+      // larghezze e non solo le due estreme. Il difetto non si riproduce
+      // ricostruendo a mano intestazione, dashboard e portale dei riscontri:
+      // sfora un elemento che sta in un componente non ricostruibile fuori
+      // dall'applicazione vera.
+      //
+      // Cambiare `text-sm` sposta OGNI testo del prodotto in una volta sola:
+      // è la modifica con più leva dell'intero audit, e proprio per questo non
+      // va infilata in una PR che serve a un'altra cosa. Torna da sola, con la
+      // suite del browser come strumento di misura invece che come rete.
+      // L'impilamento ha cinque piani e un nome ciascuno. Prima erano otto
+      // numeri scelti a caso — 10, 20, 30, 40, 50, 60, 70, 100 — e il
+      // prossimo pannello sarebbe stato il nono.
+      zIndex: {
+        sticky: '10',
+        header: '20',
+        overlay: '40',
+        /** Guida a fumetti e chat d'aiuto: sopra le finestre, sotto i riscontri. */
+        guida: '70',
+        /**
+         * I riscontri stanno sopra tutto il resto.
+         *
+         * Non è una preferenza: un errore deve poter comparire mentre è aperta
+         * una finestra, durante la guida guidata, e sopra la barra agganciata
+         * in fondo al wizard — che vive a 60. A 60 ci stava anche il riscontro,
+         * e un messaggio d'errore nascosto dietro una barra è un messaggio che
+         * non esiste.
+         *
+         * Sopra di lui resta solo il collegamento «salta al contenuto» (100),
+         * che deve essere raggiungibile sempre.
+         */
+        toast: '80',
+      },
+      transitionDuration: {
+        // I tempi veri stanno in `@app/core/interfaccia` e sono provati lì.
+        // Questo è il solo gradino che manca a Tailwind fra 100 e 150.
+        120: '120ms',
+      },
+      keyframes: {
+        scintillio: {
+          '0%': { backgroundPosition: '100% 0' },
+          '100%': { backgroundPosition: '0 0' },
+        },
+        comparsa: {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+      },
       colors: {
         // ---------------------------------------------------------------
         // L'inchiostro, caldo come il fondo.

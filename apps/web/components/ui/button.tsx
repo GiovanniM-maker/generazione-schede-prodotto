@@ -37,6 +37,16 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  /**
+   * Il comando sta lavorando.
+   *
+   * Prima la rotella si infilava a mano nel figlio, in decine di punti, e ogni
+   * volta l'etichetta spariva: il pulsante si restringeva e tutta la barra
+   * saltava di lato. Qui l'etichetta RESTA e la rotella le si mette accanto,
+   * così la misura non cambia. Il comando è anche spento, perché un secondo
+   * clic manderebbe la stessa richiesta due volte.
+   */
+  loading?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -49,11 +59,18 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   // pulsanti sono identici.
   //
   // Chi vuole inviare lo dice: `type="submit"`.
-  ({ className, variant = 'primary', size = 'md', type = 'button', ...props }, ref) => {
+  (
+    { className, variant = 'primary', size = 'md', type = 'button', loading, children, disabled, ...props },
+    ref,
+  ) => {
     return (
       <button
         ref={ref}
         type={type}
+        disabled={disabled || loading}
+        // Chi ascolta deve sapere che è partito qualcosa: senza, il comando
+        // diventa muto e spento, e sembra rotto invece che occupato.
+        aria-busy={loading || undefined}
         className={cn(
           // `whitespace-nowrap`: l'etichetta di un comando non va a capo.
           //
@@ -65,13 +82,26 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           //
           // Non va a capo dentro; a mandare a capo è il contenitore, che negli
           // ingombri stretti è sempre un `flex-wrap`.
-          'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+          // `active:scale-[.97]` è il dettaglio più economico dell'intero
+          // audit e il più sentito: su telefono il passaggio del mouse non
+          // esiste, quindi senza questo TOCCARE UN COMANDO NON PRODUCE NESSUN
+          // SEGNALE finché la risposta non arriva. Su una rete lenta sono
+          // secondi in cui non si sa se il tocco è stato preso.
+          'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[color,background-color,border-color,transform] duration-120 active:scale-[.97] active:duration-[60ms] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
           variants[variant],
           sizes[size],
           className,
         )}
         {...props}
-      />
+      >
+        {loading && (
+          <span
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
+          />
+        )}
+        {children}
+      </button>
     );
   },
 );

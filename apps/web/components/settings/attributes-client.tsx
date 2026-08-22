@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
-import { Modal } from '@/components/settings/modal';
+import { Overlay } from '@/components/ui/overlay';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
 import { etichettaTipoDato, TIPI_DATO } from '@/lib/tipi-dato';
@@ -327,7 +327,7 @@ export function AttributesClient({
         )}
       </Card>
 
-      <Modal
+      <Overlay
         errore={error}
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -394,9 +394,9 @@ export function AttributesClient({
             </Button>
           </div>
         </div>
-      </Modal>
+      </Overlay>
 
-      <Modal
+      <Overlay
         errore={error}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -552,9 +552,9 @@ export function AttributesClient({
             </Button>
           </div>
         </form>
-      </Modal>
+      </Overlay>
 
-      <Modal
+      <Overlay
         errore={error}
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
@@ -568,7 +568,7 @@ export function AttributesClient({
             onClose={() => setCopilotOpen(false)}
           />
         )}
-      </Modal>
+      </Overlay>
     </PageShell>
   );
 }

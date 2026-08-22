@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Pencil,
   Loader2,
-  PanelRightClose,
   PackageOpen,
   Sparkles,
   Wand2,
@@ -42,6 +41,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avviso } from '@/components/ui/avviso';
+import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
+import { useRiscontro } from '@/components/ui/riscontro';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -198,6 +199,22 @@ export function ResultsTable({
   const [strumentiAperti, setStrumentiAperti] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /**
+   * La domanda prima di un'azione che non torna indietro.
+   *
+   * Prima erano due `window.confirm`: il dialogo nativo del browser blocca il
+   * thread, non si può disegnare, e su alcuni browser mostra il dominio — il
+   * che lo fa sembrare un avviso di sistema invece che una domanda del
+   * prodotto. Era la crepa più visibile nell'illusione dell'applicazione.
+   *
+   * Restano due domande perché entrambe le azioni costano davvero: rifiutare
+   * toglie la scheda dal mucchio senza un modo di rimetterla com'era,
+   * rigenerare consuma un credito. Dove l'azione TORNA indietro — accettare —
+   * la domanda non c'è mai stata e non ci va.
+   */
+  const [conferma, setConferma] = useState<{ tipo: 'rifiuta' | 'rigenera'; id: string } | null>(null);
+  const riscontro = useRiscontro();
+  const nomeDi = (id: string) => rows.find((r) => r.id === id)?.name ?? '';
   const [openId, setOpenId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -386,8 +403,6 @@ export function ResultsTable({
   }
 
   function reject(id: string) {
-    if (!window.confirm('Rifiutare questa scheda? Potrai rigenerarla in seguito.'))
-      return;
     startTransition(async () => {
       setError(null);
       try {
@@ -400,12 +415,6 @@ export function ResultsTable({
   }
 
   function regenerate(id: string) {
-    if (
-      !window.confirm(
-        'Rigenerare questa scheda? Verrà consumato 1 credito.',
-      )
-    )
-      return;
     startTransition(async () => {
       setError(null);
       try {
@@ -484,6 +493,13 @@ export function ResultsTable({
         }
         patchRow(id, { edited: content, hasEdited: true });
         setOpenId(null);
+        // Il pannello si chiude e la riga torna in mezzo alle altre: la
+        // modifica c'è ma non si vede. È esattamente il caso in cui serve un
+        // riscontro transitorio — e prima non ne arrivava nessuno.
+        riscontro.mostra({
+          titolo: 'Scheda salvata',
+          testo: nomeDi(id),
+        });
         // Correzioni e feedback puri alimentano il miglioramento del prompt.
         if (changes.some((c) => c.corrected !== c.original || (c.reason ?? '').trim() !== '')) {
           refreshCorrections();
@@ -707,8 +723,8 @@ export function ResultsTable({
                     onSeleziona={() => toggleSelect(r.id)}
                     onRivedi={() => setOpenId(r.id)}
                     onAccetta={() => accept(r.id)}
-                    onRifiuta={() => reject(r.id)}
-                    onRigenera={() => regenerate(r.id)}
+                    onRifiuta={() => setConferma({ tipo: 'rifiuta', id: r.id })}
+                    onRigenera={() => setConferma({ tipo: 'rigenera', id: r.id })}
                     inCorso={pending}
                   />
                 ))}
@@ -759,10 +775,10 @@ export function ResultsTable({
                       <Button variant="outline" size="sm" onClick={() => accept(r.id)} disabled={pending} aria-label="Accetta">
                         <Check className="h-4 w-4 text-emerald-600" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => reject(r.id)} disabled={pending} aria-label="Rifiuta">
+                      <Button variant="outline" size="sm" onClick={() => setConferma({ tipo: 'rifiuta', id: r.id })} disabled={pending} aria-label="Rifiuta">
                         <X className="h-4 w-4 text-red-600" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => regenerate(r.id)} disabled={pending} aria-label="Rigenera">
+                      <Button variant="outline" size="sm" onClick={() => setConferma({ tipo: 'rigenera', id: r.id })} disabled={pending} aria-label="Rigenera">
                         <RefreshCw className="h-4 w-4 text-ink-500" />
                       </Button>
                     </div>
@@ -891,7 +907,7 @@ export function ResultsTable({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => reject(r.id)}
+                            onClick={() => setConferma({ tipo: 'rifiuta', id: r.id })}
                             disabled={pending}
                             aria-label="Rifiuta"
                           >
@@ -900,7 +916,7 @@ export function ResultsTable({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => regenerate(r.id)}
+                            onClick={() => setConferma({ tipo: 'rigenera', id: r.id })}
                             disabled={pending}
                             aria-label="Rigenera"
                           >
@@ -954,6 +970,28 @@ export function ResultsTable({
         </Card>
       )}
 
+      {/* La domanda prima delle due azioni che non tornano indietro. Una sola
+          per tutta la tabella: lo stato dice quale, e il testo cambia con lei. */}
+      <ConfermaDistruttiva
+        open={conferma !== null}
+        title={conferma?.tipo === 'rigenera' ? 'Rigenerare questa scheda?' : 'Rifiutare questa scheda?'}
+        message={
+          conferma?.tipo === 'rigenera'
+            ? 'Il testo attuale viene sostituito e si consuma 1 credito. Le correzioni che hai già salvato restano nel registro.'
+            : 'La scheda esce dal mucchio da consegnare. Potrai rigenerarla, ma il testo attuale non torna indietro.'
+        }
+        confirmLabel={conferma?.tipo === 'rigenera' ? 'Rigenera' : 'Rifiuta'}
+        busy={pending}
+        onCancel={() => setConferma(null)}
+        onConfirm={() => {
+          const c = conferma;
+          setConferma(null);
+          if (!c) return;
+          if (c.tipo === 'rigenera') regenerate(c.id);
+          else reject(c.id);
+        }}
+      />
+
       {/* Drawer dettaglio / modifica */}
       {openRow && (
         <DetailDrawer
@@ -962,7 +1000,7 @@ export function ResultsTable({
           onClose={() => setOpenId(null)}
           onSave={(content, changes) => saveEdit(openRow.id, content, changes)}
           onAccept={() => accept(openRow.id)}
-          onReject={() => reject(openRow.id)}
+          onReject={() => setConferma({ tipo: 'rifiuta', id: openRow.id })}
           onCorrectionsChanged={refreshCorrections}
         />
       )}
@@ -1250,28 +1288,29 @@ function ImprovementModal({
   onApply: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
+  // L'Esc c'era già ed era l'unica cosa: niente `role="dialog"`, niente
+  // trappola del fuoco, niente blocco dello scorrimento. Adesso li porta
+  // l'Overlay condiviso, e questa funzione torna a occuparsi del contenuto.
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
-      <div className="relative my-4 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
-        <div className="sticky top-0 flex items-center justify-between rounded-t-xl border-b border-ink-200 bg-white px-5 py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Wand2 className="h-5 w-5 text-violet-600" />
-            <h2 className="font-semibold text-ink-900">Miglioramento del prompt</h2>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Chiudi">
-            <X className="h-5 w-5" />
+    <Overlay
+      open
+      onClose={onClose}
+      title="Miglioramento del prompt"
+      forma="dialogo"
+      className="w-[min(42rem,calc(100vw-2rem))]"
+      azioni={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Scarta
           </Button>
-        </div>
-
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
+          <Button onClick={onApply} loading={pending}>
+            {!pending && <ArrowRight className="h-4 w-4" />}
+            Pubblica e applica
+          </Button>
+        </>
+      }
+    >
+      <>
           <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
             {summary}
             <span className="mt-1 block text-xs text-violet-700">
@@ -1309,23 +1348,8 @@ function ImprovementModal({
               )}
             </div>
           ))}
-        </div>
-
-        <div className="sticky bottom-0 flex flex-col gap-2 rounded-b-xl border-t border-ink-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={onClose} disabled={pending}>
-            Scarta
-          </Button>
-          <Button onClick={onApply} disabled={pending}>
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ArrowRight className="h-4 w-4" />
-            )}
-            Pubblica e applica
-          </Button>
-        </div>
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }
 
@@ -1803,13 +1827,27 @@ function DetailDrawer({
 
   const original = row.generated;
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  /**
+   * Se c'è del lavoro non salvato dentro il pannello.
+   *
+   * Serve alla guardia in uscita: prima, un clic sul velo per sbaglio buttava
+   * via una descrizione riscritta a mano senza chiedere niente. Il confronto è
+   * con l'ULTIMO TESTO SALVATO e non con quello generato: chi ha già salvato
+   * una correzione e riapre la scheda non ha nulla in sospeso.
+   *
+   * I riscontri per campo contano quanto il testo: sono un segnale che si
+   * perderebbe allo stesso modo.
+   */
+  const dirty =
+    title !== (base?.title ?? '') ||
+    shortDescription !== (base?.shortDescription ?? '') ||
+    longDescription !== (base?.longDescription ?? '') ||
+    bullets !== (base?.bullets ?? []).join('\n') ||
+    metaDescription !== (base?.metaDescription ?? '') ||
+    Object.values(reasons).some((r) => r.trim() !== '');
+
+  // L'Esc lo gestisce l'Overlay, e passa dalla guardia sulle modifiche: qui
+  // sarebbe una seconda scorciatoia che scavalca la domanda.
 
   function buildContentAndChanges(): { content: GenContent; changes: OutputChange[] } {
     const content: GenContent = {
@@ -1839,32 +1877,50 @@ function DetailDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex justify-end">
-      <div
-        className="absolute inset-0 bg-black/30"
-        onClick={onClose}
-        aria-hidden
-      />
-      <aside className="relative flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-xl">
-        <div className="sticky top-0 flex items-center justify-between border-b border-ink-200 bg-white px-6 py-4">
-          <div className="min-w-0">
-            <h2 className="truncate font-semibold text-ink-900">{row.name}</h2>
-            <p className="font-mono text-xs text-ink-500">
-              {row.externalId}
-              {row.category && (
-                <>
-                  {' · '}
-                  <span className="font-sans text-ink-600">{row.category}</span>
-                </>
-              )}
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Chiudi">
-            <PanelRightClose className="h-5 w-5" />
+    <Overlay
+      open
+      onClose={onClose}
+      title={row.name}
+      // `pannello` diventa da solo un foglio dal basso sotto i 700 px: su
+      // telefono un pannello da destra largo quanto lo schermo mette i comandi
+      // dove la mano non arriva.
+      forma="pannello"
+      // Il modulo dentro può essere compilato a metà: chiudendo col velo o con
+      // Esc, adesso chiede invece di buttare via il lavoro.
+      sporco={dirty}
+      domandaUscita="Hai modificato il testo di questa scheda. Vuoi chiudere e perdere le modifiche?"
+      azioni={
+        <>
+          <Button
+            onClick={() => {
+              const { content, changes } = buildContentAndChanges();
+              onSave(content, changes);
+            }}
+            loading={pending}
+          >
+            Salva modifiche
           </Button>
-        </div>
-
-        <div className="flex-1 space-y-5 px-6 py-5">
+          <Button variant="outline" onClick={onAccept} disabled={pending}>
+            <Check className="h-4 w-4 text-emerald-600" />
+            Accetta
+          </Button>
+          <Button variant="ghost" onClick={onReject} disabled={pending}>
+            <X className="h-4 w-4 text-red-600" />
+            Rifiuta
+          </Button>
+        </>
+      }
+    >
+      <p className="-mt-1 font-mono text-xs text-ink-500">
+        {row.externalId}
+        {row.category && (
+          <>
+            {' · '}
+            <span className="font-sans text-ink-600">{row.category}</span>
+          </>
+        )}
+      </p>
+      <div className="space-y-5">
           {row.completeness && (
             <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 p-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -2034,32 +2090,7 @@ function DetailDrawer({
               scrivere meglio la prossima volta. I dati mancanti non vengono mai inventati.
             </p>
           </div>
-        </div>
-
-        <div className="sticky bottom-0 flex items-center gap-2 border-t border-ink-200 bg-white px-6 py-4">
-          <Button
-            onClick={() => {
-              const { content, changes } = buildContentAndChanges();
-              onSave(content, changes);
-            }}
-            disabled={pending}
-          >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              'Salva modifiche'
-            )}
-          </Button>
-          <Button variant="outline" onClick={onAccept} disabled={pending}>
-            <Check className="h-4 w-4 text-emerald-600" />
-            Accetta
-          </Button>
-          <Button variant="ghost" onClick={onReject} disabled={pending}>
-            <X className="h-4 w-4 text-red-600" />
-            Rifiuta
-          </Button>
-        </div>
-      </aside>
-    </div>
+      </div>
+    </Overlay>
   );
 }

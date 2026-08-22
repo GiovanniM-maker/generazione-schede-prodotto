@@ -16,6 +16,7 @@ import { signOut } from '@/lib/actions/auth';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { AppFooter } from '@/components/app-footer';
+import { FornitoreRiscontri } from '@/components/ui/riscontro';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,11 @@ export default async function AppLayout({
   // E si allargano insieme, altrimenti il logo resterebbe allineato a 1152 e
   // la tabella a 1600 — due colonne di lettura invece di una.
   return (
+    // I riscontri transitori vivono qui, attorno a tutto: sono agganciati in
+    // fondo allo schermo e devono sopravvivere al cambio di pagina — un
+    // «salvato» che sparisce perché nel frattempo si è navigato altrove è un
+    // riscontro che non è mai esistito.
+    <FornitoreRiscontri>
     <div className="group min-h-screen bg-[var(--background)]">
       {/* Dieci tappe di Tab prima di arrivare al contenuto, e quarantatré per
           l'ultima azione dei risultati con tre soli prodotti. Chi naviga da
@@ -162,5 +168,6 @@ export default async function AppLayout({
       </main>
       <AppFooter />
     </div>
+    </FornitoreRiscontri>
   );
 }

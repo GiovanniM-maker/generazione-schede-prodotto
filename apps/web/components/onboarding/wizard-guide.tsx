@@ -194,7 +194,7 @@ export function WizardGuide({
       {/* Pannello chat */}
       {open && (
         <div
-          className="fixed bottom-24 right-4 z-[70] flex max-h-[min(560px,70vh)] sm:bottom-5 sm:right-5 sm:max-h-[min(560px,80vh)] w-[min(380px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-2xl"
+          className="fixed bottom-24 right-4 z-guida flex max-h-[min(560px,70vh)] sm:bottom-5 sm:right-5 sm:max-h-[min(560px,80vh)] w-[min(380px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-2xl"
           role="dialog"
           aria-label="Guida del wizard"
         >
