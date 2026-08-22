@@ -106,18 +106,7 @@ export function Campo({
   );
 }
 
-/**
- * Le classi di un controllo che può essere in errore.
- *
- * Sta qui e non dentro `Input` perché la usano anche `select`, `textarea` e i
- * controlli scritti a mano: il bordo rosso non deve dipendere da quale
- * componente si è scelto.
- */
-export function classiControllo(errore?: string | null): string {
-  return cn(
-    'transition-colors',
-    errore
-      ? 'border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30'
-      : 'focus-visible:border-brand-accent focus-visible:ring-brand-accent/40',
-  );
-}
+// `classiControllo` sta in `classi-controllo.ts` e non qui: questo file è
+// `'use client'`, e importarla da `Input` trascinerebbe al browser anche i
+// punti in cui il campo è disegnato dal server.
+export { classiControllo } from '@/components/ui/classi-controllo';

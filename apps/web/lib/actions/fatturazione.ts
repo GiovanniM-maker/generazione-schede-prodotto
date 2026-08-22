@@ -34,7 +34,15 @@ export interface DatiFatturazione {
   completi: boolean;
 }
 
-type Esito<T> = { ok: true; data: T } | { ok: false; error: string };
+/**
+ * L'esito di un'azione, con il campo colpevole quando ce n'è uno.
+ *
+ * `campo` è l'id del controllo nel modulo, non il nome della colonna: serve a
+ * portarci il fuoco. Prima l'errore era una stringa sola, e su un modulo da
+ * dieci campi diceva «qualcosa non va» senza dire dove — costringendo a
+ * rileggere tutto per trovare quale campo lamentasse cosa.
+ */
+type Esito<T> = { ok: true; data: T } | { ok: false; error: string; campo?: string };
 
 export async function leggiDatiFatturazione(): Promise<Esito<DatiFatturazione>> {
   const user = await getSessionUser();
@@ -101,28 +109,29 @@ export async function salvaDatiFatturazione(input: {
   const city = pulisci(input.city);
   const country = (pulisci(input.country) ?? 'IT').toUpperCase();
 
-  if (!billingName) return { ok: false, error: 'La ragione sociale è obbligatoria.' };
+  if (!billingName) return { ok: false, campo: 'fat-nome', error: 'La ragione sociale è obbligatoria.' };
   if (!address || !zip || !city) {
-    return { ok: false, error: 'Indirizzo, CAP e città sono obbligatori per la fattura.' };
+    return { ok: false, campo: 'fat-via', error: 'Indirizzo, CAP e città sono obbligatori per la fattura.' };
   }
   if (!vatNumber && !taxCode) {
-    return { ok: false, error: 'Serve la partita IVA o, per i privati, il codice fiscale.' };
+    return { ok: false, campo: 'fat-piva', error: 'Serve la partita IVA o, per i privati, il codice fiscale.' };
   }
   // Il controllo sulla partita IVA vale per l'Italia: fuori le regole sono
   // altre, e rifiutare una VAT estera valida sarebbe peggio che non
   // controllarla.
   if (vatNumber && country === 'IT' && !partitaIvaValida(vatNumber)) {
-    return { ok: false, error: 'La partita IVA non è valida: controlla le 11 cifre.' };
+    return { ok: false, campo: 'fat-piva', error: 'La partita IVA non è valida: controlla le 11 cifre.' };
   }
   if (country === 'IT' && !sdiCode && !pecEmail) {
     return {
       ok: false,
+      campo: 'fat-sdi',
       error:
         'Per la fattura elettronica serve il codice destinatario SDI oppure una PEC. Se non hai un codice, scrivi 0000000 e indica la PEC.',
     };
   }
   if (sdiCode && !codiceSdiValido(sdiCode)) {
-    return { ok: false, error: 'Il codice destinatario è di 7 caratteri (es. 0000000).' };
+    return { ok: false, campo: 'fat-sdi', error: 'Il codice destinatario è di 7 caratteri (es. 0000000).' };
   }
 
   const service = getServiceClient();
