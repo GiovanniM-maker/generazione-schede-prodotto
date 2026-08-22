@@ -44,6 +44,36 @@ export interface StatoServizio {
   }[];
   guasti: { quando: string; evento: string; dettagli: Record<string, unknown> }[];
   guastiTotali: number;
+  /**
+   * Se gli avvisi per email sono accesi, e quando è partito l'ultimo.
+   *
+   * Sta nel pannello perché senza, «Niente nel periodo» in verde vorrebbe dire
+   * due cose molto diverse — nessun guasto, oppure nessun raccoglitore acceso —
+   * e si legge allo stesso modo. Un cruscotto che non sa distinguere «tutto
+   * bene» da «spento» è peggio di nessun cruscotto: rassicura senza motivo.
+   */
+  avvisi: { configurati: boolean; motivo: string; ultimo: string | null };
+}
+
+/**
+ * Se il giro degli avvisi può davvero mandare qualcosa.
+ *
+ * Le due variabili si controllano qui e in `lib/allarmi.ts` con la stessa
+ * regola: senza destinatari o senza chiave l'invio non parte, e la differenza
+ * fra «non c'era niente da dire» e «non avrei potuto dirlo» va mostrata.
+ */
+function statoAvvisi(): { configurati: boolean; motivo: string } {
+  const destinatari = (process.env.ADMIN_EMAILS ?? '').split(',').filter((e) => e.trim() !== '');
+  if (destinatari.length === 0) {
+    return { configurati: false, motivo: 'Manca ADMIN_EMAILS: nessun avviso può partire.' };
+  }
+  if (!process.env.RESEND_API_KEY) {
+    return { configurati: false, motivo: 'Manca RESEND_API_KEY: nessun avviso può partire.' };
+  }
+  return {
+    configurati: true,
+    motivo: `Gli avvisi arrivano a ${destinatari.length} ${destinatari.length === 1 ? 'indirizzo' : 'indirizzi'}.`,
+  };
 }
 
 /** Vero se questo indirizzo è nell'elenco degli amministratori del prodotto. */
@@ -87,6 +117,10 @@ export async function statoServizio(giorni = 30): Promise<Esito<StatoServizio>> 
         []) as StatoServizio['batchBloccati'],
       guasti: ((d as Record<string, unknown>).guasti ?? []) as StatoServizio['guasti'],
       guastiTotali: n('guasti_totali'),
+      avvisi: {
+        ...statoAvvisi(),
+        ultimo: ((d as Record<string, unknown>).ultimo_avviso ?? null) as string | null,
+      },
     },
   };
 }

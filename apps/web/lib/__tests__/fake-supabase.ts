@@ -333,6 +333,12 @@ class FakeQuery implements PromiseLike<Postgrestish<Row[] | null>> {
     this.filters.push((r) => Number(r[col] ?? 0) < val);
     return this;
   }
+  gte(col: string, val: string | number): this {
+    // Confronto diretto: sulle date ISO il confronto fra stringhe ordina come
+    // il confronto fra istanti, che è il motivo per cui il formato è fatto così.
+    this.filters.push((r) => (r[col] as string | number) >= val);
+    return this;
+  }
   in(col: string, vals: readonly unknown[]): this {
     this.filters.push((r) => vals.includes(r[col]));
     return this;

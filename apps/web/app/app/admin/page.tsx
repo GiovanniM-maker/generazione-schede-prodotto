@@ -193,9 +193,20 @@ export default async function AdminPage() {
       <div>
         <h2 className="text-lg font-semibold text-ink-900">Cosa si è rotto</h2>
         <p className="mt-1 text-sm text-ink-500">
-          Scritture fallite, movimenti di credito non registrati ed errori non gestiti.{' '}
+          Scritture fallite, movimenti di credito non registrati, errori non gestiti ed errori del
+          server.{' '}
           {s.guastiTotali > s.guasti.length && `Mostrati gli ultimi ${s.guasti.length} di ${s.guastiTotali}.`}
         </p>
+        {/* Prima dell'elenco, non dopo: dice se questo elenco vuoto vuol dire
+            «non si è rotto niente» oppure «nessuno se ne sarebbe accorto». */}
+        <div className="mt-3">
+          <Avviso tono={s.avvisi.configurati ? 'informazione' : 'attenzione'}>
+            {s.avvisi.motivo}{' '}
+            {s.avvisi.ultimo
+              ? `Ultimo avviso mandato il ${new Date(s.avvisi.ultimo).toLocaleString('it-IT')}.`
+              : 'Nessun avviso mandato finora.'}
+          </Avviso>
+        </div>
         <div className="mt-3">
           {s.guasti.length === 0 ? (
             <Avviso tono="riuscito">Niente nel periodo.</Avviso>

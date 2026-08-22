@@ -9,7 +9,15 @@ import { indirizzoApp } from '@/lib/indirizzo-app';
 
 const RESEND_FROM = process.env.RESEND_FROM || 'Verificato <onboarding@resend.dev>';
 
-async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+/**
+ * Manda un'email. Ritorna `false` — senza lanciare — se la chiave non c'è,
+ * se il destinatario è vuoto o se Resend rifiuta.
+ *
+ * Esportata perché la usa anche `lib/allarmi.ts`: due implementazioni
+ * dell'invio vorrebbero dire che al primo cambio di mittente una delle due
+ * resta indietro, e sarebbe quella degli allarmi — la meno guardata.
+ */
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key || !to) return false;
   try {
