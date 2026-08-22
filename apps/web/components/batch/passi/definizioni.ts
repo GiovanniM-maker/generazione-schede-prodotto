@@ -117,8 +117,6 @@ export const STEP_TOURS: Record<number, TourStep[]> = {
   ],
 };
 
-export const SPREADSHEET_STEPS = new Set([7, 8]);
-
 /**
  * I passi in cui non si compila, si guarda: lì il guscio si allarga.
  *
@@ -127,8 +125,6 @@ export const SPREADSHEET_STEPS = new Set([7, 8]);
  * foglio vero, ed è il momento in cui si verifica che il file sia stato letto
  * giusto: in 768 px se ne vedevano tre colonne su dodici.
  */
-export const PASSI_DA_GUARDARE = new Set([5]);
-
 export const SOURCE_CARDS: SourceCard[] = [
   { mode: 'images', title: 'Solo immagini', description: 'Carichi solo le foto dei prodotti. Lo SKU viene letto dal nome del file (es. TSHIRT001_front.jpg).' },
   { mode: 'spreadsheet', title: 'CSV o Excel', description: 'Carichi un foglio con una riga per SKU e le colonne degli attributi.' },

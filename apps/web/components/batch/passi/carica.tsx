@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 import { Loader2, Check, UploadCloud, FileSpreadsheet, FileText, Download } from 'lucide-react';
-import { type FoglioListaSku, type AnteprimaListaSku, type UploadSpreadsheetResult, type UploadImagesResult } from '@/lib/actions/batch-wizard';
+import {
+  type FoglioListaSku,
+  type AnteprimaListaSku,
+  type UploadSpreadsheetResult,
+  type UploadImagesResult,
+} from '@/lib/actions/batch-wizard';
 import type { MappaturaListaSku } from '@app/core';
 import { HelpBubble } from '@/components/onboarding/help-bubble';
 import { Button } from '@/components/ui/button';
@@ -17,6 +22,7 @@ import { cn } from '@/lib/utils';
 import type { SourceMode } from '@/components/batch/passi/tipi';
 import { SOURCE_CARDS } from '@/components/batch/passi/definizioni';
 import { PreviewTable, FilesTable } from '@/components/batch/passi/pezzi';
+import type { ProgressoListaSku } from '@/lib/actions/batch-wizard';
 
 // CARICA — da dove arrivano i dati, e portarli dentro.
 //
@@ -65,7 +71,10 @@ export function Step3({
   onAnteprimaSku: () => void;
   busy: boolean;
 }) {
-  const urlCount = urlText.split(/\r?\n/).map((u) => u.trim()).filter(Boolean).length;
+  const urlCount = urlText
+    .split(/\r?\n/)
+    .map((u) => u.trim())
+    .filter(Boolean).length;
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-500">
@@ -88,7 +97,9 @@ export function Step3({
               className={cn(
                 'rounded-xl border p-4 text-left transition-colors',
                 card.disabled && 'cursor-not-allowed opacity-60',
-                active ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent' : 'border-ink-200 bg-white hover:bg-ink-50',
+                active
+                  ? 'border-brand-accent bg-brand-soft/70 ring-1 ring-brand-accent'
+                  : 'border-ink-200 bg-white hover:bg-ink-50',
               )}
             >
               <div className="flex items-center justify-between gap-2">
@@ -122,12 +133,14 @@ export function Step3({
                 rows={7}
                 value={urlText}
                 onChange={(e) => setUrlText(e.target.value)}
-                placeholder={'https://www.tuosito.it/prodotti/maglione-rosso\nhttps://www.fornitore.com/p/olio-evo-500ml'}
+                placeholder={
+                  'https://www.tuosito.it/prodotti/maglione-rosso\nhttps://www.fornitore.com/p/olio-evo-500ml'
+                }
                 className="mt-1 font-mono text-sm"
               />
               <p className="mt-1 text-xs text-ink-500">
-                {urlCount > 0 ? `${urlCount} URL pronti · ` : ''}Massimo 60 per volta. Estraiamo nome,
-                brand, prezzo, attributi e foto dai dati strutturati della pagina.
+                {urlCount > 0 ? `${urlCount} URL pronti · ` : ''}Massimo 60 per volta. Estraiamo
+                nome, brand, prezzo, attributi e foto dai dati strutturati della pagina.
               </p>
             </div>
             <Avviso tono="attenzione" className="text-xs">
@@ -153,8 +166,8 @@ export function Step3({
                 className="mt-1 font-mono text-sm"
               />
               <p className="mt-1 text-xs text-ink-500">
-                Puoi scrivere anche «codice; marca»: la marca serve a distinguere due produttori
-                che usano lo stesso codice.
+                Puoi scrivere anche «codice; marca»: la marca serve a distinguere due produttori che
+                usano lo stesso codice.
               </p>
             </div>
 
@@ -232,8 +245,8 @@ export function Step3({
                 )}
                 {skuMappatura.codiceModello && (
                   <p className="mt-2 text-xs text-ink-500">
-                    Con il codice modello dichiarato non c’è niente da indovinare: il
-                    raggruppamento viene dal tuo file.
+                    Con il codice modello dichiarato non c’è niente da indovinare: il raggruppamento
+                    viene dal tuo file.
                   </p>
                 )}
               </div>
@@ -299,7 +312,8 @@ export function Step3({
                   <li>{skuAnteprima.risoluzioni} ricerche online</li>
                   <li>
                     {skuAnteprima.creditiConRaggruppamento} crediti di generazione
-                    {skuAnteprima.creditiSenzaRaggruppamento > skuAnteprima.creditiConRaggruppamento &&
+                    {skuAnteprima.creditiSenzaRaggruppamento >
+                      skuAnteprima.creditiConRaggruppamento &&
                       ` invece di ${skuAnteprima.creditiSenzaRaggruppamento} senza raggruppamento`}
                   </li>
                 </ul>
@@ -320,7 +334,6 @@ export function Step3({
               tace su quel punto invece di dichiararlo. La verifica dei diritti sulle immagini resta
               a carico tuo.
             </Avviso>
-
           </CardContent>
         </Card>
       )}
@@ -365,8 +378,8 @@ export function Step3({
             </div>
             <Avviso tono="attenzione" className="text-xs">
               Serve un PDF con testo selezionabile: da una scansione o da una fotografia non si
-              legge niente, e ve lo diciamo invece di importare una scheda vuota. La descrizione
-              del fornitore non viene copiata: l’AI riscrive la scheda dai fatti.
+              legge niente, e ve lo diciamo invece di importare una scheda vuota. La descrizione del
+              fornitore non viene copiata: l’AI riscrive la scheda dai fatti.
             </Avviso>
           </CardContent>
         </Card>
@@ -375,7 +388,17 @@ export function Step3({
   );
 }
 
-export function Step4({ batchId, hasSpreadsheet, hasImages, imageNamingGuide }: { batchId: string; hasSpreadsheet: boolean; hasImages: boolean; imageNamingGuide: string }) {
+export function Step4({
+  batchId,
+  hasSpreadsheet,
+  hasImages,
+  imageNamingGuide,
+}: {
+  batchId: string;
+  hasSpreadsheet: boolean;
+  hasImages: boolean;
+  imageNamingGuide: string;
+}) {
   return (
     <div className="space-y-5">
       <Card>
@@ -383,8 +406,13 @@ export function Step4({ batchId, hasSpreadsheet, hasImages, imageNamingGuide }: 
           <p className="font-medium text-ink-900">Regole SKU</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Ogni prodotto ha uno SKU univoco. Una riga per SKU.</li>
-            <li>Lo SKU non può contenere underscore; sono ammessi lettere, numeri, trattini e punti.</li>
-            <li>I dati forniti vengono usati come fatti: le informazioni assenti non verranno inventate.</li>
+            <li>
+              Lo SKU non può contenere underscore; sono ammessi lettere, numeri, trattini e punti.
+            </li>
+            <li>
+              I dati forniti vengono usati come fatti: le informazioni assenti non verranno
+              inventate.
+            </li>
           </ul>
         </CardContent>
       </Card>
@@ -412,7 +440,9 @@ export function Step4({ batchId, hasSpreadsheet, hasImages, imageNamingGuide }: 
       {hasImages && (
         <Card>
           <CardContent className="p-5">
-            <pre className="whitespace-pre-wrap font-sans text-sm text-ink-600">{imageNamingGuide}</pre>
+            <pre className="whitespace-pre-wrap font-sans text-sm text-ink-600">
+              {imageNamingGuide}
+            </pre>
           </CardContent>
         </Card>
       )}
@@ -491,7 +521,8 @@ export function Step5({
           {spreadsheetResult && (
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-center gap-2 text-emerald-700">
-                <Check className="h-4 w-4" /> {spreadsheetResult.file.filename} — {spreadsheetResult.totalRows} righe
+                <Check className="h-4 w-4" /> {spreadsheetResult.file.filename} —{' '}
+                {spreadsheetResult.totalRows} righe
               </div>
               {/* Excel con più fogli: si dice QUALE è stato letto e si lascia
                   scegliere. Un workbook con «Istruzioni» prima e «Listino»
@@ -515,12 +546,15 @@ export function Step5({
                     ))}
                   </Select>
                   <p className="mt-1.5 text-xs text-amber-800">
-                    Se i prodotti sono su un altro foglio, scegliilo qui: l’anteprima
-                    qui sotto si aggiorna.
+                    Se i prodotti sono su un altro foglio, scegliilo qui: l’anteprima qui sotto si
+                    aggiorna.
                   </p>
                 </div>
               )}
-              <PreviewTable headers={spreadsheetResult.headers} rows={spreadsheetResult.previewRows} />
+              <PreviewTable
+                headers={spreadsheetResult.headers}
+                rows={spreadsheetResult.previewRows}
+              />
             </div>
           )}
         </div>
@@ -545,12 +579,18 @@ export function Step5({
             }}
             className={cn(
               'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center',
-              dragOver ? 'border-brand-accent bg-brand-soft/70' : 'border-ink-300 bg-white hover:bg-ink-50',
+              dragOver
+                ? 'border-brand-accent bg-brand-soft/70'
+                : 'border-ink-300 bg-white hover:bg-ink-50',
             )}
           >
             <UploadCloud className="h-6 w-6 text-ink-400" />
-            <span className="text-sm text-ink-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
-            <span className="text-xs text-ink-500">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
+            <span className="text-sm text-ink-600">
+              Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)
+            </span>
+            <span className="text-xs text-ink-500">
+              Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.
+            </span>
             <input
               aria-label="Scegli le foto dei prodotti"
               type="file"
@@ -583,16 +623,19 @@ export function Step5({
           )}
           {imagesResult && (
             <div className="mt-3 space-y-3 text-sm">
-              <div className="rounded-lg border border-ink-200 bg-ink-50 p-3" data-tour="sku-separator">
+              <div
+                className="rounded-lg border border-ink-200 bg-ink-50 p-3"
+                data-tour="sku-separator"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink-700">Separatore SKU:</span>
-                  {([
+                  {[
                     { d: '_' as const, label: 'trattino_basso' },
                     { d: '-' as const, label: 'trattino -' },
                     { d: '.' as const, label: 'punto .' },
                     { d: ' ' as const, label: 'spazio' },
                     { d: 'none' as const, label: 'nessuno: il nome è lo SKU' },
-                  ]).map((opt) => (
+                  ].map((opt) => (
                     <button
                       key={opt.d}
                       type="button"
@@ -639,3 +682,103 @@ export function Step5({
  * catalogo. Quelli non riconosciuti vengono elencati e si possono rimappare a
  * mano su una categoria esistente (override passato all'import).
  */
+
+/**
+ * La lavorazione di una lista SKU, mentre gira o quando si può riprendere.
+ *
+ * Stava dentro l'orchestratore, perché era nato lì. Non è orchestrazione: è
+ * una schermata, e con gli stadi convive con la scelta della fonte nella
+ * stessa pagina.
+ */
+export function LavorazioneListaSku({
+  coda,
+  inCorso,
+  onRiprendi,
+}: {
+  coda: ProgressoListaSku;
+  inCorso: boolean;
+  onRiprendi: () => void;
+}) {
+  return (
+    <Card className="mb-3">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-sm font-medium text-ink-900">
+            {inCorso ? 'Sto cercando i prodotti…' : 'Lavorazione da riprendere'}
+          </span>
+          <span className="text-sm tabular-nums text-ink-600">
+            {coda.fatte} di {coda.totale}
+          </span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+          <div
+            className="h-full rounded-full bg-brand-accent transition-all"
+            style={{
+              width: `${coda.totale > 0 ? Math.round((coda.fatte / coda.totale) * 100) : 0}%`,
+            }}
+          />
+        </div>
+        <p className="text-sm text-ink-600">
+          {coda.importati > 0 &&
+            `${coda.importati} ${coda.importati === 1 ? 'prodotto' : 'prodotti'} in catalogo. `}
+          {coda.daConfermare > 0 &&
+            `${coda.daConfermare} ${coda.daConfermare === 1 ? 'codice aspetta' : 'codici aspettano'} una conferma. `}
+          {coda.nonTrovati > 0 && `${coda.nonTrovati} non trovati. `}
+          {/* Una ricerca ripresa non è un prodotto in meno: è la stessa
+                  domanda a cui si era già risposto. */}
+          {coda.riprese > 0 &&
+            `${coda.riprese} ${coda.riprese === 1 ? 'ripreso' : 'ripresi'} da una ricerca già fatta. `}
+        </p>
+        {coda.daRiprovare > 0 && !inCorso && (
+          <p className="text-sm text-ink-600">
+            {coda.daRiprovare}{' '}
+            {coda.daRiprovare === 1
+              ? 'codice non è stato cercato'
+              : 'codici non sono stati cercati'}
+            : la ricerca non ha risposto. Non sono archiviati come inesistenti.
+          </p>
+        )}
+        {!inCorso && (
+          <div className="flex justify-end">
+            <Button size="sm" onClick={onRiprendi}>
+              Riprendi
+            </Button>
+          </div>
+        )}
+        <p className="text-xs text-ink-500">
+          Puoi chiudere questa pagina: quello che è già stato cercato resta, e riaprendo la
+          lavorazione si riparte da qui.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * I codici che aspettano che qualcuno dica qual è la pagina giusta.
+ *
+ * Non è un errore ed è importante che non lo sembri: la ricerca ha trovato più
+ * pagine plausibili per lo stesso codice, e sceglierne una a caso vorrebbe dire
+ * scrivere dati di un altro prodotto.
+ */
+export function ConfermeInSospeso({
+  quanti,
+  onRiprendi,
+}: {
+  quanti: number;
+  onRiprendi: () => void;
+}) {
+  return (
+    <Avviso tono="attenzione" className="mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          {quanti} {quanti === 1 ? 'codice aspetta' : 'codici aspettano'} che tu dica qual è la
+          pagina giusta. Finché non lo fai, per quei codici non viene scritto nessun dato.
+        </span>
+        <Button size="sm" onClick={onRiprendi}>
+          Riprendi le conferme
+        </Button>
+      </div>
+    </Avviso>
+  );
+}

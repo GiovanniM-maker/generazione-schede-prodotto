@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  HelpCircle,
-  ArrowLeft,
-  LifeBuoy,
-} from 'lucide-react';
+import { HelpCircle, ArrowLeft, LifeBuoy } from 'lucide-react';
 import {
   listPublishedPresets,
   createBatchV2,
@@ -45,6 +41,20 @@ import {
 } from '@/lib/actions/batch-wizard';
 import type { MappaturaListaSku } from '@app/core';
 import { motivoMancante } from '@app/core/comandi';
+import {
+  indiceStadio,
+  leggiStadio,
+  passiVisibili,
+  passoAttivo,
+  prossimoStadio,
+  stadioDiRipresa,
+  stadioPrecedente,
+  primoPasso,
+  STADI,
+  SOTTOTITOLI,
+  TITOLI,
+  type Stadio,
+} from '@app/core/stadi';
 import { runVisualExtractionForBatch } from '@/lib/actions/visual';
 import { verificaCreditiBatch, type VerificaBatchResult } from '@/lib/actions/diritti';
 import {
@@ -56,26 +66,29 @@ import { GuidedTour, tourSeen, markTourSeen } from '@/components/onboarding/guid
 import { WizardGuide } from '@/components/onboarding/wizard-guide';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Avviso } from '@/components/ui/avviso';
 import { cn } from '@/lib/utils';
-import {
-  normalizeCompleteness,
-  type Completeness,
-} from '@/lib/completeness';
-import {
-  STEP_DEFS,
-  STEP_TOURS,
-  SPREADSHEET_STEPS,
-  PASSI_DA_GUARDARE,
-} from '@/components/batch/passi/definizioni';
+import { normalizeCompleteness, type Completeness } from '@/lib/completeness';
+import { STEP_TOURS } from '@/components/batch/passi/definizioni';
 import type { AnalyzeData, SampleCopy, SourceMode } from '@/components/batch/passi/tipi';
-import { sha256Hex, mimeFromName, messaggioDiRete, normalize, fuzzyHeader } from '@/components/batch/passi/utili';
-import { ProgressBar, StepPrimaryAction } from '@/components/batch/passi/pezzi';
+import {
+  sha256Hex,
+  mimeFromName,
+  messaggioDiRete,
+  normalize,
+  fuzzyHeader,
+} from '@/components/batch/passi/utili';
+import { ProgressBar, Sezione, StepPrimaryAction } from '@/components/batch/passi/pezzi';
 import { Step1, Step2 } from '@/components/batch/passi/prepara';
-import { Step3, Step4, Step5 } from '@/components/batch/passi/carica';
+import {
+  ConfermeInSospeso,
+  LavorazioneListaSku,
+  Step3,
+  Step4,
+  Step5,
+} from '@/components/batch/passi/carica';
 import { Step6, Step7, Step8 } from '@/components/batch/passi/mappa';
-import { Step9 } from '@/components/batch/passi/ripara';
+import { EsitoListaSku, Step9 } from '@/components/batch/passi/ripara';
 import { Step10, Step11 } from '@/components/batch/passi/prova';
 
 // ---------------------------------------------------------------------------
@@ -83,24 +96,14 @@ import { Step10, Step11 } from '@/components/batch/passi/prova';
 // le server action e mostra gli errori restituiti inline.
 // ---------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) {
   const router = useRouter();
   const parametri = useSearchParams();
 
-  const [stepId, setStepId] = useState(1);
+  // Cinque stadi al posto di undici passi. Dentro uno stadio i vecchi passi
+  // stanno tutti nella stessa schermata, uno sotto l'altro: sono cose che si
+  // guardano insieme, non undici volte «Continua».
+  const [stadio, setStadio] = useState<Stadio>('prepara');
   /** Ripresa in corso: finché non finisce non si mostra il passo 1 a vuoto. */
   const [ripresaInCorso, setRipresaInCorso] = useState(false);
 
@@ -110,6 +113,20 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [batchId, setBatchId] = useState<string | null>(null);
   const [presetVersionId, setPresetVersionId] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode | null>(null);
+
+  // Quali vecchi passi sono in vista adesso.
+  //
+  // Dentro «Mappa» l'associazione degli SKU e l'accostamento delle colonne
+  // hanno senso solo con un foglio: chi carica solo immagini non ha colonne da
+  // accostare. Prima quei due passi SPARIVANO dalla barra, che quindi cambiava
+  // lunghezza a metà strada — «5 di 11» che diventa «5 di 9» mentre la si
+  // guarda. Adesso gli stadi restano cinque e cambia solo cosa c'è dentro.
+  const haFoglio = sourceMode === 'spreadsheet' || sourceMode === 'both';
+  const passiInVista: number[] = passiVisibili(stadio, { haFoglio });
+  const mostra = useCallback(
+    (passo: number) => passiVisibili(stadio, { haFoglio }).includes(passo),
+    [stadio, haFoglio],
+  );
   // Ogni scatto è una richiesta d'aiuto dalla barra dei comandi (su telefono).
   const [chiediAiuto, setChiediAiuto] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +176,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // un tentativo e l'altro possono essere stati spesi altrove — un collega, un
   // altro batch — e una risposta vecchia qui vale meno di nessuna risposta.
   useEffect(() => {
-    if (stepId !== 11 || !batchId) return;
+    if (!mostra(11) || !batchId) return;
     let vivo = true;
     setDirittiBatch(null);
     verificaCreditiBatch(batchId).then((r) => {
@@ -168,14 +185,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     return () => {
       vivo = false;
     };
-  }, [stepId, batchId]);
+  }, [mostra, batchId]);
 
-  const passoAvviabile = stepId !== 1 || (presets !== null && presets.length > 0);
+  const passoAvviabile = stadio !== 'prepara' || (presets !== null && presets.length > 0);
   useEffect(() => {
     setTourOpen(
-      passoAvviabile && Boolean(STEP_TOURS[stepId]) && !tourSeen(`wizard.${stepId}.v1`),
+      passoAvviabile && Boolean(STEP_TOURS[primoPasso(stadio)]) && !tourSeen(`wizard.${stadio}.v1`),
     );
-  }, [stepId, passoAvviabile]);
+  }, [stadio, passoAvviabile]);
 
   // Step 2
   const [explorer, setExplorer] = useState<PresetExplorer | null>(null);
@@ -183,9 +200,13 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [expandedAttr, setExpandedAttr] = useState<Set<string>>(new Set());
 
   // Step 5
+  /** Le fonti sono state inviate: da qui in poi c'è qualcosa da caricare. */
+  const [sorgentiInviate, setSorgentiInviate] = useState(false);
   const [spreadsheetResult, setSpreadsheetResult] = useState<UploadSpreadsheetResult | null>(null);
   const [imagesResult, setImagesResult] = useState<UploadImagesResult | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
   const [skuDelimiter, setSkuDelimiter] = useState<'_' | '-' | '.' | ' ' | 'none'>('_');
   const [reparsing, setReparsing] = useState(false);
 
@@ -201,7 +222,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // Rimappatura manuale dei valori categoria non riconosciuti: valore file → categoryId.
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
   const [parentHeader, setParentHeader] = useState('');
-  const [importOption, setImportOption] = useState<'complete' | 'includeImageOnly' | 'excludeIncomplete'>('complete');
+  const [importOption, setImportOption] = useState<
+    'complete' | 'includeImageOnly' | 'excludeIncomplete'
+  >('complete');
 
   // Step 8
   const [attributes, setAttributes] = useState<PresetAttributeOption[] | null>(null);
@@ -231,7 +254,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9 — analisi immagini automatica (OCR etichette + categoria dedotta).
   const [analyzingImages, setAnalyzingImages] = useState(false);
-  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number } | null>(null);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
 
   // Step 11 — avviso email a fine generazione (opt-in, attivo di default).
   const [notifyByEmail, setNotifyByEmail] = useState(true);
@@ -241,28 +266,57 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   const [sampleCompleteness, setSampleCompleteness] = useState<Completeness | null>(null);
   const [sampleContent, setSampleContent] = useState<SampleCopy | null>(null);
 
-  const hasSpreadsheet = sourceMode === 'spreadsheet' || sourceMode === 'both';
+  // I fumetti dello stadio: SOLO quelli del suo primo passo.
+  //
+  // Il primo giro li univa tutti — dentro «Prepara» sarebbero stati quelli del
+  // passo 1 più quelli del 2 — e il risultato era una guida più lunga proprio
+  // sulla prima schermata. Cioè l'opposto di quello che questa tappa serve a
+  // fare. Se ne accorge la suite del browser: due prove che non chiudevano mai
+  // la guida hanno cominciato a trovarsela davanti al comando principale.
+  const fumetti = STEP_TOURS[primoPasso(stadio)] ?? [];
+
+  // Dentro uno stadio i pezzi compaiono man mano: la fonte si sceglie prima
+  // che ci sia qualcosa da caricare, e l'anteprima del foglio esiste solo dopo
+  // che il foglio è stato letto. Il comando in fondo è quello del primo pezzo
+  // ancora da fare — non quello dell'ultimo, che chiederebbe di continuare
+  // senza aver fatto niente.
+  const fatto: Record<number, boolean> = {
+    1: batchId !== null,
+    2: true, // si guarda e basta
+    3: sorgentiInviate,
+    4: true, // istruzioni e template: si leggono
+    5:
+      (!haFoglio || !!spreadsheetResult) &&
+      (!(sourceMode === 'images' || sourceMode === 'both') || !!imagesResult),
+    6: true,
+    7: true,
+    8: true,
+    9: true,
+    10: sampleDone,
+    11: false,
+  };
+  const passoInCorso = passoAttivo(passiInVista, fatto);
+
+  const hasSpreadsheet = haFoglio;
   const hasImages = sourceMode === 'images' || sourceMode === 'both';
 
-  const activeSteps = STEP_DEFS.filter((s) => !SPREADSHEET_STEPS.has(s.id) || hasSpreadsheet);
-  const activeIndex = activeSteps.findIndex((s) => s.id === stepId);
-
-  const goTo = useCallback((id: number) => {
+  const goTo = useCallback((s: Stadio) => {
     setError(null);
-    setStepId(id);
+    setStadio(s);
+    // Cambiando stadio si cambia schermata: restare a metà pagina è il modo
+    // più veloce di far credere che non sia successo niente.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const nextStep = useCallback(() => {
-    const idx = activeSteps.findIndex((s) => s.id === stepId);
-    const next = activeSteps[idx + 1];
-    if (next) goTo(next.id);
-  }, [activeSteps, stepId, goTo]);
+    const p = prossimoStadio(stadio);
+    if (p) goTo(p);
+  }, [stadio, goTo]);
 
   const prevStep = useCallback(() => {
-    const idx = activeSteps.findIndex((s) => s.id === stepId);
-    const prev = activeSteps[idx - 1];
-    if (prev) goTo(prev.id);
-  }, [activeSteps, stepId, goTo]);
+    const p = stadioPrecedente(stadio);
+    if (p) goTo(p);
+  }, [stadio, goTo]);
 
   // --- Loaders per-step ---
 
@@ -282,7 +336,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 2: esploratore preset.
   useEffect(() => {
-    if (stepId !== 2 || !presetVersionId) return;
+    if (!mostra(2) || !presetVersionId) return;
     setExplorer(null);
     setPassoInCaricamento(2);
     void getPresetExplorer({ presetVersionId })
@@ -292,11 +346,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       })
       .catch((e: unknown) => setError(messaggioDiRete(e)))
       .finally(() => setPassoInCaricamento((p) => (p === 2 ? null : p)));
-  }, [stepId, presetVersionId]);
+  }, [mostra, presetVersionId]);
 
   // Step 6: analisi.
   useEffect(() => {
-    if (stepId !== 6 || !batchId) return;
+    if (!mostra(6) || !batchId) return;
     setAnalysis(null);
     setPassoInCaricamento(6);
     void analyzeBatch({ batchId })
@@ -308,39 +362,39 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       })
       .catch((e: unknown) => setError(messaggioDiRete(e)))
       .finally(() => setPassoInCaricamento((p) => (p === 6 ? null : p)));
-  }, [stepId, batchId, skuHeader]);
+  }, [mostra, batchId, skuHeader]);
 
   // Step 8: attributi + header per mapping.
   useEffect(() => {
-    if (stepId !== 8 || !batchId) return;
+    if (!mostra(8) || !batchId) return;
     setAttributes(null);
     setPassoInCaricamento(8);
     void getBatchPresetAttributes({ batchId })
       .then((res) => {
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
-      setAttributes(res.data.attributes);
-      setHeaders(res.data.headers);
-      if (!skuHeader && res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
-      setMapping((prev) => {
-        if (Object.keys(prev).length > 0) return prev;
-        const next: Record<string, string> = {};
-        for (const attr of res.data.attributes) {
-          const guess = fuzzyHeader(attr, res.data.headers);
-          if (guess) next[attr.id] = guess;
+        if (!res.ok) {
+          setError(res.error);
+          return;
         }
-        return next;
-      });
+        setAttributes(res.data.attributes);
+        setHeaders(res.data.headers);
+        if (!skuHeader && res.data.suggestedSkuHeader) setSkuHeader(res.data.suggestedSkuHeader);
+        setMapping((prev) => {
+          if (Object.keys(prev).length > 0) return prev;
+          const next: Record<string, string> = {};
+          for (const attr of res.data.attributes) {
+            const guess = fuzzyHeader(attr, res.data.headers);
+            if (guess) next[attr.id] = guess;
+          }
+          return next;
+        });
       })
       .catch((e: unknown) => setError(messaggioDiRete(e)))
       .finally(() => setPassoInCaricamento((p) => (p === 8 ? null : p)));
-  }, [stepId, batchId, skuHeader]);
+  }, [mostra, batchId, skuHeader]);
 
   // Step 7: prova a indovinare la colonna Categoria dalle intestazioni.
   useEffect(() => {
-    if (stepId !== 7 || categoryHeader) return;
+    if (!mostra(7) || categoryHeader) return;
     const hs = spreadsheetResult?.headers ?? [];
     const guess = hs.find((h) =>
       ['categoria', 'category', 'reparto', 'famiglia', 'tipologia', 'macrocategoria'].includes(
@@ -348,17 +402,17 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       ),
     );
     if (guess) setCategoryHeader(guess);
-  }, [stepId, spreadsheetResult, categoryHeader]);
+  }, [mostra, spreadsheetResult, categoryHeader]);
 
   // Step 7: e la colonna Nome. Il suggerimento arriva dal server insieme al
   // file (come quello dello SKU): la logica sta in @app/core, che qui non si
   // può importare — è un componente client e il pacchetto porta con sé
   // `node:crypto`.
   useEffect(() => {
-    if (stepId !== 7 || nameHeader) return;
+    if (!mostra(7) || nameHeader) return;
     const guess = spreadsheetResult?.suggestedNameHeader;
     if (guess && guess !== skuHeader) setNameHeader(guess);
-  }, [stepId, spreadsheetResult, nameHeader, skuHeader]);
+  }, [mostra, spreadsheetResult, nameHeader, skuHeader]);
 
   // DEFAULT: appena il file è pronto, TUTTE le colonne vengono importate come
   // dati (fatti per SKU). L'utente può poi ESCLUDERE quelle che non servono.
@@ -392,7 +446,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // riga «lo ritrovi riaprendo questa lavorazione» sarebbe una promessa che il
   // prodotto non mantiene.
   useEffect(() => {
-    if (stepId !== 3 || !batchId) return;
+    if (!mostra(3) || !batchId) return;
     let vivo = true;
     void (async () => {
       const res = await listaConfermeIdentita({ batchId }).catch(() => null);
@@ -401,14 +455,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     return () => {
       vivo = false;
     };
-  }, [stepId, batchId, confermeAperte]);
+  }, [mostra, batchId, confermeAperte]);
 
   // Una coda lasciata a metà si ritrova riaprendo la lavorazione: lo stato sta
   // nel registro, non qui. Senza questa lettura, chi chiude la pagina durante
   // una lista da cinquecento codici non avrebbe nessuna strada per riprenderla
   // — e ricominciando da capo ripagherebbe le ricerche già fatte.
   useEffect(() => {
-    if ((stepId !== 3 && stepId !== 9) || !batchId || codaInCorso) return;
+    if ((!mostra(3) && !mostra(9)) || !batchId || codaInCorso) return;
     let vivo = true;
     void (async () => {
       const res = await progressoListaSku({ batchId }).catch(() => null);
@@ -417,7 +471,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     return () => {
       vivo = false;
     };
-  }, [stepId, batchId, codaInCorso]);
+  }, [mostra, batchId, codaInCorso]);
 
   // Un errore che compare fuori dallo schermo è un errore che non esiste.
   //
@@ -432,7 +486,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 
   // Step 9: import + prodotti (+ analisi immagini automatica).
   useEffect(() => {
-    if (stepId !== 9 || !batchId) return;
+    if (!mostra(9) || !batchId) return;
     const bid = batchId;
     let cancelled = false;
 
@@ -511,35 +565,39 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     setProducts(null);
     setImportSummary(null);
     const options = {
-      includeImageOnly: hasImages && (importOption === 'includeImageOnly' || sourceMode === 'images'),
+      includeImageOnly:
+        hasImages && (importOption === 'includeImageOnly' || sourceMode === 'images'),
       excludeIncomplete: importOption === 'excludeIncomplete',
     };
     void (async () => {
       try {
-      const imp = await confirmImportV2({
-        batchId: bid,
-        skuHeader: hasSpreadsheet ? skuHeader : '',
-        attributeMapping: hasSpreadsheet ? mapping : {},
-        nameHeader: hasSpreadsheet && nameHeader ? nameHeader : undefined,
-        categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
-        categoryOverrides: hasSpreadsheet && Object.keys(categoryOverrides).length > 0 ? categoryOverrides : undefined,
-        parentHeader: hasSpreadsheet && parentHeader ? parentHeader : undefined,
-        extraColumns: hasSpreadsheet
-          ? Object.entries(extraCols).map(([header, name]) => ({ header, name: name || header }))
-          : undefined,
-        options,
-      });
-      if (cancelled) return;
-      if (!imp.ok) {
-        setError(imp.error);
-        return;
-      }
-      setImportSummary(imp.data);
-      const list = await getBatchProductsV2({ batchId: bid });
-      if (cancelled) return;
-      if (list.ok) setProducts(list.data.products);
-      else setError(list.error);
-      await autoAnalyze();
+        const imp = await confirmImportV2({
+          batchId: bid,
+          skuHeader: hasSpreadsheet ? skuHeader : '',
+          attributeMapping: hasSpreadsheet ? mapping : {},
+          nameHeader: hasSpreadsheet && nameHeader ? nameHeader : undefined,
+          categoryHeader: hasSpreadsheet ? categoryHeader : undefined,
+          categoryOverrides:
+            hasSpreadsheet && Object.keys(categoryOverrides).length > 0
+              ? categoryOverrides
+              : undefined,
+          parentHeader: hasSpreadsheet && parentHeader ? parentHeader : undefined,
+          extraColumns: hasSpreadsheet
+            ? Object.entries(extraCols).map(([header, name]) => ({ header, name: name || header }))
+            : undefined,
+          options,
+        });
+        if (cancelled) return;
+        if (!imp.ok) {
+          setError(imp.error);
+          return;
+        }
+        setImportSummary(imp.data);
+        const list = await getBatchProductsV2({ batchId: bid });
+        if (cancelled) return;
+        if (list.ok) setProducts(list.data.products);
+        else setError(list.error);
+        await autoAnalyze();
       } finally {
         finito();
       }
@@ -548,7 +606,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       cancelled = true;
       finito();
     };
-  }, [stepId, batchId]);
+  }, [mostra, batchId]);
 
   // -------------------------------------------------------------------------
   // Lo stato nell'URL.
@@ -570,16 +628,17 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // browser basta, e `useSearchParams` la vede lo stesso.
   useEffect(() => {
     if (!batchId || ripresaInCorso) return;
-    const atteso = `?batch=${batchId}&passo=${stepId}`;
+    const atteso = `?batch=${batchId}&stadio=${stadio}`;
     if (window.location.search !== atteso) {
       window.history.replaceState(null, '', `/app/batches/new${atteso}`);
     }
-  }, [batchId, stepId, ripresaInCorso]);
+  }, [batchId, stadio, ripresaInCorso]);
 
   // Ripresa: `?batch=…` all'apertura significa che stiamo tornando su un
   // lavoro lasciato a metà.
   const batchDaRiprendere = parametri.get('batch');
-  const passoDaRiprendere = Number(parametri.get('passo') ?? '');
+  const stadioDaRiprendere = parametri.get('stadio');
+  const passoDaRiprendere = parametri.get('passo');
   useEffect(() => {
     if (!batchDaRiprendere || batchId) return;
     let annullato = false;
@@ -597,7 +656,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         if (d.presetId) setSelectedPresetId(d.presetId);
         setPresetVersionId(d.presetVersionId);
         if (d.sourceType === 'mixed') setSourceMode('both');
-        else if (d.sourceType === 'spreadsheet' || d.sourceType === 'images' || d.sourceType === 'pdf')
+        else if (
+          d.sourceType === 'spreadsheet' ||
+          d.sourceType === 'images' ||
+          d.sourceType === 'pdf'
+        )
           setSourceMode(d.sourceType);
         // La fonte «Lista SKU» mancava da questo elenco: riaprendo una sua
         // lavorazione, il passo 3 compariva SENZA nessuna fonte selezionata —
@@ -622,9 +685,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         // Non si riprende oltre il punto che i dati reggono: senza file
         // caricato il massimo è il passo delle fonti. I prodotti contano quanto
         // i file: la Lista SKU li crea senza caricare niente.
-        const massimo = d.spreadsheet || d.immagini > 0 || d.prodotti > 0 ? 9 : d.sourceType ? 4 : 3;
-        const voluto = Number.isFinite(passoDaRiprendere) && passoDaRiprendere >= 1 ? passoDaRiprendere : 1;
-        setStepId(Math.max(1, Math.min(voluto, massimo)));
+        const massimo =
+          d.spreadsheet || d.immagini > 0 || d.prodotti > 0 ? 9 : d.sourceType ? 4 : 3;
+        // `?passo=8` continua a voler dire qualcosa: il wizard si scriveva da
+        // solo quel numero nella cronologia, quindi sta nei segnalibri della
+        // gente. Chi ci torna deve ritrovarsi dov'era, non all'inizio.
+        setStadio(stadioDiRipresa(leggiStadio(stadioDaRiprendere, passoDaRiprendere), massimo));
       })
       .catch((e: unknown) => setError(messaggioDiRete(e)))
       .finally(() => {
@@ -633,7 +699,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     return () => {
       annullato = true;
     };
-  }, [batchDaRiprendere, batchId, passoDaRiprendere]);
+  }, [batchDaRiprendere, batchId, stadioDaRiprendere, passoDaRiprendere]);
 
   /** Rilegge il file scegliendo un altro foglio dell'Excel. */
   async function cambiaFoglio(foglio: string) {
@@ -682,7 +748,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     setError(null);
     let res;
     try {
-      res = await createBatchV2({ name, description: description || undefined, presetId: selectedPresetId });
+      res = await createBatchV2({
+        name,
+        description: description || undefined,
+        presetId: selectedPresetId,
+      });
     } catch (e) {
       setError(messaggioDiRete(e));
       return;
@@ -719,7 +789,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       return;
     }
     const sourceTypes: WizardSourceType[] =
-      sourceMode === 'both' ? ['spreadsheet', 'images'] : sourceMode === 'spreadsheet' ? ['spreadsheet'] : ['images'];
+      sourceMode === 'both'
+        ? ['spreadsheet', 'images']
+        : sourceMode === 'spreadsheet'
+          ? ['spreadsheet']
+          : ['images'];
     setBusy(true);
     setError(null);
     let res;
@@ -735,7 +809,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       setError(res.error);
       return;
     }
-    nextStep();
+    // Non `nextStep()`: i tre pezzi di «Carica» stanno nella stessa schermata.
+    // Scelta la fonte, compare il caricamento — sotto, dove si stava già
+    // guardando. Cambiare stadio qui salterebbe proprio il caricamento.
+    setSorgentiInviate(true);
   }
 
   async function importUrls() {
@@ -782,7 +859,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       categoriesMatched: 0,
       unmatchedCategories: [],
     });
-    goTo(9);
+    goTo('ripara');
   }
 
   async function importPdfs() {
@@ -828,7 +905,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       categoriesMatched: 0,
       unmatchedCategories: [],
     });
-    goTo(9);
+    goTo('ripara');
   }
 
   // Il foglio arriva anche come parametro, non solo dallo stato.
@@ -911,7 +988,9 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       for (let giro = 0; giro < 200 && !ultimo.finita; giro++) {
         const res = await proseguiListaSku({ batchId }).catch(() => null);
         if (!res || !res.ok) {
-          setError(res && !res.ok ? res.error : 'La lavorazione si è interrotta: riprendi quando vuoi.');
+          setError(
+            res && !res.ok ? res.error : 'La lavorazione si è interrotta: riprendi quando vuoi.',
+          );
           return;
         }
         ultimo = res.data;
@@ -928,7 +1007,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
    * Rilegge dal registro com'è andata, e aggiorna quello che si vede.
    *
    * Serve DOPO la coda di conferma. Prima la conferma finiva con un
-   * `goTo(9)` e basta: i prodotti nati lì non entravano in nessun conteggio —
+   * `goTo('ripara')` e basta: i prodotti nati lì non entravano in nessun conteggio —
    * il riepilogo restava quello di quando erano tutti ancora da confermare,
    * cioè zero — e i codici non riusciti non venivano nominati da nessuna
    * parte. Dieci codici entrati, sei prodotti usciti, e nessuna riga a
@@ -965,7 +1044,7 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
     }
     setImportSummary(riepilogoDa(d));
     setCoda(d);
-    goTo(9);
+    goTo('ripara');
   }
 
   function riepilogoDa(d: ProgressoListaSku) {
@@ -999,7 +1078,10 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           ? { righeFoglio: skuFoglio.righe, mappatura: skuMappatura }
           : { testo: skuText }),
         raggruppa: skuRaggruppa,
-        domini: skuDomini.split(/[\s,;]+/).map((d) => d.trim()).filter(Boolean),
+        domini: skuDomini
+          .split(/[\s,;]+/)
+          .map((d) => d.trim())
+          .filter(Boolean),
       });
     } catch (e) {
       setError(messaggioDiRete(e));
@@ -1076,7 +1158,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       // Segnala subito i file scartati (nome/formato/SKU non validi in fase 1).
       for (const t of targets) {
         if (!t.valid) {
-          failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: t.problem });
+          failedSummaries.push({
+            filename: t.name,
+            sku: t.sku,
+            status: 'errore',
+            problem: t.problem,
+          });
         }
       }
       let done = 0;
@@ -1103,7 +1190,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
               if (!error) break;
             }
             if (uploadError) {
-              failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: 'Upload fallito' });
+              failedSummaries.push({
+                filename: t.name,
+                sku: t.sku,
+                status: 'errore',
+                problem: 'Upload fallito',
+              });
             } else {
               uploaded.push({
                 name: t.name,
@@ -1115,7 +1207,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
               });
             }
           } catch {
-            failedSummaries.push({ filename: t.name, sku: t.sku, status: 'errore', problem: 'Upload fallito' });
+            failedSummaries.push({
+              filename: t.name,
+              sku: t.sku,
+              status: 'errore',
+              problem: 'Upload fallito',
+            });
           }
           done++;
           setUploadProgress({ done, total: valid.length });
@@ -1250,11 +1347,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
   // accorciano perché la finestra è stretta.
   return (
     <div
-      className={cn(PASSI_DA_GUARDARE.has(stepId) ? 'max-w-none' : 'max-w-3xl', 'space-y-6')}
+      className={cn(mostra(5) ? 'max-w-none' : 'max-w-3xl', 'space-y-6')}
       // Lo stesso segnale che usa `PageShell`: il guscio dell'app lo legge con
       // `:has()` e allarga sé stesso e l'intestazione. Il wizard non è dentro
       // un `PageShell` che possa chiederlo per lui, quindi lo chiede da sé.
-      data-larghezza={PASSI_DA_GUARDARE.has(stepId) ? 'piena' : undefined}
+      data-larghezza={mostra(5) ? 'piena' : undefined}
     >
       {/* La barra di avanzamento non cambia più larghezza fra un passo e
           l'altro.
@@ -1266,11 +1363,14 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           Ora il pulsante sta nella riga di intestazione della barra, insieme al
           nome del passo: quella riga è testo, e può cambiare quanto vuole. */}
       <ProgressBar
-        steps={activeSteps}
-        activeIndex={activeIndex}
-        totaleNoto={sourceMode !== null}
+        steps={STADI.map((s: Stadio) => ({ id: s, title: TITOLI[s] }))}
+        activeIndex={indiceStadio(stadio)}
+        // Gli stadi sono cinque SEMPRE: non c'è più un totale da scoprire
+        // strada facendo. Era il difetto che il conto dei passi si portava
+        // dietro — la barra cambiava lunghezza mentre la si guardava.
+        totaleNoto
         azione={
-          STEP_TOURS[stepId] ? (
+          fumetti.length > 0 ? (
             <Button
               variant="ghost"
               size="sm"
@@ -1285,175 +1385,179 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         }
       />
 
+      {/* Il titolo dello stadio. «Mappa» da solo non vuol dire niente a chi
+          apre il wizard la prima volta, e questa riga si legge PRIMA di sapere
+          cosa conterrà. Prima al suo posto c'era il nome del passo, undici
+          volte, dentro la riga della barra: minuscolo e accanto a un conto. */}
+      <div>
+        <h1 className="text-xl font-semibold text-ink-900">{TITOLI[stadio]}</h1>
+        <p className="mt-0.5 text-sm text-ink-500">{SOTTOTITOLI[stadio]}</p>
+      </div>
+
       {error && (
         <div ref={rifErrore}>
           <Avviso tono="errore">{error}</Avviso>
         </div>
       )}
 
-      {stepId === 1 && (
-        <Step1
-          onInvio={submitStep1}
-          pronto={name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0 && !busy}
-          name={name}
-          setName={setName}
-          description={description}
-          setDescription={setDescription}
-          presets={presets}
-          selectedPresetId={selectedPresetId}
-          setSelectedPresetId={setSelectedPresetId}
-        />
+      {mostra(1) && (
+        <Sezione titolo="Il lavoro" attivo={passoInCorso === 1}>
+          <Step1
+            onInvio={submitStep1}
+            pronto={name.trim() !== '' && !!selectedPresetId && (presets?.length ?? 0) > 0 && !busy}
+            name={name}
+            setName={setName}
+            description={description}
+            setDescription={setDescription}
+            presets={presets}
+            selectedPresetId={selectedPresetId}
+            setSelectedPresetId={setSelectedPresetId}
+          />
+        </Sezione>
       )}
 
-      {stepId === 2 && <Step2 explorer={explorer} expandedCat={expandedCat} setExpandedCat={setExpandedCat} expandedAttr={expandedAttr} setExpandedAttr={setExpandedAttr} />}
+      {mostra(2) && (
+        <Sezione titolo="Cosa prevede il preset" attivo={passoInCorso === 2}>
+          <Step2
+            explorer={explorer}
+            expandedCat={expandedCat}
+            setExpandedCat={setExpandedCat}
+            expandedAttr={expandedAttr}
+            setExpandedAttr={setExpandedAttr}
+          />
+        </Sezione>
+      )}
 
-      {stepId === 3 && confermeAperte && batchId && (
+      {/* Le conferme d'identità prendono la schermata: non sono un pezzo
+          dello stadio, sono una domanda che sospende tutto il resto. */}
+      {mostra(3) && confermeAperte && batchId && (
         <ConfermaIdentita
           batchId={batchId}
           onFinito={() => {
             setConfermeAperte(false);
             void aggiornaEsitoLista();
-            goTo(9);
+            goTo('ripara');
           }}
         />
       )}
 
-      {stepId === 3 && !confermeAperte && confermeInSospeso > 0 && (
-        <Avviso tono="attenzione" className="mb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              {confermeInSospeso}{' '}
-              {confermeInSospeso === 1 ? 'codice aspetta' : 'codici aspettano'} che tu dica qual è
-              la pagina giusta. Finché non lo fai, per quei codici non viene scritto nessun dato.
-            </span>
-            <Button size="sm" onClick={() => setConfermeAperte(true)}>
-              Riprendi le conferme
-            </Button>
-          </div>
-        </Avviso>
+      {mostra(3) && !confermeAperte && confermeInSospeso > 0 && (
+        <ConfermeInSospeso quanti={confermeInSospeso} onRiprendi={() => setConfermeAperte(true)} />
       )}
 
-      {stepId === 3 && !confermeAperte && coda && coda.totale > 0 && (codaInCorso || !coda.finita) && (
-        <Card className="mb-3">
-          <CardContent className="space-y-3 p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-sm font-medium text-ink-900">
-                {codaInCorso ? 'Sto cercando i prodotti…' : 'Lavorazione da riprendere'}
-              </span>
-              <span className="text-sm tabular-nums text-ink-600">
-                {coda.fatte} di {coda.totale}
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
-              <div
-                className="h-full rounded-full bg-brand-accent transition-all"
-                style={{ width: `${coda.totale > 0 ? Math.round((coda.fatte / coda.totale) * 100) : 0}%` }}
-              />
-            </div>
-            <p className="text-sm text-ink-600">
-              {coda.importati > 0 && `${coda.importati} ${coda.importati === 1 ? 'prodotto' : 'prodotti'} in catalogo. `}
-              {coda.daConfermare > 0 &&
-                `${coda.daConfermare} ${coda.daConfermare === 1 ? 'codice aspetta' : 'codici aspettano'} una conferma. `}
-              {coda.nonTrovati > 0 && `${coda.nonTrovati} non trovati. `}
-              {/* Una ricerca ripresa non è un prodotto in meno: è la stessa
-                  domanda a cui si era già risposto. */}
-              {coda.riprese > 0 &&
-                `${coda.riprese} ${coda.riprese === 1 ? 'ripreso' : 'ripresi'} da una ricerca già fatta. `}
-            </p>
-            {coda.daRiprovare > 0 && !codaInCorso && (
-              <p className="text-sm text-ink-600">
-                {coda.daRiprovare}{' '}
-                {coda.daRiprovare === 1 ? 'codice non è stato cercato' : 'codici non sono stati cercati'}: la
-                ricerca non ha risposto. Non sono archiviati come inesistenti.
-              </p>
-            )}
-            {!codaInCorso && (
-              <div className="flex justify-end">
-                <Button size="sm" onClick={() => void giraLaCoda(coda)}>
-                  Riprendi
-                </Button>
-              </div>
-            )}
-            <p className="text-xs text-ink-500">
-              Puoi chiudere questa pagina: quello che è già stato cercato resta, e riaprendo la lavorazione
-              si riparte da qui.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {stepId === 3 && !confermeAperte && (
-        <Step3
-          sourceMode={sourceMode}
-          setSourceMode={setSourceMode}
-          urlText={urlText}
-          setUrlText={setUrlText}
-          pdfFiles={pdfFiles}
-          setPdfFiles={setPdfFiles}
-          skuText={skuText}
-          setSkuText={setSkuText}
-          skuDomini={skuDomini}
-          setSkuDomini={setSkuDomini}
-          skuRaggruppa={skuRaggruppa}
-          setSkuRaggruppa={setSkuRaggruppa}
-          skuAnteprima={skuAnteprima}
-          skuFoglio={skuFoglio}
-          skuMappatura={skuMappatura}
-          setSkuMappatura={(m) => {
-            setSkuMappatura(m);
-            void anteprimaSku(m);
-          }}
-          onCaricaFoglioSku={caricaFoglioSku}
-          onAnteprimaSku={() => void anteprimaSku()}
-          busy={busy}
+      {mostra(3) && !confermeAperte && coda && coda.totale > 0 && (codaInCorso || !coda.finita) && (
+        <LavorazioneListaSku
+          coda={coda}
+          inCorso={codaInCorso}
+          onRiprendi={() => void giraLaCoda(coda)}
         />
       )}
 
-      {stepId === 4 && batchId && <Step4 batchId={batchId} hasSpreadsheet={hasSpreadsheet} hasImages={hasImages} imageNamingGuide={imageNamingGuide} />}
-
-      {stepId === 5 && (
-        <Step5
-          hasSpreadsheet={hasSpreadsheet}
-          hasImages={hasImages}
-          busy={busy}
-          spreadsheetResult={spreadsheetResult}
-          imagesResult={imagesResult}
-          uploadProgress={uploadProgress}
-          onUploadSpreadsheet={doUploadSpreadsheet}
-          onCambiaFoglio={cambiaFoglio}
-          onUploadImages={doUploadImages}
-          skuDelimiter={skuDelimiter}
-          onChangeDelimiter={changeSkuDelimiter}
-          reparsing={reparsing}
-        />
+      {mostra(3) && !confermeAperte && (
+        <Sezione titolo="Da dove arrivano i dati" attivo={passoInCorso === 3}>
+          <Step3
+            sourceMode={sourceMode}
+            setSourceMode={setSourceMode}
+            urlText={urlText}
+            setUrlText={setUrlText}
+            pdfFiles={pdfFiles}
+            setPdfFiles={setPdfFiles}
+            skuText={skuText}
+            setSkuText={setSkuText}
+            skuDomini={skuDomini}
+            setSkuDomini={setSkuDomini}
+            skuRaggruppa={skuRaggruppa}
+            setSkuRaggruppa={setSkuRaggruppa}
+            skuAnteprima={skuAnteprima}
+            skuFoglio={skuFoglio}
+            skuMappatura={skuMappatura}
+            setSkuMappatura={(m) => {
+              setSkuMappatura(m);
+              void anteprimaSku(m);
+            }}
+            onCaricaFoglioSku={caricaFoglioSku}
+            onAnteprimaSku={() => void anteprimaSku()}
+            busy={busy}
+          />
+        </Sezione>
       )}
 
-      {stepId === 6 && <Step6 analysis={analysis} hasImages={hasImages} hasSpreadsheet={hasSpreadsheet} />}
-
-      {stepId === 7 && (
-        <Step7
-          analysis={analysis}
-          hasImages={hasImages}
-          hasSpreadsheet={hasSpreadsheet}
-          headers={spreadsheetResult?.headers ?? []}
-          skuHeader={skuHeader}
-          setSkuHeader={setSkuHeader}
-          nameHeader={nameHeader}
-          setNameHeader={setNameHeader}
-          categoryHeader={categoryHeader}
-          setCategoryHeader={setCategoryHeader}
-          parentHeader={parentHeader}
-          setParentHeader={setParentHeader}
-          importOption={importOption}
-          setImportOption={setImportOption}
-          batchId={batchId}
-          previewRows={spreadsheetResult?.previewRows ?? []}
-          categoryOverrides={categoryOverrides}
-          setCategoryOverrides={setCategoryOverrides}
-        />
+      {mostra(4) && batchId && (
+        <Sezione titolo="Come preparare i file" attivo={passoInCorso === 4}>
+          <Step4
+            batchId={batchId}
+            hasSpreadsheet={hasSpreadsheet}
+            hasImages={hasImages}
+            imageNamingGuide={imageNamingGuide}
+          />
+        </Sezione>
       )}
 
-      {stepId === 8 && <Step8 attributes={attributes} headers={headers} mapping={mapping} setMapping={setMapping} skuHeader={skuHeader} nameHeader={nameHeader} categoryHeader={categoryHeader} extraCols={extraCols} setExtraCols={setExtraCols} />}
+      {mostra(5) && (
+        <Sezione titolo="I file" attivo={passoInCorso === 5}>
+          <Step5
+            hasSpreadsheet={hasSpreadsheet}
+            hasImages={hasImages}
+            busy={busy}
+            spreadsheetResult={spreadsheetResult}
+            imagesResult={imagesResult}
+            uploadProgress={uploadProgress}
+            onUploadSpreadsheet={doUploadSpreadsheet}
+            onCambiaFoglio={cambiaFoglio}
+            onUploadImages={doUploadImages}
+            skuDelimiter={skuDelimiter}
+            onChangeDelimiter={changeSkuDelimiter}
+            reparsing={reparsing}
+          />
+        </Sezione>
+      )}
+
+      {mostra(6) && (
+        <Sezione titolo="Cosa è arrivato" attivo={passoInCorso === 6}>
+          <Step6 analysis={analysis} hasImages={hasImages} hasSpreadsheet={hasSpreadsheet} />
+        </Sezione>
+      )}
+
+      {mostra(7) && (
+        <Sezione titolo="Le colonne che identificano il prodotto" attivo={passoInCorso === 7}>
+          <Step7
+            analysis={analysis}
+            hasImages={hasImages}
+            hasSpreadsheet={hasSpreadsheet}
+            headers={spreadsheetResult?.headers ?? []}
+            skuHeader={skuHeader}
+            setSkuHeader={setSkuHeader}
+            nameHeader={nameHeader}
+            setNameHeader={setNameHeader}
+            categoryHeader={categoryHeader}
+            setCategoryHeader={setCategoryHeader}
+            parentHeader={parentHeader}
+            setParentHeader={setParentHeader}
+            importOption={importOption}
+            setImportOption={setImportOption}
+            batchId={batchId}
+            previewRows={spreadsheetResult?.previewRows ?? []}
+            categoryOverrides={categoryOverrides}
+            setCategoryOverrides={setCategoryOverrides}
+          />
+        </Sezione>
+      )}
+
+      {mostra(8) && (
+        <Sezione titolo="Le colonne e gli attributi" attivo={passoInCorso === 8}>
+          <Step8
+            attributes={attributes}
+            headers={headers}
+            mapping={mapping}
+            setMapping={setMapping}
+            skuHeader={skuHeader}
+            nameHeader={nameHeader}
+            categoryHeader={categoryHeader}
+            extraCols={extraCols}
+            setExtraCols={setExtraCols}
+          />
+        </Sezione>
+      )}
 
       {/* Che fine hanno fatto i codici, al passo 9.
 
@@ -1463,71 +1567,42 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           trovata ma non raggiungibile» — e non li leggeva nessuno. Un import
           che perde per strada il 40% senza dirlo è peggio di uno che fallisce:
           quello almeno si nota. */}
-      {stepId === 9 && coda && coda.totale > 0 && (
-        <div className="mb-3 space-y-3">
-          <Avviso tono={coda.importati === coda.totale ? 'informazione' : 'attenzione'}>
-            <div className="space-y-1">
-              <div>
-                <strong>
-                  {coda.importati} {coda.importati === 1 ? 'prodotto' : 'prodotti'} da {coda.totale}{' '}
-                  {coda.totale === 1 ? 'codice' : 'codici'}
-                </strong>
-                {coda.immaginiScaricate > 0 &&
-                  ` · ${coda.immaginiScaricate} ${coda.immaginiScaricate === 1 ? 'foto recuperata' : 'foto recuperate'} dalle pagine`}
-                {coda.senzaImmagini > 0 &&
-                  ` · ${coda.senzaImmagini} senza foto`}
-              </div>
-              {coda.immaginiScaricate > 0 && (
-                <div className="text-xs">
-                  Le foto sono di chi le ha pubblicate: la verifica dei diritti di utilizzo resta a
-                  carico tuo.
-                </div>
-              )}
-            </div>
-          </Avviso>
+      {mostra(9) && coda && coda.totale > 0 && <EsitoListaSku coda={coda} />}
 
-          {coda.failures.length > 0 && (
-            <div className="rounded-lg border border-ink-200 bg-white p-3 text-sm">
-              <div className="font-medium text-ink-900">
-                {coda.failures.length}{' '}
-                {coda.failures.length === 1 ? 'codice non è diventato' : 'codici non sono diventati'}{' '}
-                un prodotto
-              </div>
-              <ul className="mt-2 space-y-1 text-ink-600">
-                {coda.failures.map((f) => (
-                  <li key={f.sku} className="flex flex-wrap gap-x-2">
-                    <span className="font-mono text-ink-900">{f.sku}</span>
-                    <span className="text-xs">{f.reason}</span>
-                  </li>
-                ))}
-              </ul>
-              {/* Il rimedio è diverso a seconda del motivo, e vale la pena
-                  scriverlo: senza marca la ricerca è molto più debole, ed è la
-                  cosa che l'utente può cambiare in dieci secondi. */}
-              <p className="mt-2 text-xs text-ink-500">
-                Puoi riprovarli in una nuova lavorazione scrivendo «codice; marca»: la marca
-                restringe la ricerca e fa riconoscere il sito del produttore.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {stepId === 9 && batchId && (
-        <Step9 products={products} importSummary={importSummary} batchId={batchId} hasImages={hasImages} analyzing={analyzingImages} analyzeProgress={analyzeProgress} categoryFromFile={hasSpreadsheet && Boolean(categoryHeader)} />
-      )}
-
-      {stepId === 10 && (
-        <Step10
-          sampleDone={sampleDone}
-          busy={busy}
-          onRun={runSample}
-          completeness={sampleCompleteness}
-          content={sampleContent}
+      {mostra(9) && batchId && (
+        <Step9
+          products={products}
+          importSummary={importSummary}
+          batchId={batchId}
+          hasImages={hasImages}
+          analyzing={analyzingImages}
+          analyzeProgress={analyzeProgress}
+          categoryFromFile={hasSpreadsheet && Boolean(categoryHeader)}
         />
       )}
 
-      {stepId === 11 && <Step11 importSummary={importSummary} diritti={dirittiBatch} notifyByEmail={notifyByEmail} setNotifyByEmail={setNotifyByEmail} />}
+      {mostra(10) && (
+        <Sezione titolo="La prova su un prodotto" attivo={passoInCorso === 10}>
+          <Step10
+            sampleDone={sampleDone}
+            busy={busy}
+            onRun={runSample}
+            completeness={sampleCompleteness}
+            content={sampleContent}
+          />
+        </Sezione>
+      )}
+
+      {mostra(11) && (
+        <Sezione titolo="Prima di partire" attivo={passoInCorso === 11}>
+          <Step11
+            importSummary={importSummary}
+            diritti={dirittiBatch}
+            notifyByEmail={notifyByEmail}
+            setNotifyByEmail={setNotifyByEmail}
+          />
+        </Sezione>
+      )}
 
       {/* Navigazione — SEMPRE raggiungibile: su mobile resta agganciata in basso
           (con passi lunghi altrimenti bisogna scorrere tutta la pagina). */}
@@ -1542,8 +1617,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
           nascondeva il testo: lo rendeva illeggibile ma visibile, che è peggio. */}
       <div className="sticky bottom-0 z-[60] -mx-4 flex items-center justify-between gap-2 border-t border-ink-200 bg-[var(--background)] px-4 py-3 sm:mx-0 sm:border-ink-100">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" onClick={prevStep} disabled={busy}
-        nonDisponibile={activeIndex <= 0 ? 'Sei al primo passo.' : ''}>
+          <Button
+            variant="ghost"
+            onClick={prevStep}
+            disabled={busy}
+            nonDisponibile={stadioPrecedente(stadio) === null ? 'Sei al primo stadio.' : ''}
+          >
             <ArrowLeft className="h-4 w-4" />
             Indietro
           </Button>
@@ -1564,10 +1643,12 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
         </div>
 
         <StepPrimaryAction
-          stepId={stepId}
+          passo={passoInCorso}
           // Il passo che carica blocca «Continua»: senza, si attraversavano
           // mappatura e verifica senza vederle.
-          busy={busy || analyzingImages || passoInCaricamento === stepId}
+          busy={
+            busy || analyzingImages || (passoInCaricamento !== null && mostra(passoInCaricamento))
+          }
           step3Label={
             sourceMode === 'url'
               ? 'Importa da URL'
@@ -1632,11 +1713,11 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
       </div>
 
       {/* Onboarding: fumettini del passo corrente + chat-guida sempre a portata. */}
-      {tourOpen && STEP_TOURS[stepId] && (
+      {tourOpen && fumetti.length > 0 && (
         <GuidedTour
-          steps={STEP_TOURS[stepId]!}
+          steps={fumetti}
           onClose={() => {
-            markTourSeen(`wizard.${stepId}.v1`);
+            markTourSeen(`wizard.${stadio}.v1`);
             setTourOpen(false);
           }}
         />
@@ -1650,76 +1731,50 @@ export function BatchWizard({ imageNamingGuide }: { imageNamingGuide: string }) 
 // Barra di avanzamento.
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // Azione primaria per passo.
 // ---------------------------------------------------------------------------
-
 
 // ---------------------------------------------------------------------------
 // Step 1 — Informazioni batch.
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // Step 2 — Esploratore preset (sola lettura).
 // ---------------------------------------------------------------------------
-
 
 // ---------------------------------------------------------------------------
 // Step 3 — Fonti.
 // ---------------------------------------------------------------------------
 
-
-
-
 // ---------------------------------------------------------------------------
 // Step 4 — Istruzioni e template.
 // ---------------------------------------------------------------------------
-
 
 // ---------------------------------------------------------------------------
 // Step 5 — Caricamento.
 // ---------------------------------------------------------------------------
 
-
-
-
-
 // ---------------------------------------------------------------------------
 // Step 6 — Analisi file.
 // ---------------------------------------------------------------------------
-
-
 
 // ---------------------------------------------------------------------------
 // Step 7 — Associazione SKU.
 // ---------------------------------------------------------------------------
 
-
-
-
 // ---------------------------------------------------------------------------
 // Step 8 — Mapping attributi.
 // ---------------------------------------------------------------------------
-
-
 
 // ---------------------------------------------------------------------------
 // Step 9 — Verifica dati.
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // Step 10 — Campione.
 // ---------------------------------------------------------------------------
 
-
-
-
 // ---------------------------------------------------------------------------
 // Step 11 — Conferma e avvio.
 // ---------------------------------------------------------------------------
-
-
-

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { accedi, creaUtenteDiProva, eliminaUtenteDiProva, motivoPerSaltare } from './sessione';
 import { seminaScenario } from './semina';
+import { chiudiBanner, chiudiGuida } from './schermo';
 
 // ---------------------------------------------------------------------------
 // L'import da PDF, dall'inizio alla fine, in un browser vero e su un database
@@ -85,12 +86,19 @@ test.describe('import da PDF', () => {
     // finché non sono arrivati il passo non è completo. Una persona aspetta di
     // vederli; il test deve fare lo stesso, o misura la rete.
     await expect(page.getByRole('button', { name: /Preset/i }).first()).toBeVisible({ timeout: 20000 });
+    await chiudiBanner(page);
     await page.locator('#batch-name').fill('Import da PDF');
+    // La guida è un velo che copre tutto: finché è aperta, il clic sul comando
+    // principale non arriva. Questa prova ci passava sopra per un caso di
+    // tempi, cioè misurava la fortuna.
+    await chiudiGuida(page);
     await page.getByRole('button', { name: /crea e continua/i }).click();
     await expect(page).toHaveURL(/batch=/, { timeout: 20000 });
 
-    // Passo 2 (preset) → passo 3 (fonti).
-    await page.getByRole('button', { name: /^continua$/i }).first().click();
+    // «Crea e continua» porta direttamente a CARICA: la scelta del preset e il
+    // suo contenuto stanno nella stessa schermata di prima, quindi il
+    // «Continua» in mezzo non c'è più.
+    await chiudiGuida(page);
     await expect(page.getByText(/scegli da dove arrivano i dati/i)).toBeVisible({ timeout: 15000 });
 
     // La scheda «PDF» non è più «In arrivo»: si può scegliere.

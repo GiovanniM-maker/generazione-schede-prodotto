@@ -11,7 +11,7 @@ import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { COMPLETENESS_LABELS, COMPLETENESS_TONES, type Completeness } from '@/lib/completeness';
-import type { StepDef, SampleCopy } from '@/components/batch/passi/tipi';
+import type { SampleCopy } from '@/components/batch/passi/tipi';
 
 // I pezzi che i passi si passano fra loro.
 //
@@ -31,13 +31,14 @@ export function ProgressBar({
   totaleNoto,
   azione,
 }: {
-  steps: StepDef[];
+  steps: { id: string; title: string }[];
   activeIndex: number;
   totaleNoto: boolean;
   /** Un comando che sta con l'intestazione, non con la barra. */
   azione?: React.ReactNode;
 }) {
-  const pct = steps.length > 1 ? Math.round((Math.max(0, activeIndex) / (steps.length - 1)) * 100) : 0;
+  const pct =
+    steps.length > 1 ? Math.round((Math.max(0, activeIndex) / (steps.length - 1)) * 100) : 0;
   return (
     <div>
       <div className="mb-2 flex min-h-[1.75rem] items-center justify-between gap-2 text-xs text-ink-500">
@@ -51,14 +52,17 @@ export function ProgressBar({
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
-        <div className="h-full rounded-full bg-brand-accent transition-all" style={{ width: `${pct}%` }} />
+        <div
+          className="h-full rounded-full bg-brand-accent transition-all"
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
 }
 
 export function StepPrimaryAction({
-  stepId,
+  passo,
   busy,
   motivi,
   step3Label = 'Continua',
@@ -69,7 +73,14 @@ export function StepPrimaryAction({
   avvioBloccato = false,
   onNext,
 }: {
-  stepId: number;
+  /**
+   * Il passo su cui si sta lavorando dentro lo stadio.
+   *
+   * Non è più «lo stadio»: dentro «Carica» la fonte si sceglie prima che ci
+   * sia qualcosa da caricare, quindi il comando in fondo cambia man mano. Chi
+   * lo calcola è `passoAttivo` in `@app/core/stadi`.
+   */
+  passo: number | null;
   busy: boolean;
   /** Perché non si può andare avanti, per passo. Vuoto = si può. */
   motivi: Record<number, string>;
@@ -81,45 +92,54 @@ export function StepPrimaryAction({
   avvioBloccato?: boolean;
   onNext: () => void;
 }) {
-
-  if (stepId === 1) {
+  if (passo === 1) {
     return (
       <Button type="submit" form="passo-batch" loading={busy} nonDisponibile={motivi[1]}>
         Crea e continua <ArrowRight className="h-4 w-4" />
       </Button>
     );
   }
-  if (stepId === 3) {
+  if (passo === 3) {
     // Con l'etichetta, non solo la rotella: leggere trenta PDF o cercare
     // cinquecento codici dura, e «sta girando» non basta a far capire cosa.
     return (
       <Button onClick={onSources} loading={busy} nonDisponibile={motivi[3]}>
-        {busy ? step3BusyLabel : <>{step3Label} <ArrowRight className="h-4 w-4" /></>}
+        {busy ? (
+          step3BusyLabel
+        ) : (
+          <>
+            {step3Label} <ArrowRight className="h-4 w-4" />
+          </>
+        )}
       </Button>
     );
   }
-  if (stepId === 5) {
+  if (passo === 5) {
     return (
       <Button onClick={onNext} loading={busy} nonDisponibile={motivi[5]}>
         Continua <ArrowRight className="h-4 w-4" />
       </Button>
     );
   }
-  if (stepId === 10) {
+  if (passo === 10) {
     return (
       <Button onClick={onNext} loading={busy} nonDisponibile={motivi[10]}>
         Continua <ArrowRight className="h-4 w-4" />
       </Button>
     );
   }
-  if (stepId === 11) {
+  if (passo === 11) {
     return (
       <Button
         onClick={onStart}
         loading={busy}
         // Il motivo per esteso sta nel riquadro qui sopra: qui basta dire che
         // c'è, e dove leggerlo.
-        nonDisponibile={avvioBloccato ? 'Il controllo sui crediti non è passato: il motivo è scritto qui sopra.' : ''}
+        nonDisponibile={
+          avvioBloccato
+            ? 'Il controllo sui crediti non è passato: il motivo è scritto qui sopra.'
+            : ''
+        }
       >
         <Sparkles className="h-4 w-4" /> Avvia generazione
       </Button>
@@ -133,7 +153,13 @@ export function StepPrimaryAction({
   );
 }
 
-export function PreviewTable({ headers, rows }: { headers: string[]; rows: Array<Record<string, string>> }) {
+export function PreviewTable({
+  headers,
+  rows,
+}: {
+  headers: string[];
+  rows: Array<Record<string, string>>;
+}) {
   if (rows.length === 0) return <p className="text-sm text-ink-500">Nessuna riga da mostrare.</p>;
   const shown = rows;
   return (
@@ -162,7 +188,9 @@ export function PreviewTable({ headers, rows }: { headers: string[]; rows: Array
                     className="whitespace-nowrap border-b border-ink-100 px-3 py-1.5 text-ink-700"
                     title={r[h] ?? ''}
                   >
-                    <span className="block max-w-[200px] truncate">{r[h] || <span className="text-ink-300">—</span>}</span>
+                    <span className="block max-w-[200px] truncate">
+                      {r[h] || <span className="text-ink-300">—</span>}
+                    </span>
                   </td>
                 ))}
               </tr>
@@ -171,7 +199,8 @@ export function PreviewTable({ headers, rows }: { headers: string[]; rows: Array
         </table>
       </div>
       <p className="border-t border-ink-100 bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
-        {headers.length} colonne · anteprima di {shown.length} righe {rows.length > shown.length ? `(su ${rows.length})` : ''}
+        {headers.length} colonne · anteprima di {shown.length} righe{' '}
+        {rows.length > shown.length ? `(su ${rows.length})` : ''}
       </p>
     </div>
   );
@@ -194,7 +223,9 @@ export function FilesTable({ files }: { files: UploadedFileSummary[] }) {
             <TD>{f.sku ?? '—'}</TD>
             <TD>{f.filename}</TD>
             <TD>
-              <Badge tone={f.status === 'valid' || f.status === 'ready' ? 'green' : 'amber'}>{f.status}</Badge>
+              <Badge tone={f.status === 'valid' || f.status === 'ready' ? 'green' : 'amber'}>
+                {f.status}
+              </Badge>
             </TD>
             <TD className="text-ink-500">{f.problem ?? '—'}</TD>
           </TR>
@@ -204,14 +235,24 @@ export function FilesTable({ files }: { files: UploadedFileSummary[] }) {
   );
 }
 
-export function Metric({ label, value, tone = 'gray' }: { label: string; value: number; tone?: BadgeTone }) {
+export function Metric({
+  label,
+  value,
+  tone = 'gray',
+}: {
+  label: string;
+  value: number;
+  tone?: BadgeTone;
+}) {
   return (
     <Card>
       <CardContent className="p-4">
         <div className="text-2xl font-semibold text-ink-900">{value}</div>
         <div className="mt-1 text-sm text-ink-500">{label}</div>
         <div className="mt-2">
-          <Badge tone={tone}>{tone === 'red' ? 'da risolvere' : tone === 'amber' ? 'da controllare' : 'ok'}</Badge>
+          <Badge tone={tone}>
+            {tone === 'red' ? 'da risolvere' : tone === 'amber' ? 'da controllare' : 'ok'}
+          </Badge>
         </div>
       </CardContent>
     </Card>
@@ -241,14 +282,34 @@ export function SkuList({ title, skus, tone }: { title: string; skus: string[]; 
   );
 }
 
-export function OptionRow({ checked, onSelect, title, description }: { checked: boolean; onSelect: () => void; title: string; description: string }) {
+export function OptionRow({
+  checked,
+  onSelect,
+  title,
+  description,
+}: {
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  description: string;
+}) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={cn('flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors', checked ? 'border-brand-accent bg-brand-soft/70' : 'border-ink-200 bg-white hover:bg-ink-50')}
+      className={cn(
+        'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+        checked
+          ? 'border-brand-accent bg-brand-soft/70'
+          : 'border-ink-200 bg-white hover:bg-ink-50',
+      )}
     >
-      <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', checked ? 'border-brand-accent bg-brand-accent' : 'border-ink-300')}>
+      <span
+        className={cn(
+          'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+          checked ? 'border-brand-accent bg-brand-accent' : 'border-ink-300',
+        )}
+      >
         {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
       </span>
       <span>
@@ -272,14 +333,20 @@ export function SampleOutput({ content }: { content: SampleCopy }) {
       )}
       {content.shortDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Descrizione breve</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+            Descrizione breve
+          </p>
           <p className="mt-0.5 text-sm text-ink-700">{content.shortDescription}</p>
         </div>
       )}
       {content.longDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Descrizione lunga</p>
-          <p className="mt-0.5 whitespace-pre-line text-sm text-ink-700">{content.longDescription}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+            Descrizione lunga
+          </p>
+          <p className="mt-0.5 whitespace-pre-line text-sm text-ink-700">
+            {content.longDescription}
+          </p>
         </div>
       )}
       {bullets.length > 0 && (
@@ -294,7 +361,9 @@ export function SampleOutput({ content }: { content: SampleCopy }) {
       )}
       {content.metaDescription && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Meta description</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+            Meta description
+          </p>
           <p className="mt-0.5 text-sm text-ink-500">{content.metaDescription}</p>
         </div>
       )}
@@ -304,20 +373,25 @@ export function SampleOutput({ content }: { content: SampleCopy }) {
 
 // Riepilogo completezza del campione (stato + attributi mancanti).
 export function SampleCompleteness({ completeness }: { completeness: Completeness }) {
-  const isPartial =
-    completeness.status === 'partial' || completeness.status === 'insufficient';
+  const isPartial = completeness.status === 'partial' || completeness.status === 'insufficient';
   return (
     <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 p-3">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-ink-700">Completezza campione</span>
-        <Badge tone={COMPLETENESS_TONES[completeness.status]}>{COMPLETENESS_LABELS[completeness.status]}</Badge>
+        <Badge tone={COMPLETENESS_TONES[completeness.status]}>
+          {COMPLETENESS_LABELS[completeness.status]}
+        </Badge>
       </div>
       {isPartial && (
-        <p className="text-sm text-amber-700">Generazione parziale: i dati mancanti non sono stati inventati.</p>
+        <p className="text-sm text-amber-700">
+          Generazione parziale: i dati mancanti non sono stati inventati.
+        </p>
       )}
       {completeness.missingAttributes.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Attributi mancanti</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+            Attributi mancanti
+          </p>
           <div className="mt-1 flex flex-wrap gap-1">
             {completeness.missingAttributes.map((a) => (
               <span key={a} className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
@@ -385,5 +459,49 @@ export function ControlloCrediti({ diritti }: { diritti: VerificaBatchResult | n
       </p>
       {avvisoSoloImmagini && <Avviso tono="informazione">{avvisoSoloImmagini}</Avviso>}
     </>
+  );
+}
+
+/**
+ * Il titolo di un pezzo dentro uno stadio.
+ *
+ * Serve da quando gli undici passi sono diventati cinque stadi: dentro
+ * «Carica» ci sono tre cose una sotto l'altra, e senza un titolo si legge un
+ * muro. Il numero del vecchio passo NON compare — era proprio quel conto a far
+ * sembrare il lavoro lungo.
+ *
+ * `attivo` marca il pezzo su cui si sta lavorando adesso: gli altri restano
+ * leggibili ma non chiedono attenzione. Non li spegne e non li nasconde —
+ * nasconderli vorrebbe dire rifare undici passi con un'altra faccia.
+ */
+export function Sezione({
+  titolo,
+  attivo = false,
+  children,
+}: {
+  titolo: string;
+  attivo?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <h2
+        className={cn(
+          'flex items-center gap-2 text-xs font-semibold uppercase tracking-wide',
+          attivo ? 'text-brand-accent' : 'text-ink-500',
+        )}
+      >
+        {/* Un pallino, non un numero: dice «sei qui» senza dire «di undici». */}
+        <span
+          aria-hidden="true"
+          className={cn(
+            'h-1.5 w-1.5 shrink-0 rounded-full',
+            attivo ? 'bg-brand-accent' : 'bg-ink-300',
+          )}
+        />
+        {titolo}
+      </h2>
+      {children}
+    </section>
   );
 }

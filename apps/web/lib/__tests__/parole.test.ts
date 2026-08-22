@@ -73,13 +73,25 @@ describe('i contatori dicono cosa è successo', () => {
 });
 
 describe('il conto dei passi non cambia strada facendo', () => {
-  it('il totale si dice solo quando si conosce', () => {
-    // Con un Excel i passi sono due in più: finché la fonte non è scelta il
-    // totale non si sa, e prometterne uno vuol dire passare da «di 9» a «di 11»
-    // senza aver fatto niente di sbagliato.
+  it('il totale è fisso, e non dipende più dalla fonte', () => {
+    // PRIMA: con un Excel i passi erano due in più, quindi finché la fonte non
+    // era scelta il totale non si sapeva. La barra passava da «di 9» a «di 11»
+    // senza che si fosse fatto niente di sbagliato, e la regola era «non dirlo
+    // finché non lo sai» — un rimedio al sintomo.
+    //
+    // ADESSO gli stadi sono CINQUE sempre: cambia cosa c'è dentro «Mappa», non
+    // quanti stadi ci sono. Il totale si può dire subito perché è vero subito,
+    // ed è la proprietà più forte da chiedere.
     const wizard = wizardIntero();
-    expect(wizard).toMatch(/totaleNoto \? ` di \$\{steps\.length\}` : ''/);
-    expect(wizard).toMatch(/totaleNoto=\{sourceMode !== null\}/);
+    expect(wizard).toMatch(/steps=\{STADI\.map\(/);
+    expect(wizard, 'il totale è tornato a dipendere dalla fonte').not.toMatch(
+      /totaleNoto=\{[^}]*sourceMode/,
+    );
+    const core = readFileSync(
+      join(process.cwd(), 'packages/core/src/stadi.ts'),
+      'utf8',
+    );
+    expect(core).toMatch(/export const STADI = \[[^\]]+\] as const/);
   });
 });
 
@@ -384,10 +396,10 @@ describe('i crediti si dicono con le parole del prodotto', () => {
     // raggiungibile col Tab — un comando che non si incontra è una funzione
     // nascosta, non spenta — e ne mette il motivo dentro al nome.
     expect(wizard, 'il pulsante di avvio non si ferma quando i crediti non bastano').toMatch(
-      /nonDisponibile=\{avvioBloccato \?/,
+      /nonDisponibile=\{\s*avvioBloccato\s*\?/,
     );
     expect(wizard, 'e non dice perché si è fermato').toMatch(
-      /nonDisponibile=\{avvioBloccato \? '[^']{20,}'/,
+      /nonDisponibile=\{\s*avvioBloccato\s*\?\s*'[^']{20,}'/,
     );
   });
 
