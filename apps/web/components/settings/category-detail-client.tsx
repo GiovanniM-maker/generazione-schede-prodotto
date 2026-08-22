@@ -247,6 +247,7 @@ function RecognitionHintCard({
       {editable ? (
         <>
           <Textarea
+            aria-label="Come si riconosce questa categoria dalle foto"
             className="mt-3"
             rows={3}
             value={value}
@@ -347,6 +348,7 @@ function CategoryAttributeRow({
             Prompt di estrazione
           </label>
           <Textarea
+            aria-label="Istruzioni di estrazione per questa categoria"
             rows={3}
             value={extraction}
             disabled={!editable}
@@ -359,6 +361,7 @@ function CategoryAttributeRow({
             Prompt di generazione
           </label>
           <Textarea
+            aria-label="Istruzioni di scrittura per questa categoria"
             rows={3}
             value={generation}
             disabled={!editable}
@@ -459,7 +462,8 @@ function AddAttributeModal({
   return (
     <Overlay open={open} onClose={onClose} title="Aggiungi attributo">
       <div className="space-y-4">
-        <Select value={value} onChange={(e) => setValue(e.target.value)}>
+        <Select
+          aria-label="Attributo da aggiungere" value={value} onChange={(e) => setValue(e.target.value)}>
           {available.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name} · {etichettaTipoDato(a.dataType)}

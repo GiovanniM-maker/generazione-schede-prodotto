@@ -77,6 +77,7 @@ export function InboxClient({ initial }: { initial: DoubtView[] }) {
                 }}
               >
                 <Input
+                  aria-label="Correggi il valore"
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
                   placeholder="Valore corretto"

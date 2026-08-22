@@ -2348,6 +2348,7 @@ function Step3({
                         {etichetta}
                       </Label>
                       <Select
+                        aria-label={`Colonna del foglio per «${chiave}»`}
                         id={`sku-col-${chiave}`}
                         value={skuMappatura[chiave] ?? ''}
                         onChange={(e) =>
@@ -2688,6 +2689,7 @@ function Step5({
             <span className="text-sm text-ink-600">Trascina qui le immagini o clicca per selezionarle (.jpg, .jpeg, .png, .webp, .zip)</span>
             <span className="text-xs text-ink-500">Caricamento diretto e in parallelo: veloce anche con centinaia di immagini.</span>
             <input
+              aria-label="Scegli le foto dei prodotti"
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.zip"
               multiple
@@ -2893,6 +2895,7 @@ function CategoryColumnValidator({
                 «{r.value}»
               </span>
               <Select
+                aria-label={`Categoria per «${r.value}»`}
                 value={overrides[r.value] ?? ''}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -3294,6 +3297,7 @@ function Step8({
               {attr.isRequired && <Badge tone="amber">obbligatorio</Badge>}
             </div>
             <Select
+              aria-label={`Colonna del file per «${attr.name}»`}
               value={mapping[attr.id] ?? ''}
               onChange={(e) => {
                 const v = e.target.value;

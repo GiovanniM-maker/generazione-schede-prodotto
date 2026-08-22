@@ -440,7 +440,8 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium text-ink-700">Tipo di dato</label>
-            <Select value={importDataType} onChange={(e) => setImportDataType(e.target.value)}>
+            <Select
+              aria-label="Cosa stai incollando" value={importDataType} onChange={(e) => setImportDataType(e.target.value)}>
               <option value="text">Testo</option>
               <option value="boolean">Sì/No (booleano)</option>
               <option value="integer">Numero intero</option>
@@ -638,6 +639,7 @@ function CategoryRecognitionEditor({
               ci sta). Un esempio troncato a metà frase insegna peggio di nessun
               esempio. */}
           <Textarea
+            aria-label="Come si riconosce questa categoria dalle foto"
             className="mt-2"
             rows={3}
             value={value}
@@ -768,6 +770,7 @@ function AttributeEditor({
             Prompt di estrazione
           </label>
           <Textarea
+            aria-label="Istruzioni di estrazione del preset"
             rows={3}
             value={extraction}
             disabled={!editable}
@@ -780,6 +783,7 @@ function AttributeEditor({
             Prompt di generazione
           </label>
           <Textarea
+            aria-label="Istruzioni di scrittura del preset"
             rows={3}
             value={generation}
             disabled={!editable}
@@ -995,7 +999,8 @@ function AddAttributeModal({
   return (
     <Overlay open={open} onClose={onClose} title="Aggiungi attributo">
       <div className="space-y-4">
-        <Select value={value} onChange={(e) => setValue(e.target.value)}>
+        <Select
+          aria-label="Attributo da aggiungere" value={value} onChange={(e) => setValue(e.target.value)}>
           {available.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name} · {etichettaTipoDato(a.dataType)}

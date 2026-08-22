@@ -119,7 +119,8 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
                   <span className="text-xs text-ink-600">
                     Assegna a tutti i {withoutCategory} senza categoria:
                   </span>
-                  <Select value={bulk} onChange={(e) => setBulk(e.target.value)} className="max-w-[220px]">
+                  <Select
+                    aria-label="Assegna una categoria a tutte le righe scelte" value={bulk} onChange={(e) => setBulk(e.target.value)} className="max-w-[220px]">
                     <option value="">— scegli categoria —</option>
                     {cats.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -147,6 +148,7 @@ export function CategoryAssigner({ batchId, reloadKey }: { batchId: string; relo
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
+                        aria-label={`Categoria di ${p.name ?? p.sku ?? "questa riga"}`}
                         value={p.category ? (catIdByName.get(p.category) ?? '') : ''}
                         onChange={(e) => assignOne(p.id, e.target.value)}
                         disabled={busyId === p.id}
