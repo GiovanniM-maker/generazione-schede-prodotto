@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EVENTI_DI_GUASTO } from '@app/core';
 import { FakeDb, SCHEMA_APP } from './fake-supabase.js';
 
 // ---------------------------------------------------------------------------
@@ -119,8 +120,10 @@ describe('la raccolta degli errori', () => {
 });
 
 describe('cosa mostra il pannello', () => {
+  // La 42 è l'ultima a ridefinire `pannello_servizio`: leggere la 27 vorrebbe
+  // dire provare una versione della funzione che in produzione non esiste più.
   const sql = readFileSync(
-    join(process.cwd(), 'supabase/migrations/20250101000027_pannello_servizio.sql'),
+    join(process.cwd(), 'supabase/migrations/20250101000042_allarmi.sql'),
     'utf8',
   );
 
@@ -136,10 +139,20 @@ describe('cosa mostra il pannello', () => {
     expect(reconcile).toMatch(/FERMO_DA_MS = 10 \* 60 \* 1000/);
   });
 
-  it('raccoglie i guasti che il prodotto già registra', () => {
-    for (const evento of ['write_failed', 'credit_ledger_failed', 'unhandled_error']) {
-      expect(sql, evento).toContain(evento);
-    }
+  it('raccoglie gli stessi guasti che il codice manda per email', () => {
+    // Le due liste devono coincidere, non «contenersi». Un nome che sta solo
+    // nel database arriva nel pannello e mai per email; uno che sta solo nel
+    // codice arriva per email e non compare nel pannello di chi va a
+    // guardare — e in entrambi i casi si scopre da un cliente che scrive.
+    const elencoSql = /select array\[([\s\S]*?)\]::text\[\]/.exec(sql)?.[1] ?? '';
+    const nelSql = [...elencoSql.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(nelSql).toEqual([...EVENTI_DI_GUASTO]);
+  });
+
+  it('dice quando è partito l’ultimo avviso', () => {
+    // Senza questo, «nessun guasto» e «nessun avviso configurato» si leggono
+    // uguali nel pannello, e il secondo è il caso in cui non si sa niente.
+    expect(sql).toContain('ultimo_avviso');
   });
 
   it('è una chiamata sola', () => {

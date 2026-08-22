@@ -37,6 +37,7 @@ export * from './immagini-web.js';
 export * from './lista-sku.js';
 export * from './coda.js';
 export * from './latenza.js';
+export * from './allarmi.js';
 export * from './conferma-identita.js';
 export * from './ip-guard.js';
 export * from './chunk.js';

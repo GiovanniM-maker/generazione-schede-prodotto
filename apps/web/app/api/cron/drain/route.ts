@@ -13,6 +13,7 @@ import { getSessionUser } from '@/lib/auth';
 import { notifyCompletedBatches } from '@/lib/notify';
 import { finalizeDoubtsForCompletedBatches } from '@/lib/doubts-core';
 import { resumeVisualAnalysis } from '@/lib/visual-analysis-resume';
+import { controllaGuasti, type EsitoAllarmi } from '@/lib/allarmi';
 
 // Drena la coda di generazione lato serverless: fa il lavoro del worker senza
 // un processo separato.
@@ -40,6 +41,12 @@ interface EsitoDrain {
   empty: boolean;
   /** Batch rimessi in carreggiata da questo giro: 0 è la situazione normale. */
   sbloccati?: { fantasma: number; chiusi: number; jobRipresi: number; creditiRestituiti: number };
+  /**
+   * Cosa ha fatto il controllo dei guasti. Sta nella risposta di proposito: è
+   * l'unico posto da cui si può verificare, senza aspettare che si rompa
+   * qualcosa, che gli avvisi siano davvero configurati e vivi.
+   */
+  allarmi?: EsitoAllarmi;
   error?: string;
 }
 
@@ -68,7 +75,10 @@ async function drain(): Promise<EsitoDrain> {
       // Per ultimo il controllo dei batch fermi: la coda è vuota, quindi
       // "nessun job attivo" adesso vuol dire davvero nessun job attivo.
       const sbloccati = await riconciliaBatchBloccati(service, { deadline });
-      return { processed, empty: true, sbloccati };
+      // E in fondo a tutto gli avvisi: così un guasto capitato dentro questo
+      // stesso giro — riconciliazione compresa — è già nella finestra letta.
+      const allarmi = await controllaGuasti(service);
+      return { processed, empty: true, sbloccati, allarmi };
     }
     await Promise.all(
       messages.map(async (m) => {
