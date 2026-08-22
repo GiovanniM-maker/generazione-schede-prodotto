@@ -18,7 +18,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
@@ -185,7 +185,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
         onError={setError}
       />
 
-      <Modal
+      <Overlay
         errore={error}
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
@@ -199,7 +199,7 @@ export function CategoryDetailClient({ detail }: { detail: CategoryDetail }) {
             onClose={() => setCopilotOpen(false)}
           />
         )}
-      </Modal>
+      </Overlay>
     </PageShell>
   );
 }
@@ -395,7 +395,7 @@ function CategoryAttributeRow({
         )}
       </div>
 
-      <ConfirmDialog
+      <ConfermaDistruttiva
         open={confirmRemove}
         title="Rimuovi attributo"
         message={`Rimuovere "${attr.name}" dalla categoria?`}
@@ -457,7 +457,7 @@ function AddAttributeModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Aggiungi attributo">
+    <Overlay open={open} onClose={onClose} title="Aggiungi attributo">
       <div className="space-y-4">
         <Select value={value} onChange={(e) => setValue(e.target.value)}>
           {available.map((a) => (
@@ -475,6 +475,6 @@ function AddAttributeModal({
           </Button>
         </div>
       </div>
-    </Modal>
+    </Overlay>
   );
 }

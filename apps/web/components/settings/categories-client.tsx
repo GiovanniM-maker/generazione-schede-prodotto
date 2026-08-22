@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
-import { Modal } from '@/components/settings/modal';
+import { Overlay } from '@/components/ui/overlay';
 import { CopilotPanel } from '@/components/copilot/copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
 
@@ -250,7 +250,7 @@ export function CategoriesClient({
         )}
       </Card>
 
-      <Modal
+      <Overlay
         errore={error}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -320,9 +320,9 @@ export function CategoriesClient({
             </Button>
           </div>
         </form>
-      </Modal>
+      </Overlay>
 
-      <Modal
+      <Overlay
         errore={error}
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -371,9 +371,9 @@ export function CategoriesClient({
             </Button>
           </div>
         </div>
-      </Modal>
+      </Overlay>
 
-      <Modal
+      <Overlay
         errore={error}
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
@@ -387,7 +387,7 @@ export function CategoriesClient({
             onClose={() => setCopilotOpen(false)}
           />
         )}
-      </Modal>
+      </Overlay>
     </PageShell>
   );
 }

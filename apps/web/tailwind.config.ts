@@ -6,6 +6,67 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
+      // ---------------------------------------------------------------
+      // La scala tipografica, ridefinita invece che riscritta ovunque.
+      //
+      // Il conteggio era questo: `text-sm` 298 volte e `text-xs` 198, cioè
+      // **l'86% di tutto il testo del prodotto in due sole misure** — 14 px e
+      // 12 px. `text-base` appena 25 volte. Non era una scala: era una taglia
+      // sola con una variante più piccola, e 198 usi di 12 px sono un
+      // problema di leggibilità prima ancora che di gerarchia.
+      //
+      // Cambiarli uno per uno voleva dire toccare cinquecento punti e
+      // sbagliarne una parte. Ridefinire i due gradini li sposta tutti
+      // insieme: `sm` diventa il corpo vero (15 px) e `xs` smette di essere
+      // sotto la soglia della lettura comoda (13 px).
+      //
+      // `micro` resta a 11 px ed è l'UNICO posto in cui si scende: le
+      // etichette di colonna maiuscole, che si guardano e non si leggono.
+      // ---------------------------------------------------------------
+      fontSize: {
+        micro: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.08em' }], // 11px
+        xs: ['0.8125rem', { lineHeight: '1.125rem' }],                          // 13px (era 12)
+        sm: ['0.9375rem', { lineHeight: '1.4375rem' }],                         // 15px (era 14)
+        base: ['1rem', { lineHeight: '1.6rem' }],                               // 16px
+      },
+      // L'impilamento ha cinque piani e un nome ciascuno. Prima erano otto
+      // numeri scelti a caso — 10, 20, 30, 40, 50, 60, 70, 100 — e il
+      // prossimo pannello sarebbe stato il nono.
+      zIndex: {
+        sticky: '10',
+        header: '20',
+        overlay: '40',
+        /** Guida a fumetti e chat d'aiuto: sopra le finestre, sotto i riscontri. */
+        guida: '70',
+        /**
+         * I riscontri stanno sopra tutto il resto.
+         *
+         * Non è una preferenza: un errore deve poter comparire mentre è aperta
+         * una finestra, durante la guida guidata, e sopra la barra agganciata
+         * in fondo al wizard — che vive a 60. A 60 ci stava anche il riscontro,
+         * e un messaggio d'errore nascosto dietro una barra è un messaggio che
+         * non esiste.
+         *
+         * Sopra di lui resta solo il collegamento «salta al contenuto» (100),
+         * che deve essere raggiungibile sempre.
+         */
+        toast: '80',
+      },
+      transitionDuration: {
+        // I tempi veri stanno in `@app/core/interfaccia` e sono provati lì.
+        // Questo è il solo gradino che manca a Tailwind fra 100 e 150.
+        120: '120ms',
+      },
+      keyframes: {
+        scintillio: {
+          '0%': { backgroundPosition: '100% 0' },
+          '100%': { backgroundPosition: '0 0' },
+        },
+        comparsa: {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+      },
       colors: {
         // ---------------------------------------------------------------
         // L'inchiostro, caldo come il fondo.

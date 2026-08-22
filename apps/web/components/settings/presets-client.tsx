@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
-import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { Avviso } from '@/components/ui/avviso';
 import { creaPresetDiEsempio } from '@/lib/actions/esempio';
 
@@ -257,7 +257,7 @@ export function PresetsClient({
       </Card>
 
       {/* Nuovo preset */}
-      <Modal
+      <Overlay
         errore={error}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -308,10 +308,10 @@ export function PresetsClient({
             </Button>
           </div>
         </form>
-      </Modal>
+      </Overlay>
 
       {/* Rinomina */}
-      <Modal
+      <Overlay
         errore={error}
         open={Boolean(renameTarget)}
         onClose={() => setRenameTarget(null)}
@@ -339,10 +339,10 @@ export function PresetsClient({
             </Button>
           </div>
         </div>
-      </Modal>
+      </Overlay>
 
       {/* Archivia */}
-      <ConfirmDialog
+      <ConfermaDistruttiva
         open={Boolean(archiveTarget)}
         title="Archivia preset"
         message={`Vuoi archiviare "${archiveTarget?.name}"? Non sarà più visibile nell'elenco.`}

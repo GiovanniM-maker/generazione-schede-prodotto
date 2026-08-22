@@ -13,7 +13,6 @@ import {
   Save,
   ClipboardList,
   Eraser,
-  X,
 } from 'lucide-react';
 import {
   addCategoryToPreset,
@@ -38,7 +37,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { Modal, ConfirmDialog } from '@/components/settings/modal';
+import { Overlay, ConfermaDistruttiva } from '@/components/ui/overlay';
 import { PresetCopilotPanel } from '@/components/settings/preset-copilot-panel';
 import { Avviso } from '@/components/ui/avviso';
 import { etichettaTipoDato } from '@/lib/tipi-dato';
@@ -432,7 +431,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       />
 
       {/* Importa attributi da lista */}
-      <Modal
+      <Overlay
         errore={error}
         open={importAttrOpen}
         onClose={() => setImportAttrOpen(false)}
@@ -488,10 +487,10 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Overlay>
 
       {/* Importa categorie da lista */}
-      <Modal
+      <Overlay
         errore={error}
         open={importCatOpen}
         onClose={() => setImportCatOpen(false)}
@@ -526,38 +525,25 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Overlay>
 
-      {/* Costruttore di preset con AI — pannello laterale ampio */}
-      {copilotOpen && (
-        <div className="fixed inset-0 z-40 flex justify-end">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setCopilotOpen(false)}
-            aria-hidden
-          />
-          <aside className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-200 bg-white px-6 py-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Sparkles className="h-5 w-5 text-brand-accent" />
-                <h2 className="font-semibold text-ink-900">Costruisci il preset con l’AI</h2>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setCopilotOpen(false)} aria-label="Chiudi">
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1 px-6 pb-5 pt-4">
-              <PresetCopilotPanel
-                presetId={detail.preset.id}
-                onClose={() => setCopilotOpen(false)}
-              />
-            </div>
-          </aside>
-        </div>
-      )}
+      {/* Costruttore di preset con AI — pannello laterale ampio.
+          Era l'overlay messo peggio dei quattro: niente `role="dialog"`,
+          niente Esc, niente trappola del fuoco, niente blocco dello
+          scorrimento. Chi ci arrivava da tastiera usciva subito nella pagina
+          coperta e non riusciva più a rientrare. */}
+      <Overlay
+        open={copilotOpen}
+        onClose={() => setCopilotOpen(false)}
+        title="Costruisci il preset con l’AI"
+        forma="pannello"
+        className="w-[min(44rem,100%)]"
+      >
+        <PresetCopilotPanel presetId={detail.preset.id} onClose={() => setCopilotOpen(false)} />
+      </Overlay>
 
       {/* Svuota preset */}
-      <ConfirmDialog
+      <ConfermaDistruttiva
         open={confirmClear}
         onCancel={() => setConfirmClear(false)}
         title="Svuotare il preset?"
@@ -584,7 +570,7 @@ export function PresetDetailClient({ detail }: { detail: PresetDetail }) {
       )}
 
       {/* Rimuovi categoria */}
-      <ConfirmDialog
+      <ConfermaDistruttiva
         open={Boolean(removeCatTarget)}
         title="Rimuovi categoria"
         message="La categoria e i suoi attributi verranno rimossi da questa bozza del preset."
@@ -830,7 +816,7 @@ function AttributeEditor({
         )}
       </div>
 
-      <ConfirmDialog
+      <ConfermaDistruttiva
         open={confirmRemove}
         title="Rimuovi attributo"
         message={`Rimuovere "${attr.name}" da questa bozza del preset?`}
@@ -906,7 +892,7 @@ function AddCategoryModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Aggiungi categorie">
+    <Overlay open={open} onClose={onClose} title="Aggiungi categorie">
       <div className="space-y-3">
         {/* Era un `<input>` scritto a mano: stesso bordo, ma altezza e anello
             di fuoco diversi da ogni altro campo del prodotto. */}
@@ -957,7 +943,7 @@ function AddCategoryModal({
           </div>
         </div>
       </div>
-    </Modal>
+    </Overlay>
   );
 }
 
@@ -1007,7 +993,7 @@ function AddAttributeModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Aggiungi attributo">
+    <Overlay open={open} onClose={onClose} title="Aggiungi attributo">
       <div className="space-y-4">
         <Select value={value} onChange={(e) => setValue(e.target.value)}>
           {available.map((a) => (
@@ -1034,6 +1020,6 @@ function AddAttributeModal({
           </Button>
         </div>
       </div>
-    </Modal>
+    </Overlay>
   );
 }

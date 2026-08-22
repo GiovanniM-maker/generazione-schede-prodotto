@@ -32,8 +32,13 @@ function tsx(dir: string): { path: string; src: string }[] {
 
 const sorgenti = [...tsx('components'), ...tsx('app')];
 
-describe('la modale è davvero una modale', () => {
-  const modale = leggi('components/settings/modal.tsx');
+// `components/settings/modal.tsx` non esiste più: era una delle QUATTRO
+// implementazioni di finestra sovrapposta, ed era l'unica fatta bene. Adesso
+// è l'unica e basta, e vive in `components/ui/overlay.tsx` — dove le stesse
+// garanzie valgono anche per il pannello laterale e per il foglio dal basso,
+// che prima non le avevano.
+describe('la finestra sovrapposta è davvero modale', () => {
+  const modale = leggi('components/ui/overlay.tsx');
 
   it('si dichiara per quello che è', () => {
     expect(modale).toMatch(/role="dialog"/);
@@ -50,8 +55,12 @@ describe('la modale è davvero una modale', () => {
   it('il fuoco resta dentro: Tab e Shift+Tab girano', () => {
     expect(modale).toMatch(/e\.key !== 'Tab'/);
     expect(modale).toMatch(/e\.shiftKey/);
-    expect(modale).toMatch(/ultimo\.focus\(\)/);
-    expect(modale).toMatch(/primo\.focus\(\)/);
+    // La decisione su QUALE elemento riceve il fuoco è uscita dal componente:
+    // sta in `@app/core/interfaccia`, dove si prova su tutti i casi senza
+    // montare un DOM — compresi i tre che si sbagliano sempre (fuoco fuori dal
+    // gruppo, gruppo vuoto, gruppo con un elemento solo).
+    expect(modale).toMatch(/prossimoFuoco\(/);
+    expect(modale).toMatch(/serveIntervenire\(/);
   });
 
   it('e alla chiusura torna da dove era partito', () => {
@@ -66,8 +75,16 @@ describe('la modale è davvero una modale', () => {
     // identità a ogni render: con lei fra le dipendenze la pulizia
     // rimetterebbe il fuoco sul pulsante di apertura *mentre* la modale è
     // aperta, a ogni battuta di tasto.
-    expect(modale).toMatch(/\}, \[open\]\);/);
     expect(modale).toMatch(/chiudi\.current\(\)/);
+    expect(modale).toMatch(/chiudi\.current = onClose/);
+  });
+
+  it('non butta via il lavoro senza chiedere', () => {
+    // Il difetto che nessuna delle quattro implementazioni gestiva: la
+    // finestra si chiude cliccando sul velo, e se dentro c'è un modulo
+    // compilato a metà se ne va tutto in silenzio.
+    expect(modale).toMatch(/sporco/);
+    expect(modale).toMatch(/chiedeUscita/);
   });
 });
 
